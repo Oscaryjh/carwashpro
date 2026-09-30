@@ -30,6 +30,7 @@ import {
 } from "@/lib/catalog-discounts";
 import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
+import { createWalletCheckoutIntent, readWalletCheckoutRecovery, toWalletCheckoutFormData, type WalletCheckoutIntent } from "@/lib/wallet/checkout-intent";
 
 export type CashierCartLine = CashierCatalogItem & { quantity: number };
 
@@ -73,6 +74,8 @@ type CustomerPackageBalanceOption = {
 };
 
 type CashierUnifiedSaleFormProps = {
+  walletCheckoutScope?: string;
+  walletCheckoutEnabled?: boolean;
   action: (formData: FormData) => Promise<CashierSaleState>;
   appointmentError?: string | null;
   branchId: string;
@@ -94,6 +97,8 @@ type CashierUnifiedSaleFormProps = {
 };
 
 export function CashierUnifiedSaleForm({
+  walletCheckoutScope,
+  walletCheckoutEnabled = false,
   action,
   appointmentError = null,
   branchId,
@@ -109,6 +114,22 @@ export function CashierUnifiedSaleForm({
   loyaltySettings,
 }: CashierUnifiedSaleFormProps) {
   const router = useRouter();
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletPending, setWalletPending] = useState<WalletCheckoutIntent | null>(null);
+  const [walletRecoveryBlocked, setWalletRecoveryBlocked] = useState(false);
+  const [walletSending, setWalletSending] = useState(false);
+  const [walletRecoveryKey, setWalletRecoveryKey] = useState<string | null>(null);
+  const walletSendLock = useRef(false);
+  const walletScope = walletCheckoutScope ? `${walletCheckoutScope}:${branchId}` : "";
+  const walletStorageKey = walletRecoveryKey ?? `wallet-checkout:${walletScope}`;
+  useEffect(() => {
+    if (!walletCheckoutScope) return;
+    try {
+      const recovery = readWalletCheckoutRecovery(sessionStorage, walletCheckoutScope);
+      setWalletPending(recovery?.intent ?? null); setWalletRecoveryBlocked(recovery?.blocked ?? false);
+      setWalletRecoveryKey(recovery?.key || null);
+    } catch { setWalletRecoveryBlocked(true); }
+  }, [walletCheckoutScope, branchId]);
   const [appointmentSale] = useState(initialSale);
   const [catalogType, setCatalogType] = useState<CashierCatalogType>(initialCatalogType);
   const [category, setCategory] = useState("All categories");
@@ -518,27 +539,33 @@ export function CashierUnifiedSaleForm({
   }), [draftTotalDiscount, lines, taxSettings, receivedTip]);
 
   const totalCents = Math.max(0, Math.round(amountDue * 100));
+  const walletAmountValid = /^\d+(?:\.\d{1,2})?$/.test(walletAmount);
+  const walletCents = walletAmountValid ? Math.round(Number(walletAmount) * 100) : 0;
+  const fullWallet = walletCents > 0 && walletCents === totalCents;
+  const externalDue = Math.max(0, totalCents - walletCents) / 100;
+  const walletReady = !walletAmount || (walletAmountValid && walletCents === 0) || (walletCheckoutEnabled && !!walletScope && !!customer && walletCents > 0 && walletCents <= totalCents
+    && !isTrainingComplimentary && (fullWallet || !isConvertedTender) && !selectedCustomerPackageIds.length && lines.every(line => line.type !== "package"));
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
-  const cashPaymentReady = paymentMethod !== "CASH" || totalCents === 0 || cashReceivedCents >= totalCents;
-  const cashChange = Math.max(0, cashReceivedCents - totalCents) / 100;
+  const cashPaymentReady = fullWallet || paymentMethod !== "CASH" || totalCents === 0 || cashReceivedCents >= totalCents - walletCents;
+  const cashChange = Math.max(0, cashReceivedCents - (totalCents - walletCents)) / 100;
   const tenderEquivalent = Math.max(0, Number(tenderAmount) || 0) * Math.max(0, Number(exchangeRateToMyr) || 0);
-  const convertedTenderReady = !isConvertedTender || (
+  const convertedTenderReady = fullWallet || !isConvertedTender || (
     Number(tenderAmount) > 0
     && Number(exchangeRateToMyr) > 0
     && Math.round(tenderEquivalent * 100) >= totalCents
   );
-  const paymentReferenceReady = isTrainingComplimentary || paymentMethod === "CASH" || Boolean(paymentReference.trim());
+  const paymentReferenceReady = fullWallet || isTrainingComplimentary || paymentMethod === "CASH" || Boolean(paymentReference.trim());
   const trainingCheckoutReady = !isTrainingComplimentary || (
     checkoutReason.trim().length >= 5 &&
     lines.length > 0 &&
     lines.every((line) => line.type === "service")
   );
   const cashSuggestions = useMemo(() => {
-    const exact = amountDue;
+    const exact = externalDue;
     const roundedFive = Math.ceil(exact / 5) * 5;
     const roundedTen = Math.ceil(exact / 10) * 10;
     return Array.from(new Set([exact, roundedFive, roundedTen].map((value) => value.toFixed(2))));
-  }, [amountDue]);
+  }, [externalDue]);
 
   const canPay = Boolean(
     lines.length &&
@@ -633,13 +660,15 @@ export function CashierUnifiedSaleForm({
   }
 
   async function submitSale(formData: FormData) {
+    if (walletPending || walletRecoveryBlocked || walletSendLock.current) return;
     setSaleError("");
+    if (!walletReady) { setSaleError("Check the wallet amount and payment combination."); return; }
     if (!trainingCheckoutReady) {
       setSaleError("Training / Complimentary requires service items only and a reason of at least 5 characters.");
       return;
     }
     if (!cashPaymentReady) {
-      setSaleError(`Enter at least ${formatMoney(amountDue)} cash received.`);
+      setSaleError(`Enter at least ${formatMoney(externalDue)} cash received.`);
       cashReceivedRef.current?.click();
       return;
     }
@@ -649,6 +678,26 @@ export function CashierUnifiedSaleForm({
     }
 
     let result: Awaited<ReturnType<typeof action>>;
+    if (walletCents) {
+      try {
+        if (readWalletCheckoutRecovery(sessionStorage, walletCheckoutScope!)) { setWalletRecoveryBlocked(true); return; }
+        const intent = createWalletCheckoutIntent(formData, walletScope, [
+          { label: "Customer", value: customer?.name ?? "" },
+          { label: "Branch", value: branches.find(row => row.id === branchId)?.name ?? branchId },
+          ...lines.map(line => ({ label: line.name, value: `${line.quantity} × ${formatMoney(line.price)}` })),
+          { label: "Total", value: formatMoney(amountDue) }, { label: "Wallet", value: formatMoney(walletCents / 100) },
+          { label: "External payment", value: fullWallet ? "None" : `${selectedPaymentMethod?.label}: ${formatMoney(externalDue)}` },
+          { label: "Reference", value: fullWallet ? "" : paymentReference },
+          { label: "Appointment", value: appointmentSale?.appointmentId ?? "None" },
+          { label: "Assigned staff", value: staffOptions.find(row => row.id === assignedStaffId)?.name ?? (assignedStaffId || "None") },
+          { label: "Performance allocation", value: String(formData.get("performanceAttribution") ?? "Existing legacy policy") },
+        ]);
+        sessionStorage.setItem(walletStorageKey, JSON.stringify(intent));
+        setWalletPending(intent); setPaymentOpen(false);
+        await sendWalletIntent(intent);
+      } catch { setSaleError("Unable to safely preserve the checkout request. Do not collect payment again."); }
+      return;
+    }
     try {
       result = await action(formData);
     } catch {
@@ -686,6 +735,32 @@ export function CashierUnifiedSaleForm({
     }
   }
 
+  async function sendWalletIntent(intent: WalletCheckoutIntent) {
+    if (walletSendLock.current) return;
+    walletSendLock.current = true; setWalletSending(true); setSaleError("");
+    try {
+      const result = await action(toWalletCheckoutFormData(intent));
+      if (result.status !== "success" || !result.invoice) {
+        setSaleError(`${result.message} Original request retained; do not start another payment.`); return;
+      }
+      // Remove durable pending state before allowing a new checkout. A storage error keeps recovery locked.
+      sessionStorage.removeItem(walletStorageKey);
+      sessionStorage.removeItem(operationStorageKey);
+      setCompletedInvoice(result.invoice); setWalletPending(null); setWalletRecoveryKey(null); setWalletAmount("");
+      setOperationId(`checkout:${crypto.randomUUID()}`);
+      if (!appointmentSale) {
+        setLines([]); setCustomer(null); setAssignedStaffId("");
+        setCustomerPickerKey(key => key + 1);
+      }
+      setDiscountType("AMOUNT"); setDiscountValue("0"); setDiscountReference("");
+      setCatalogDiscountId(""); setLoyaltyPoints("0"); setAdjustmentsOpen(false);
+      setCashReceived(""); setPerformanceTip("0"); setPaymentReference("");
+      setSelectedCustomerPackageIds([]); setAvailableCustomerPackages([]); setPaymentOpen(false);
+      if (!appointmentSale) router.refresh();
+    } catch { setSaleError("Payment outcome is unknown. Retry the original request; do not collect payment again."); }
+    finally { walletSendLock.current = false; setWalletSending(false); }
+  }
+
   function saveShiftDraft() {
     window.sessionStorage.setItem(
       shiftDraftKey,
@@ -702,7 +777,16 @@ export function CashierUnifiedSaleForm({
           <button onClick={() => setShiftModalOpen(true)} type="button">Start shift</button>
         </div>
       ) : null}
-      <form action={submitSale} className={`${styles.posShell} ${styles.formalShell}`}>
+      {walletPending || walletRecoveryBlocked ? <section aria-label="Pending wallet checkout" role="status">
+        <h3>Restore original wallet checkout</h3>
+        {!walletCheckoutEnabled ? <p>Wallet checkout is currently unavailable. The original request remains protected; do not collect payment again.</p> : null}
+        <p>Do not collect payment again. This retries the same request and operation key.</p>
+        {walletPending ? <><dl>{walletPending.summary.map((row, index) => <div key={index}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+          <button type="button" disabled={walletSending} onClick={() => void sendWalletIntent(walletPending)}>{walletSending ? "Checking…" : "Retry original checkout"}</button></>
+          : <p>Saved checkout could not be restored safely. Ask the owner to check the original transaction before starting another sale.</p>}
+        {saleError ? <p role="alert">{saleError}</p> : null}
+      </section> : null}
+      <form action={submitSale} style={walletPending || walletRecoveryBlocked ? { display: "none" } : undefined} className={`${styles.posShell} ${styles.formalShell}`}>
       <input name="operationId" type="hidden" value={operationId} />
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
@@ -1000,13 +1084,14 @@ export function CashierUnifiedSaleForm({
           <div className={styles.totalRow}><span>Total</span><strong>{formatMoney(tax.total)}</strong></div>
         </div>
 
-        <input name="method" type="hidden" value={paymentMethod} />
+        <input name="walletAmount" type="hidden" value={walletAmount} />
+        <input name="method" type="hidden" value={fullWallet ? "MEMBER_WALLET" : paymentMethod} />
         {receivedTip > 0 && <input name="performanceTipAmount" type="hidden" value={performanceTip} />}
-        <input name="paymentMethodId" type="hidden" value={selectedPaymentMethod?.id ?? ""} />
-        <input name="paymentMethodCode" type="hidden" value={selectedPaymentMethod?.code ?? ""} />
+        <input name="paymentMethodId" type="hidden" value={fullWallet ? "" : selectedPaymentMethod?.id ?? ""} />
+        <input name="paymentMethodCode" type="hidden" value={fullWallet ? "MEMBER_WALLET" : selectedPaymentMethod?.code ?? ""} />
         <input name="checkoutReason" type="hidden" value={isTrainingComplimentary ? checkoutReason : ""} />
-        <input name="tenderAmount" type="hidden" value={isConvertedTender ? tenderAmount : ""} />
-        <input name="exchangeRateToMyr" type="hidden" value={isConvertedTender ? exchangeRateToMyr : ""} />
+        <input name="tenderAmount" type="hidden" value={!fullWallet && isConvertedTender ? tenderAmount : ""} />
+        <input name="exchangeRateToMyr" type="hidden" value={!fullWallet && isConvertedTender ? exchangeRateToMyr : ""} />
         <input name="discountType" type="hidden" value={isTrainingComplimentary ? "AMOUNT" : discountType} />
         <input name="discountValue" type="hidden" value={isTrainingComplimentary ? 0 : numericDiscountValue} />
         <input name="discountReference" type="hidden" value={isTrainingComplimentary ? "" : discountReference} />
@@ -1146,10 +1231,16 @@ export function CashierUnifiedSaleForm({
                   </button>
                 </section> : null}
 
-                <section className={styles.paymentSection}>
+                {walletCheckoutEnabled && walletScope && customer ? <section className={styles.paymentSection}>
+                  <h3>Use wallet</h3>
+                  <label>Wallet amount (RM)<input type="number" min="0" step="0.01" value={walletAmount} onChange={event => setWalletAmount(event.target.value)} /></label>
+                  <p>Remaining external payment: {formatMoney(externalDue)}</p>
+                  {!walletReady ? <p role="alert">Use a valid wallet amount with ordinary services/products and a MYR payment method.</p> : null}
+                </section> : null}
+                {!fullWallet ? <section className={styles.paymentSection}>
                   <h3>Payment method</h3>
                   <div aria-label="Payment method" className={styles.paymentChoices}>
-                    {paymentMethods.map((method) => (
+                    {paymentMethods.filter(method => !walletCents || (method.paymentKind === "LOCAL_TENDER" && method.settlementCurrency === "MYR" && method.behavior === "STANDARD_TENDER")).map((method) => (
                       <button
                         className={paymentMethodCode === method.code ? styles.activePaymentChoice : ""}
                         key={method.code}
@@ -1170,9 +1261,9 @@ export function CashierUnifiedSaleForm({
                       </button>
                     ))}
                   </div>
-                </section>
+                </section> : null}
 
-                {isTrainingComplimentary ? (
+                {fullWallet ? <p>Paid entirely from the member wallet.</p> : isTrainingComplimentary ? (
                   <section className={styles.paymentSection}>
                     <h3>Training / Complimentary details</h3>
                     <p>Customer pays RM0.00. No cash or payment record is created. Staff commission uses the original service price.</p>
@@ -1208,9 +1299,9 @@ export function CashierUnifiedSaleForm({
                         <span>Amount received</span>
                         <MoneyNumpadInput
                           aria-invalid={!cashPaymentReady}
-                          amountDue={amountDue}
+                          amountDue={externalDue}
                           onValueChange={setCashReceived}
-                          placeholder={formatMoney(amountDue)}
+                          placeholder={formatMoney(externalDue)}
                           ref={cashReceivedRef}
                           value={cashReceived}
                         />
@@ -1309,7 +1400,7 @@ export function CashierUnifiedSaleForm({
             <footer className={styles.paymentFooter}>
               <button onClick={() => setPaymentOpen(false)} type="button">Back</button>
               <CashierPayButton
-                canPay={canPay && cashPaymentReady && convertedTenderReady && paymentReferenceReady && trainingCheckoutReady}
+                canPay={canPay && walletReady && cashPaymentReady && convertedTenderReady && paymentReferenceReady && trainingCheckoutReady}
                 cashRequired={paymentMethod === "CASH" && !cashPaymentReady}
                 complimentary={isTrainingComplimentary}
                 referenceRequired={!paymentReferenceReady}

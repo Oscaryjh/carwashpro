@@ -43,6 +43,9 @@ export type InvoiceModalSummary = {
   netCollectedAmount?: number;
   packageVoucherAmount?: number;
   cashPaidAmount?: number;
+  walletPaidAmount?: number;
+  externalPaidAmount?: number;
+  externalPaymentMethod?: string;
   canManagePayments?: boolean;
   canVoid?: boolean;
   voidUnavailableReason?: string | null;
@@ -188,6 +191,10 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
           {invoice.taxAmount > 0 ? <div><span>{formatTaxLabel(invoice.taxLabel, invoice.taxRate)}</span><strong>RM{invoice.taxAmount.toFixed(2)}</strong></div> : null}
           {invoice.tipAmount > 0 ? <div><span>Tip</span><strong>RM{invoice.tipAmount.toFixed(2)}</strong></div> : null}
           <div className="is-total"><span>Total</span><strong>RM{invoice.total.toFixed(2)}</strong></div>
+          {(invoice.walletPaidAmount ?? 0) > 0 ? <>
+            <div><span>Member wallet</span><strong>RM{invoice.walletPaidAmount!.toFixed(2)}</strong></div>
+            {(invoice.externalPaidAmount ?? 0) > 0 ? <div><span>{invoice.externalPaymentMethod || "External payment"}</span><strong>RM{invoice.externalPaidAmount!.toFixed(2)}</strong></div> : null}
+          </> : null}
           {hasPackageVoucher ? (
             <>
               <div><span>Package voucher</span><strong>-RM{packageVoucherAmount.toFixed(2)}</strong></div>

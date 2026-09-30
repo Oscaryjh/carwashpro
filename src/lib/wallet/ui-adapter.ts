@@ -7,6 +7,7 @@ import { authorizeWallet, WalletServiceError, type WalletContext } from "./autho
 import { getWalletSummary } from "./read-model";
 import { parseWalletAmount } from "./rules";
 import { postWalletTopUp, type WalletTopUpInput } from "./top-up";
+import { assertWalletLocalTestEnabled, isWalletLocalTestEnabled } from "./release-policy";
 
 // Internal adapter context: public actions must derive business/user from the session.
 async function accessFor(ctx: WalletContext, db: Prisma.TransactionClient) {
@@ -48,7 +49,7 @@ export async function saveWalletOffer(ctx: WalletContext, input: WalletOfferInpu
 export async function getWalletPanel(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
   const access = await accessFor(ctx, db);
   const summary = await getWalletSummary(ctx, customerId, db);
-  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp,
+  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp && isWalletLocalTestEnabled(),
     ownerDetails: access.owner ? { paidBalance: summary.paidBalance, bonusBalance: summary.bonusBalance } : null };
 }
 async function collectionContext(ctx: WalletContext, customerId: string, db: PrismaClient) {
@@ -62,6 +63,7 @@ async function collectionContext(ctx: WalletContext, customerId: string, db: Pri
   return verified;
 }
 export async function getWalletTopUpOptions(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
+  assertWalletLocalTestEnabled();
   await collectionContext(ctx, customerId, db);
   const configured = await db.businessPaymentMethod.findMany({ where: { businessId: ctx.businessId } });
   const byCode = new Map(configured.map(row => [row.code, row]));
@@ -73,6 +75,7 @@ export async function getWalletTopUpOptions(ctx: WalletContext, customerId: stri
   };
 }
 export async function submitWalletTopUp(ctx: WalletContext, input: WalletTopUpInput, db: PrismaClient = prisma) {
+  assertWalletLocalTestEnabled();
   if (!(await accessFor(ctx, db)).canTopUp) throw new WalletServiceError("WALLET_ACCESS_DENIED", "You do not have permission to top up wallets.");
   await authorizeWallet(db, ctx, input.customerId, "READ");
   // A completed intent keeps its original fingerprint even after a shift closes.

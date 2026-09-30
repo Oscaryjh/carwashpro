@@ -27,8 +27,10 @@ import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
 import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
 
 export async function recordPaymentAction(formData: FormData) {
+  rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
@@ -255,6 +257,7 @@ export async function recordPaymentAction(formData: FormData) {
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
+  rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
@@ -516,6 +519,7 @@ export async function usePackagePaymentAction(formData: FormData) {
 }
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
+  rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );

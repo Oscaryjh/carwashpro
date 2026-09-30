@@ -93,6 +93,7 @@ function runCommand(commandName, args, url) {
       env: {
         ...process.env,
         DATABASE_URL: url,
+        TETAMU_WALLET_LOCAL_TEST: /^postgresql:\/\/postgres:postgres@localhost:5432\/tetamu_(?:pcb_verification_vc1|performance)_disposable_\d+_\d+\?schema=public$/.test(url) ? "true" : "false",
         TETAMU_ENVIRONMENT: "TESTING",
         TETAMU_PCB_VERIFICATION_CANDIDATE: "TETAMU_PCB_2026_VC1",
       },

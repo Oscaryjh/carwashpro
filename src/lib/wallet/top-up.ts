@@ -8,6 +8,7 @@ import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { authorizeWallet, WalletServiceError, type WalletContext } from "./authorization";
 import { appendWalletEntry } from "./ledger";
 import { parseWalletAmount } from "./rules";
+import { assertWalletLocalTestEnabled } from "./release-policy";
 
 const requestSchema = z.object({
   customerId: z.string().uuid(), offerId: z.string().uuid(), expectedOfferVersion: z.number().int().nonnegative(),
@@ -22,6 +23,7 @@ export type WalletTopUpInput = z.input<typeof requestSchema>;
  * Monetary result fields are exact decimal MYR strings, not floating-point ringgit.
  */
 export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInput, database: PrismaClient = prisma) {
+  assertWalletLocalTestEnabled();
   const request = requestSchema.parse(input);
   const reference = request.reference || null;
   // The shared runner can replay without execute(): always recheck access first.

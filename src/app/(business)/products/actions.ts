@@ -1,4 +1,5 @@
 "use server";
+import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
 
 import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -316,6 +317,7 @@ async function resolveProductCategory(businessId: string, categoryId: string, re
 }
 
 export async function sellProductAction(formData: FormData) {
+  rejectWalletOutsideCashier(formData);
   const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "POS");
   const returnPath = formData.get("returnTo")?.toString() === "/cashier" ? "/cashier" : "/work-orders";

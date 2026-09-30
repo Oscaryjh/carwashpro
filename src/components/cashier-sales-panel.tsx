@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { readWalletCheckoutRecovery } from "@/lib/wallet/checkout-intent";
 import type { CashierSaleState } from "@/app/(business)/cashier/actions";
 import {
   CashierUnifiedSaleForm,
@@ -15,6 +17,8 @@ import type { TaxDisplaySettings } from "@/lib/tax/calculator";
 import type { CashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
 
 type CashierSalesPanelProps = {
+  walletCheckoutScope?: string;
+  walletCheckoutEnabled?: boolean;
   action: (formData: FormData) => Promise<CashierSaleState>;
   appointmentError?: string | null;
   branchId: string;
@@ -37,7 +41,25 @@ type CashierSalesPanelProps = {
   };
 };
 
-export function CashierSalesPanel({
+export function CashierSalesPanel(props: CashierSalesPanelProps) {
+  return props.walletCheckoutScope ? <ScopedCashierSalesPanel {...props} /> : renderCashierSalesPanel(props);
+}
+
+function ScopedCashierSalesPanel(props: CashierSalesPanelProps) {
+  const [mustRecover, setMustRecover] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      setMustRecover(Boolean(readWalletCheckoutRecovery(sessionStorage, props.walletCheckoutScope!)));
+    } catch { setMustRecover(true); }
+  }, [props.walletCheckoutScope, props.branchId]);
+  // Do not show a new-sale flow until durable unknown outcomes have been checked.
+  if (mustRecover === null) return <p role="status">Checking pending checkout…</p>;
+  return renderCashierSalesPanel(props, mustRecover);
+}
+
+function renderCashierSalesPanel({
+  walletCheckoutScope,
+  walletCheckoutEnabled,
   action,
   appointmentError = null,
   branchId,
@@ -53,8 +75,8 @@ export function CashierSalesPanel({
   staffOptions,
   taxSettings,
   loyaltySettings,
-}: CashierSalesPanelProps) {
-  if (!hasCatalogItems && !initialSale?.lines.length) {
+}: CashierSalesPanelProps, mustRecover = false) {
+  if (!mustRecover && !hasCatalogItems && !initialSale?.lines.length) {
     const createOptions = [
       { key: "service" as const, label: "Create service", href: "/services?modal=create" },
       { key: "product" as const, label: "Create product", href: "/products?type=create" },
@@ -87,6 +109,8 @@ export function CashierSalesPanel({
 
   return (
     <CashierUnifiedSaleForm
+      walletCheckoutScope={walletCheckoutScope}
+      walletCheckoutEnabled={walletCheckoutEnabled}
       action={action}
       appointmentError={appointmentError}
       branchId={branchId}

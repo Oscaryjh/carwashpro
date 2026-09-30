@@ -1,4 +1,5 @@
 "use server";
+import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
 
 import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -528,6 +529,7 @@ export async function createWorkOrderAction(formData: FormData) {
 }
 
 export async function purchasePackageFromCashierAction(formData: FormData) {
+  rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const returnPath = packagePurchaseReturnPath(formData.get("returnTo"));

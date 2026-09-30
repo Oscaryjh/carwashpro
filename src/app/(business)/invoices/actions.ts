@@ -217,6 +217,9 @@ export async function refundPaymentAction(
         if (!payment) {
           throw new Error("Active payment not found for this invoice.");
         }
+        if (payment.method === "MEMBER_WALLET") {
+          throw new Error("Wallet refunds are not available until the wallet refund release is validated.");
+        }
 
         if (!payment.invoiceId) {
           await tx.payment.update({
@@ -615,6 +618,9 @@ export async function voidInvoiceAction(
         },
       });
 
+      if (activePayments.some((payment) => payment.method === "MEMBER_WALLET")) {
+        throw new Error("Wallet invoices cannot be voided until wallet reversal is available.");
+      }
       if (activePayments.some((payment) => payment.refunds.length > 0)) {
         throw new Error(
           "This invoice has refund records and can no longer be voided.",

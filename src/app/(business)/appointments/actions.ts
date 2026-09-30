@@ -27,6 +27,7 @@ import { assertStaffAvailability } from "@/lib/appointments/staff-availability";
 import { buildAppointmentStaffWhere } from "@/lib/appointments/staff-branch-scope";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
+import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
 import { calculateTax } from "@/lib/tax/calculator";
 import { normalizeCustomerPhone } from "@/lib/validation/crm";
 import {
@@ -1069,6 +1070,7 @@ export async function recordSalonAppointmentPaymentAction(
   _previousState: SalonAppointmentPaymentState,
   formData: FormData,
 ): Promise<SalonAppointmentPaymentState> {
+  rejectWalletOutsideCashier(formData);
   const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const auditRequest = await getAuditRequestContext();
   const parsed = salonAppointmentPaymentSchema.safeParse({

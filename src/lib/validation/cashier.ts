@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { financialOperationKeySchema } from "@/lib/financial-idempotency";
+import { parseWalletAmount } from "@/lib/wallet/rules";
 
 const quantitySchema = z.coerce
   .number()
@@ -14,7 +15,10 @@ export const cashierSaleSchema = z
     appointmentId: z.string().uuid("Appointment is invalid.").optional().or(z.literal("")),
     assignedStaffId: z.string().uuid("Staff member is invalid.").optional().or(z.literal("")),
     customerId: z.string().uuid("Customer is invalid.").optional().or(z.literal("")),
-    method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER", "FOREIGN_CURRENCY", "CRYPTO"]),
+    method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER", "FOREIGN_CURRENCY", "CRYPTO", "MEMBER_WALLET"]),
+    walletAmount: z.string().optional().refine(value => {
+      try { if (value) parseWalletAmount(value); return true; } catch { return false; }
+    }, "Wallet amount is invalid."),
     paymentMethodId: z.string().uuid("Payment method is invalid.").optional().or(z.literal("")),
     paymentMethodCode: z.string().trim().min(1).max(80).default("BUILTIN_CASH"),
     checkoutReason: z.string().trim().max(500, "Reason is too long.").optional(),
@@ -50,6 +54,14 @@ export const cashierSaleSchema = z
       .default(0),
   })
   .superRefine((input, context) => {
+    let walletCents = 0;
+    try { walletCents = input.walletAmount ? parseWalletAmount(input.walletAmount) : 0; } catch { /* field validation reports it */ }
+    if (input.method === "MEMBER_WALLET" && (!walletCents || input.paymentMethodCode !== "MEMBER_WALLET" || input.paymentMethodId || input.reference || input.tenderAmount || input.exchangeRateToMyr)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Full wallet payment must not contain external tender details.", path: ["method"] });
+    }
+    if (walletCents && (!input.customerId || input.packageIds.length || input.customerPackageIds.length || ["FOREIGN_CURRENCY", "CRYPTO"].includes(input.method))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Wallet requires a customer and ordinary service/product checkout with MYR payment.", path: ["walletAmount"] });
+    }
     if (!input.packageIds.length && !input.productIds.length && !input.serviceIds.length) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -114,7 +126,7 @@ export const cashierSaleSchema = z
       });
     }
 
-    if (input.method !== "CASH" && !input.reference) {
+    if (input.method !== "CASH" && input.method !== "MEMBER_WALLET" && !input.reference) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Reference is required for non-cash payments.",

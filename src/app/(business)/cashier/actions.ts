@@ -31,6 +31,12 @@ import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { assertWalletLocalTestEnabled } from "@/lib/wallet/release-policy";
+import { parseWalletAmount } from "@/lib/wallet/rules";
+import { postWalletRedemption } from "@/lib/wallet/redemption";
+import { resolveBusinessAccess, hasBusinessCapability } from "@/lib/business-groups/business-access";
+import { requireBusinessModules } from "@/lib/modules/entitlements";
+import { modulesForCapability } from "@/lib/modules/registry";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -59,6 +65,9 @@ export type CashierSaleInvoiceSummary = {
   balance: number;
   packageVoucherAmount: number;
   cashPaidAmount: number;
+  walletPaidAmount?: number;
+  externalPaidAmount?: number;
+  externalPaymentMethod?: string;
 };
 
 export type CashierSaleState = {
@@ -90,6 +99,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     assignedStaffId: formData.get("assignedStaffId")?.toString() || "",
     customerId: formData.get("customerId")?.toString() || "",
     method: formData.get("method")?.toString(),
+    walletAmount: formData.get("walletAmount")?.toString() || undefined,
     paymentMethodId: formData.get("paymentMethodId")?.toString() || "",
     paymentMethodCode: formData.get("paymentMethodCode")?.toString() || "",
     checkoutReason: formData.get("checkoutReason")?.toString() || undefined,
@@ -122,6 +132,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
   const auditRequest = await getAuditRequestContext();
 
   try {
+    const walletCents = input.walletAmount ? parseWalletAmount(input.walletAmount) : 0;
+    if (walletCents) assertWalletLocalTestEnabled();
     const tipCents = parseCheckoutTipCents(formData);
     const branchId = await resolveOperationalBranchId(
       businessId,
@@ -133,15 +145,26 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       throw new Error("An active branch is required before completing a sale.");
     }
 
-    const { operationId, ...financialPayload } = input;
+    const { operationId, walletAmount: _walletAmount, ...financialPayload } = input;
     const { result } = await runFinancialOperation({
       actorUserId: user.userId,
       branchId,
       businessId,
       operationKey: operationId,
       operationType: FinancialOperationType.CASHIER_CHECKOUT,
-      payload: { ...financialPayload, branchId, ...performanceFingerprint(formData), ...(tipCents ? { performanceTipCents: tipCents } : {}) },
+      payload: { ...financialPayload, branchId, ...performanceFingerprint(formData), ...(tipCents ? { performanceTipCents: tipCents } : {}),
+        ...(walletCents ? { walletAmount: fromCents(walletCents), walletActorId: user.userId } : {}) },
       execute: async (tx) => {
+      if (walletCents) {
+        assertWalletLocalTestEnabled();
+        const access = await resolveBusinessAccess({ userId: user.userId, requestedBusinessId: businessId }, tx);
+        if (!access.granted || !access.industryType || !hasBusinessCapability(access, "PROCESS_CASHIER_PAYMENT") ||
+          (access.effectiveBusinessRole === "STAFF" && (!access.permissions.includes("POS") || access.branchId !== branchId))) throw new Error("Wallet checkout access denied.");
+        await requireBusinessModules(businessId, modulesForCapability("PROCESS_CASHIER_PAYMENT", access.industryType), { database: tx });
+        if (!await tx.branch.findFirst({ where: { id: branchId, businessId, status: "ACTIVE" }, select: { id: true } })) {
+          throw new Error("An active branch is required for wallet checkout.");
+        }
+      }
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
         select: { id: true, branchId: true, startedAt: true },
@@ -181,7 +204,13 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       const virtualPaymentMethod = defaultBusinessPaymentMethods.find(
         (method) => method.code === input.paymentMethodCode,
       );
-      const selectedPaymentMethod = persistedPaymentMethod ?? virtualPaymentMethod ?? null;
+      if (walletCents && input.paymentMethodId && !persistedPaymentMethod) {
+        throw new Error("This configured payment method is no longer available for wallet checkout.");
+      }
+      const selectedPaymentMethod = input.method === "MEMBER_WALLET"
+        ? { id: null, code: "MEMBER_WALLET", label: "Member wallet", canonicalMethod: "MEMBER_WALLET" as const,
+          active: true, paymentKind: "LOCAL_TENDER" as const, settlementCurrency: "MYR", assetSymbol: null, behavior: "STANDARD_TENDER" as const }
+        : persistedPaymentMethod ?? virtualPaymentMethod ?? null;
       if (!selectedPaymentMethod || !selectedPaymentMethod.active) {
         throw new Error("This payment method is no longer available. Refresh checkout and try again.");
       }
@@ -202,6 +231,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         }
       }
       const isTrainingComplimentary = selectedPaymentMethod.behavior === "TRAINING_COMPLIMENTARY";
+      if (walletCents && (isTrainingComplimentary || isConvertedTender || selectedPaymentMethod.settlementCurrency !== "MYR")) {
+        throw new Error("Wallet checkout supports ordinary MYR payments only.");
+      }
       if (isTrainingComplimentary && tipCents) throw new Error("A zero-receipt complimentary checkout cannot collect a tip.");
       if (isTrainingComplimentary) {
         if (!input.checkoutReason || input.checkoutReason.length < 5) {
@@ -693,6 +725,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       const primaryCustomerPackage = customerPackages[0] ?? null;
       const invoiceTotalCents = Math.round(tax.total * 100);
       const amountCents = Math.max(0, invoiceTotalCents - packageCoverageCents);
+      const externalCents = amountCents - walletCents;
+      if (walletCents && (externalCents < 0 || (input.method === "MEMBER_WALLET") !== (externalCents === 0))) {
+        throw new Error("Wallet amount does not match the selected payment split.");
+      }
       if (isConvertedTender) {
         const convertedCents = Math.round(input.tenderAmount! * input.exchangeRateToMyr! * 100);
         if (convertedCents < amountCents) {
@@ -851,7 +887,19 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         data: { status: "USED_UP" },
       });
 
-      const cashPayment = !isTrainingComplimentary && (amountCents > 0 || !packagePayments.length)
+      const walletPayment = walletCents ? await tx.payment.create({ data: {
+        businessId, branchId, cashierId: user.userId, shiftId: shift.id, paidAt: shiftActivity.activityAt,
+        invoiceId: invoice.id, appointmentId: effectiveAppointmentId, method: "MEMBER_WALLET", purpose: "SALE",
+        amount: fromCents(walletCents), tenderCurrency: "MYR", tenderAmount: fromCents(walletCents), exchangeRateToMyr: 1,
+        paymentMethodLabel: "Member wallet",
+      } }) : null;
+      if (walletPayment) {
+        const operation = await tx.financialOperation.findUniqueOrThrow({ where: { businessId_operationType_operationKey: {
+          businessId, operationType: "CASHIER_CHECKOUT", operationKey: operationId } } });
+        await postWalletRedemption(tx, { businessId, branchId, actorUserId: user.userId, customerId: customer!.id,
+          paymentId: walletPayment.id, financialOperationId: operation.id, amountCents: walletCents });
+      }
+      const cashPayment = !isTrainingComplimentary && (walletCents ? externalCents > 0 : (amountCents > 0 || !packagePayments.length))
         ? await tx.payment.create({
             data: {
               businessId,
@@ -862,14 +910,14 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               appointmentId: effectiveAppointmentId,
               invoiceId: invoice.id,
               customerPackageId: primaryCustomerPackage?.id ?? null,
-              amount: fromCents(amountCents),
+              amount: fromCents(externalCents),
               method: input.method,
               tenderCurrency: isConvertedTender
                 ? selectedPaymentMethod.paymentKind === "CRYPTO_ASSET"
                   ? selectedPaymentMethod.assetSymbol ?? "CRYPTO"
                   : selectedPaymentMethod.settlementCurrency
                 : "MYR",
-              tenderAmount: isConvertedTender ? input.tenderAmount : fromCents(amountCents),
+              tenderAmount: isConvertedTender ? input.tenderAmount : fromCents(externalCents),
               exchangeRateToMyr: isConvertedTender ? input.exchangeRateToMyr : 1,
               businessPaymentMethodId: selectedPaymentMethod.id ?? null,
               paymentMethodLabel: selectedPaymentMethod.label,
@@ -879,8 +927,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             },
           })
         : null;
-      const createdPayments = [...packagePayments, ...(cashPayment ? [cashPayment] : [])];
-      const payment = cashPayment ?? packagePayments.at(-1);
+      const createdPayments = [...packagePayments, ...(walletPayment ? [walletPayment] : []), ...(cashPayment ? [cashPayment] : [])];
+      const payment = cashPayment ?? walletPayment ?? packagePayments.at(-1);
       if (!payment && !isTrainingComplimentary) {
         throw new Error("At least one payment is required.");
       }
@@ -986,7 +1034,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       );
 
       await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData),
-        paymentIds: [...packagePayments.map((entry) => entry.id), ...(cashPayment ? [cashPayment.id] : [])] });
+        paymentIds: createdPayments.map((entry) => entry.id) });
       return {
         customerId: customer?.id ?? null,
         customerPackageIds: [
@@ -1039,7 +1087,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           paidAmount: tax.total,
           balance: 0,
           packageVoucherAmount: packageCoverageCents / 100,
-          cashPaidAmount: amountCents / 100,
+          cashPaidAmount: externalCents / 100,
+          ...(walletCents ? { walletPaidAmount: walletCents / 100, externalPaidAmount: externalCents / 100,
+            externalPaymentMethod: cashPayment?.paymentMethodLabel ?? "" } : {}),
         },
       };
       },
