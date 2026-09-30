@@ -1,6 +1,7 @@
 "use client";
 
 import { BranchSelect } from "@/components/branch-select";
+import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -876,6 +877,7 @@ export function CashierUnifiedSaleForm({
             readOnly={Boolean(appointmentSale)}
             required={requiresCustomer}
           />
+          {customer ? <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} entry="cashier" /> : null}
         </div>
 
         {lines.length > 0 && !appointmentSale ? (

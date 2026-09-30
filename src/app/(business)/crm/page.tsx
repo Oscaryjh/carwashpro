@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { Prisma } from "@prisma/client";
 import { CrmActivityItem } from "@/components/crm-activity-item";
 import { CrmEditCustomerModal } from "@/components/crm-edit-customer-modal";
@@ -327,6 +328,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       <div className="page-header crm-workspace-header">
         <div>
           <h1>CRM</h1>
+          {context.user.role === "BUSINESS_OWNER" ? <Link href="/crm/wallet/offers">Top-up offers</Link> : null}
           {!isEmptyDirectory ? <p>{customerCount} customers</p> : null}
         </div>
         {!isEmptyDirectory ? (
@@ -564,6 +566,7 @@ function CustomerWorkspace({
       </nav>
 
       <div className="crm-detail-body">
+        <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} />
         {tab === "overview" ? (
           <section className="crm-tab-section">
             <div className="crm-section-heading">

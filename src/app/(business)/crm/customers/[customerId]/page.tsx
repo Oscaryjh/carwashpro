@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { DeleteCustomerForm } from "@/components/delete-customer-form";
@@ -180,6 +181,7 @@ export default async function CustomerDetailsPage({
           </div>
         </div>
 
+        <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} />
         <div className="customer-summary-grid">
           <InfoCard label="Email" value={customer.email || "No email"} />
           <InfoCard
