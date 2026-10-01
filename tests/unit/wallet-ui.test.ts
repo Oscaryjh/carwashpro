@@ -15,6 +15,20 @@ async function ui() {
   await build({ entryPoints: ["src/components/wallet/wallet-views.tsx"], bundle: true, platform: "node", format: "cjs", packages: "external", outfile: join(directory, "ui.cjs") });
   return require(join(directory, "ui.cjs"));
 }
+
+test("history presents signed activity and historical balances without raw identifiers", async () => {
+  const { WalletHistoryRow } = await ui();
+  assert.ok(WalletHistoryRow, "history needs a signed activity presentation, not a top-up-only row");
+  for (const [type, amount, expected] of [["Top-up", "1100.00", "+RM 1,100.00"], ["Payment", "-180.00", "-RM 180.00"], ["Refund", "100.00", "+RM 100.00"], ["Top-up reversal", "-1100.00", "-RM 1,100.00"]]) {
+    const html = renderToStaticMarkup(createElement(WalletHistoryRow, { row: { id: "internal-operation-id", date: "2026-10-01T00:00:00Z", type, amount, paidAmount: "-80.00", bonusAmount: "-100.00", balanceAfter: "920.00", source: "Invoice #1001", staff: "Owner" } }));
+    assert.ok(html.includes(expected));
+    assert.match(html, /Balance after: RM 920\.00/);
+    assert.match(html, /Paid credit/); assert.match(html, /Bonus credit/);
+    assert.match(html, /-RM 80\.00/); assert.match(html, /-RM 100\.00/);
+    assert.match(html, /Invoice #1001/); assert.match(html, /Owner/);
+    assert.doesNotMatch(html, /internal-operation-id|\+RM -|REDEMPTION|operationKey|JSON/);
+  }
+});
 test("wallet summary separates credit from loyalty and suppresses Staff history/details", async () => {
   const { WalletSummaryView } = await ui();
   const render = (ownerDetails: unknown, canTopUp: boolean) => renderToStaticMarkup(createElement(WalletSummaryView, { panel: { totalBalance: "0.00", hasAccount: false, canTopUp, ownerDetails }, onTopUp() {}, onHistory() {}, entry: "customer" }));

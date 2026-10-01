@@ -86,14 +86,54 @@ export async function submitWalletTopUp(ctx: WalletContext, input: WalletTopUpIn
   return postWalletTopUp(verified, input, db);
 }
 export async function getWalletHistory(ctx: WalletContext, customerId: string, page = 0, db: PrismaClient = prisma) {
-  await ownerOnly(ctx, db);
-  await authorizeWallet(db, ctx, customerId, "READ");
-  const currentPage = z.number().int().min(0).max(100000).parse(page);
-  const rows = await db.walletTopUp.findMany({ where: { businessId: ctx.businessId, account: { customerId } },
-    orderBy: [{ postedAt: "desc" }, { id: "desc" }], skip: currentPage * 20, take: 21,
-    include: { actor: { select: { name: true } }, payment: { select: { paymentMethodLabel: true, method: true } }, transactions: { where: { type: { in: ["TOP_UP_PAID", "TOP_UP_BONUS"] } }, orderBy: { sequence: "desc" }, take: 1 } } });
-  return { canReverse: isWalletAccessAllowed(ctx), hasMore: rows.length > 20, rows: rows.slice(0, 20).map(row => ({ id: row.id, date: row.postedAt.toISOString(), type: "Top-up" as const,
-    amount: row.totalCredited.toFixed(2), paidAmount: row.paidAmount.toFixed(2), bonusAmount: row.bonusAmount.toFixed(2),
-    balanceAfter: row.transactions[0] ? row.transactions[0].paidBalanceAfter.plus(row.transactions[0].bonusBalanceAfter).toFixed(2) : null,
-    source: row.payment.paymentMethodLabel ?? row.payment.method, staff: row.actor.name, offer: row.offerNameSnapshot })) };
+  // One read snapshot keeps page membership and ending ledger snapshots consistent.
+  return db.$transaction(async tx => {
+    await ownerOnly(ctx, tx);
+    await authorizeWallet(tx, ctx, customerId, "READ");
+    const currentPage = z.number().int().min(0).max(100000).parse(page);
+    const scope = { businessId: ctx.businessId, account: { customerId } };
+    // Paginate activities, not ledger entries: paid/bonus pairs must stay together.
+    const groups = await tx.walletTransaction.groupBy({
+      by: ["financialOperationId"], where: scope, _max: { sequence: true },
+      orderBy: { _max: { sequence: "desc" } }, skip: currentPage * 20, take: 21,
+    });
+    const operationIds = groups.slice(0, 20).map(group => group.financialOperationId);
+    const invoice = { select: { invoiceNumber: true } } as const;
+    const entries = await tx.walletTransaction.findMany({
+      where: { ...scope, financialOperationId: { in: operationIds } }, orderBy: { sequence: "asc" },
+      include: {
+        actor: { select: { name: true } }, topUp: { select: { offerNameSnapshot: true } },
+        payment: { select: { invoice } }, refund: { select: { payment: { select: { invoice } } } },
+        original: { select: { topUp: { select: { offerNameSnapshot: true } }, payment: { select: { invoice } } } },
+      },
+    });
+    const byOperation = new Map<string, typeof entries>();
+    for (const entry of entries) {
+      const group = byOperation.get(entry.financialOperationId) ?? [];
+      group.push(entry); byOperation.set(entry.financialOperationId, group);
+    }
+    const rows = operationIds.map(id => {
+      const group = byOperation.get(id)!;
+      const last = group[group.length - 1];
+      const paid = group.reduce((sum, entry) => sum.plus(entry.paidDelta), new Prisma.Decimal(0));
+      const bonus = group.reduce((sum, entry) => sum.plus(entry.bonusDelta), new Prisma.Decimal(0));
+      const topUp = group.find(entry => entry.topUp)?.topUp;
+      const reversedTopUp = group.find(entry => entry.original?.topUp)?.original?.topUp;
+      const sourceInvoice = group.map(entry => entry.payment?.invoice ?? entry.refund?.payment.invoice ?? entry.original?.payment?.invoice).find(Boolean);
+      // Invoice void reverses a redemption (positive), not a top-up (negative).
+      const type = topUp ? "Top-up" : reversedTopUp ? "Top-up reversal" : last.type === "REDEMPTION" ? "Payment" : "Refund";
+      const source = topUp?.offerNameSnapshot ?? (reversedTopUp ? `Top-up reversal · ${reversedTopUp.offerNameSnapshot}` : sourceInvoice ? `${last.type === "REVERSAL" ? "Invoice void · " : type === "Refund" ? "Refund · " : ""}Invoice #${sourceInvoice.invoiceNumber}` : type);
+      return { id, date: last.createdAt.toISOString(), type, amount: paid.plus(bonus).toFixed(2),
+        paidAmount: paid.toFixed(2), bonusAmount: bonus.toFixed(2),
+        balanceAfter: last.paidBalanceAfter.plus(last.bonusBalanceAfter).toFixed(2), source, staff: last.actor.name };
+    });
+    // Separate command sources from activity IDs. Only actual top-ups may enter
+    // the existing reversal/recovery form; its server eligibility checks stay intact.
+    const topUps = await tx.walletTopUp.findMany({
+      where: { ...scope, financialOperationId: { in: operationIds } }, orderBy: [{ postedAt: "desc" }, { id: "desc" }],
+      select: { id: true, postedAt: true, offerNameSnapshot: true, paidAmount: true },
+    });
+    return { canReverse: isWalletAccessAllowed(ctx), hasMore: groups.length > 20, rows,
+      reversalSources: topUps.map(top => ({ id: top.id, date: top.postedAt.toISOString(), offer: top.offerNameSnapshot, paidAmount: top.paidAmount.toFixed(2) })) };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

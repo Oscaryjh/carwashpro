@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { getWalletPanel, listWalletOffers } from "@/lib/wallet/ui-adapter";
+import type { getWalletHistory, getWalletPanel, listWalletOffers } from "@/lib/wallet/ui-adapter";
 import type { postWalletTopUp } from "@/lib/wallet/top-up";
 import type { WalletIntentConfirmation } from "@/lib/wallet/top-up-intent";
 
@@ -21,6 +21,20 @@ export type WalletReceipt = Pick<Awaited<ReturnType<typeof postWalletTopUp>>, "p
 export function walletMoney(value: string) {
   const [whole, cents = "00"] = value.split(".");
   return `RM ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${cents.padEnd(2, "0")}`;
+}
+function signedWalletMoney(value: string) {
+  return value.startsWith("-") ? `-${walletMoney(value.slice(1))}` : `+${walletMoney(value)}`;
+}
+export function WalletHistoryRow({ row }: { row: Awaited<ReturnType<typeof getWalletHistory>>["rows"][number] }) {
+  return <details className="wallet-history-row"><summary>
+    <span>{new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(row.date))}<small>{row.type} · {row.source} · {row.staff}</small></span>
+    <span>{signedWalletMoney(row.amount)}<small>Balance after: {walletMoney(row.balanceAfter)}</small></span>
+  </summary><dl className="wallet-amounts">
+    <dt>Paid credit</dt><dd>{signedWalletMoney(row.paidAmount)}</dd>
+    <dt>Bonus credit</dt><dd>{signedWalletMoney(row.bonusAmount)}</dd>
+    <dt>Source</dt><dd>{row.source}</dd>
+    <dt>Staff</dt><dd>{row.staff}</dd>
+  </dl></details>;
 }
 export function WalletSummaryView({ panel, entry, onTopUp, onHistory }: { panel: WalletPanel; entry: "customer" | "cashier"; onTopUp: () => void; onHistory: () => void }) {
   return <div className="wallet-summary">
