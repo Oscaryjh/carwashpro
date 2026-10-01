@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { summarizePayments } from "@/lib/closing/payment-summary";
 import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { BranchSelect } from "@/components/branch-select";
 import { selectedOrOnlyBranch } from "@/lib/branch-selection";
@@ -122,6 +123,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     },
     refunds: {
       orderBy: { refundedAt: "desc" as const },
+      include: { payment: { select: { purpose: true, method: true } } },
     },
     expensePayouts: {
       orderBy: { occurredAt: "desc" as const },
@@ -439,7 +441,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   />
                   <Metric label="Opening Float" value={money(openShift.openingFloat)} />
                   <Metric
-                    label="Net Cash Sales"
+                    label="Net cash collected"
                     value={money(currentShiftSummary?.cashAmount ?? 0)}
                   />
                   <Metric
@@ -547,11 +549,15 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
             <ReportCard title="Current Shift Totals" className="closing-total-card">
               <div className="report-kpis compact-kpis closing-total-kpis">
                 <Metric
-                  label="Gross Collected"
+                  label="Gross external collected"
                   value={money(currentShiftSummary.grossCollected)}
                 />
-                <Metric label="Refunds" value={money(currentShiftSummary.refunded)} />
-                <Metric label="Net Collected" value={money(currentShiftSummary.collected)} />
+                <Metric label="Shift external refunds" value={money(currentShiftSummary.refunded)} />
+                <Metric label="Net external collected" value={money(currentShiftSummary.collected)} />
+                {toCents(currentShiftSummary.walletSettled) > 0 || toCents(currentShiftSummary.walletRefunded) > 0 ? <>
+                  <Metric label="Wallet settlements" value={money(currentShiftSummary.walletSettled)} />
+                  <Metric label="Wallet refunds" value={money(currentShiftSummary.walletRefunded)} />
+                </> : null}
                 <Metric label="Payments" value={currentShiftSummary.paymentCount} />
                 <Metric label="Net Cash" value={money(currentShiftSummary.cashAmount)} />
                 <Metric
@@ -1002,65 +1008,6 @@ function buildShiftActivities(
   return activities.sort(
     (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime(),
   );
-}
-
-function summarizePayments(
-  payments: {
-    amount: unknown;
-    method: PaymentMethod;
-    packageUses: number;
-  }[],
-  refunds: {
-    amount: unknown;
-    method: PaymentMethod;
-    packageUsesRestored: number;
-  }[],
-) {
-  let grossCollectedCents = 0;
-  let refundedCents = 0;
-  let grossCashCents = 0;
-  let refundedCashCents = 0;
-  let packageUses = 0;
-  let packageUsesRestored = 0;
-  let paymentCount = 0;
-
-  for (const payment of payments) {
-    if (payment.method === "PACKAGE") {
-      packageUses += payment.packageUses;
-      continue;
-    }
-
-    const amountCents = toCents(payment.amount ?? 0);
-    grossCollectedCents += amountCents;
-    paymentCount += 1;
-
-    if (payment.method === "CASH") {
-      grossCashCents += amountCents;
-    }
-  }
-
-  for (const refund of refunds) {
-    if (refund.method === "PACKAGE") {
-      packageUsesRestored += refund.packageUsesRestored;
-      continue;
-    }
-
-    const amountCents = toCents(refund.amount ?? 0);
-    refundedCents += amountCents;
-
-    if (refund.method === "CASH") {
-      refundedCashCents += amountCents;
-    }
-  }
-
-  return {
-    cashAmount: fromCents(grossCashCents - refundedCashCents),
-    collected: fromCents(grossCollectedCents - refundedCents),
-    grossCollected: fromCents(grossCollectedCents),
-    packageUses: Math.max(0, packageUses - packageUsesRestored),
-    paymentCount,
-    refunded: fromCents(refundedCents),
-  };
 }
 
 function Metric({ label, value }: { label: string; value: number | string }) {
