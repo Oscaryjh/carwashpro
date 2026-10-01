@@ -1,10 +1,11 @@
 import type {
   BusinessIndustry,
   InvoiceStatus,
-  PaymentMethod,
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { readWalletActivity } from "@/lib/reports/wallet-activity";
+import { financialReadSnapshot } from "@/lib/reports/financial-read-snapshot";
 import { toCents } from "@/lib/validation/pos";
 import { calculateDailyClosingReport } from "./calculator";
 import {
@@ -14,7 +15,6 @@ import {
 import { getDailyClosingRange } from "./range";
 import type {
   DailyClosingIndustry,
-  DailyClosingPaymentMethod,
   DailyClosingSourceData,
 } from "./types";
 
@@ -38,9 +38,14 @@ export type DailyClosingDatabase = Pick<
   | "payment"
   | "paymentRefund"
   | "workOrder"
+  | "walletTransaction"
 >;
 
-export async function getDailyClosingReport(
+export function getDailyClosingReport(input: GetDailyClosingReportInput, database: DailyClosingDatabase = prisma) {
+  return financialReadSnapshot(database, tx => readDailyClosingReport(input, tx));
+}
+
+async function readDailyClosingReport(
   input: GetDailyClosingReportInput,
   database: DailyClosingDatabase = prisma,
 ) {
@@ -122,6 +127,7 @@ export async function getDailyClosingReport(
         amount: true,
         method: true,
         packageUses: true,
+        purpose: true,
       },
     }),
     database.paymentRefund.findMany({
@@ -133,6 +139,8 @@ export async function getDailyClosingReport(
         amount: true,
         method: true,
         packageUsesRestored: true,
+        shiftId: true,
+        payment: { select: { purpose: true, method: true } },
       },
     }),
     input.industryType === "SALON_BEAUTY"
@@ -268,12 +276,15 @@ export async function getDailyClosingReport(
     })),
     payments: payments.map((payment) => ({
       amountCents: toCents(payment.amount),
-      method: asDailyClosingPaymentMethod(payment.method),
+      method: payment.method,
+      purpose: payment.purpose,
       packageUses: payment.packageUses,
     })),
     refunds: refunds.map((refund) => ({
       amountCents: toCents(refund.amount),
-      method: asDailyClosingPaymentMethod(refund.method),
+      method: refund.method,
+      originalPayment: refund.payment,
+      shiftId: refund.shiftId,
       packageUsesRestored: refund.packageUsesRestored,
     })),
     shifts: shifts.map((shift) => ({
@@ -288,6 +299,10 @@ export async function getDailyClosingReport(
     })),
   };
   const report = calculateDailyClosingReport(source, range.fromDate);
+  report.walletActivity = await readWalletActivity(database, {
+    businessId: input.businessId, branchId: input.branchId,
+    from: range.fromDate, toExclusive: range.toDateExclusive,
+  });
   const industry = input.industryType as DailyClosingIndustry;
 
   return {
@@ -315,15 +330,4 @@ export async function getDailyClosingReport(
 
 function uniqueCustomers(customers: { createdAt: Date; id: string }[]) {
   return [...new Map(customers.map((customer) => [customer.id, customer])).values()];
-}
-
-function asDailyClosingPaymentMethod(
-  method: PaymentMethod,
-): DailyClosingPaymentMethod | "PACKAGE" {
-  // P1A only: do not classify wallet settlement as external collection.
-  // Keep it out of the legacy calculator until Wallet reporting is implemented.
-  if (method === "MEMBER_WALLET") {
-    throw new Error("MEMBER_WALLET_CLOSING_NOT_SUPPORTED");
-  }
-  return method;
 }

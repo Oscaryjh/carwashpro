@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { cents, integer } from "./money";
 import { assertPerformanceActor, type PerformanceActor } from "./scope";
 import { localPerformanceDate, performancePeriod, performanceTimezone } from "./time";
+import { verifiedWalletVoidPayments } from "./wallet-void-evidence";
 
 export type PerformanceReadInput = { year: number; month?: number; asOf: Date };
 type Totals = { salesReceived: number; tipsReceived: number; salesRefunds: number; tipsRefunds: number; refunds: number; total: number };
@@ -41,9 +42,10 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
   const dateStart = `${input.year}-${String(input.month ?? 1).padStart(2, "0")}-01`;
   const dateEnd = input.month && input.month < 12 ? `${input.year}-${String(input.month + 1).padStart(2, "0")}-01` : `${input.year + 1}-01-01`;
   const scope = { businessId: context.businessId, branchId: context.branchId };
+  const verifiedVoids = await verifiedWalletVoidPayments(database, scope);
   const timeRange = { gte: period.from, lt: period.toExclusive, lte: input.asOf };
   // Include both frozen and currently resolved periods; mismatches remain visible but quarantined.
-  const events = await database.performanceReceipt.findMany({ where: { ...scope, occurredAt: { lte: input.asOf }, OR: [
+  const events = await database.performanceReceipt.findMany({ where: { ...scope, payment: { purpose: { not: "WALLET_TOP_UP" } }, occurredAt: { lte: input.asOf }, OR: [
     { localDate: { gte: dateStart, lt: dateEnd } }, { occurredAt: timeRange },
   ] },
     orderBy: [{ occurredAt: "asc" }, { id: "asc" }], select: {
@@ -57,10 +59,11 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
     } });
   const team = blank(), unassigned = blank(), pending = blank();
   const employees: Record<string, Totals> = {};
-  let rawNet = 0, taxNet = 0, pendingRaw = 0, excludedPackageNet = 0;
+  let rawNet = 0, taxNet = 0, pendingRaw = 0, excludedPackageNet = 0, excludedWalletVoidNet = 0;
   const details = events.map((event) => {
     const noncash = ["PACKAGE", "RESTORE"].includes(event.kind);
-    const issues = event.payment.performanceIssues.map((issue) => issue.code);
+    const voidEvidence = !event.refundId && verifiedVoids.has(event.paymentId);
+    const issues = event.payment.performanceIssues.map((issue) => issue.code).filter(code => !(voidEvidence && code === "VOID_WITHOUT_REFUND_EVIDENCE"));
     let snapshotTimezone: string | null = null;
     try { snapshotTimezone = performanceTimezone(event.timezone); } catch { /* Invalid immutable evidence is quarantined. */ }
     if (snapshotTimezone !== timezone) issues.push("OPERATING_TIMEZONE_SNAPSHOT_MISMATCH");
@@ -70,16 +73,18 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
     if (Number(event.rawCents) !== cents(source.amount) * (event.refund ? -1 : 1)
       || event.occurredAt.getTime() !== sourceAt.getTime()
       || source.branchId !== event.branchId || source.businessId !== event.businessId) issues.push("SOURCE_SNAPSHOT_CHANGED");
-    if (event.payment.status === "VOID" || event.payment.invoice?.status === "VOID") issues.push("VOID_SOURCE_REQUIRES_REVIEW");
+    if (!voidEvidence && (event.payment.status === "VOID" || event.payment.invoice?.status === "VOID")) issues.push("VOID_SOURCE_REQUIRES_REVIEW");
     if (event.quality !== "VERIFIED" && !noncash) issues.push(event.quality);
-    const verified = !noncash && !issues.length;
+    const voidExcluded = voidEvidence && !issues.length;
+    const verified = !noncash && !voidExcluded && !issues.length;
     const sale = integer(Number(event.salesCents)), tip = integer(Number(event.tipCents)), raw = integer(Number(event.rawCents));
     const allocations: Record<string, Totals & { membershipId: string | null }> = {};
     for (const entry of event.contributions) {
       const recipient = allocations[entry.recipientKey] ??= { ...blank(), membershipId: entry.membershipId };
       add(recipient, entry.component === "SALE" ? Number(entry.amountCents) : 0, entry.component === "TIP" ? Number(entry.amountCents) : 0, event.kind === "REFUND");
     }
-    if (noncash) excludedPackageNet = integer(excludedPackageNet + raw);
+    if (voidExcluded) excludedWalletVoidNet = integer(excludedWalletVoidNet + raw);
+    else if (noncash) excludedPackageNet = integer(excludedPackageNet + raw);
     else {
       rawNet = integer(rawNet + raw);
       if (!verified) { pendingRaw = integer(pendingRaw + raw); add(pending, sale, tip, event.kind === "REFUND"); }
@@ -94,18 +99,18 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
     }
     return { id: event.id, paymentId: event.paymentId, refundId: event.refundId, invoiceId: event.invoiceId, kind: event.kind, occurredAt: event.occurredAt.toISOString(), localDate: event.localDate, timezone: event.timezone,
       rawCents: raw, salesCents: sale, taxCents: Number(event.taxCents), tipCents: tip, unresolvedCents: Number(event.unresolvedCents), totalCents: noncash ? 0 : sale + tip,
-      verified, issues: [...new Set(issues)], policyVersion: event.policyVersion,
+      verified, voidExcluded, issues: [...new Set(issues)], policyVersion: event.policyVersion,
       compositionStatus: event.unresolvedCents === 0n ? "CAPTURED_COMPONENTS" : "UNKNOWN",
-      qualifiedCents: noncash ? 0 : verified ? sale + tip : null,
+      qualifiedCents: noncash || voidExcluded ? 0 : verified ? sale + tip : null,
       allocations: Object.values(allocations) };
   });
   if (team.total !== unassigned.total + Object.values(employees).reduce((total, employee) => total + employee.total, 0)) throw new Error("Performance team reconciliation failed.");
   if (rawNet !== team.total + taxNet + pendingRaw) throw new Error("Performance cash/component reconciliation failed.");
   // Inspect source tables regardless of the capture feature flag. No guessed coverage start/backfill.
-  const payments = await database.payment.findMany({ where: { ...scope, paidAt: timeRange },
+  const payments = await database.payment.findMany({ where: { ...scope, purpose: { not: "WALLET_TOP_UP" }, paidAt: timeRange },
     select: { id: true, amount: true, paidAt: true, method: true, status: true, invoice: { select: { status: true } },
       performanceReceipts: { where: { refundId: null }, select: { id: true } } } });
-  const refunds = await database.paymentRefund.findMany({ where: { ...scope, refundedAt: timeRange },
+  const refunds = await database.paymentRefund.findMany({ where: { ...scope, payment: { purpose: { not: "WALLET_TOP_UP" } }, refundedAt: timeRange },
     select: { id: true, paymentId: true, amount: true, refundedAt: true, method: true, performanceReceipt: { select: { id: true } },
       payment: { select: { performanceReceipts: { where: { refundId: null }, select: { id: true } } } } } });
   const eventIds = new Set(events.map((event) => event.id));
@@ -123,17 +128,17 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
     const captured = !!source.receiptId && eventIds.has(source.receiptId);
     const detail = source.receiptId ? detailsById.get(source.receiptId) : undefined;
     const hasUnassigned = detail?.allocations.some((entry) => entry.membershipId === null && (entry.salesReceived || entry.tipsReceived || entry.refunds));
-    const classification = excluded ? "EXCLUDED_NONCASH" : !captured ? "UNCAPTURED" : detail?.verified
+    const classification = detail?.voidExcluded ? "EXCLUDED_WALLET_VOID" : excluded ? "EXCLUDED_NONCASH" : !captured ? "UNCAPTURED" : detail?.verified
       ? hasUnassigned ? "CAPTURED_VERIFIED_UNASSIGNED" : "CAPTURED_VERIFIED" : "CAPTURED_PENDING";
     return { ...source, classification, compositionStatus: detail && !detail.unresolvedCents ? "CAPTURED_COMPONENTS" : "UNKNOWN",
       salesCents: detail && !detail.unresolvedCents ? detail.salesCents : null,
       taxCents: detail && !detail.unresolvedCents ? detail.taxCents : null, tipCents: detail && !detail.unresolvedCents ? detail.tipCents : null,
-      qualifiedCents: excluded ? 0 : detail?.verified ? detail.totalCents : null,
+      qualifiedCents: excluded || detail?.voidExcluded ? 0 : detail?.verified ? detail.totalCents : null,
       issues: [...(detail?.issues ?? []), ...(!source.originalCaptured && !excluded ? ["ORIGINAL_PAYMENT_UNCAPTURED"] : []),
-        ...(source.voided ? ["VOID_SOURCE_REQUIRES_REVIEW"] : []), ...(source.receiptId && !captured ? ["CAPTURE_SCOPE_OR_DATE_MISMATCH"] : [])] };
+        ...(source.voided && !detail?.voidExcluded ? ["VOID_SOURCE_REQUIRES_REVIEW"] : []), ...(source.receiptId && !captured ? ["CAPTURE_SCOPE_OR_DATE_MISMATCH"] : [])] };
   });
   const uncapturedCount = sourceDetails.filter((source) => source.classification === "UNCAPTURED").length;
-  const pendingCount = details.filter((event) => !event.verified && !["PACKAGE", "RESTORE"].includes(event.kind)).length;
+  const pendingCount = details.filter((event) => !event.verified && !event.voidExcluded && !["PACKAGE", "RESTORE"].includes(event.kind)).length;
   const basisGapCount = sourceDetails.filter((source) => source.method !== "PACKAGE" && !source.originalCaptured).length;
   const coverageStatus = uncapturedCount || pendingCount || basisGapCount ? "INCOMPLETE" : "COMPLETE";
   return { businessId: context.businessId, branchId: context.branchId, period, periodStart: period.from.toISOString(), periodEnd: period.toExclusive.toISOString(),
@@ -141,8 +146,8 @@ export async function readScopedPerformanceSnapshot(context: Pick<PerformanceAct
     periodClosed: input.asOf >= period.toExclusive,
     coverageStatus, uncapturedCount, pendingCount, basisGapCount, sourceCount: sourceDetails.length,
     verifiedCount: details.filter((event) => event.verified).length,
-    excludedCount: sourceDetails.filter((source) => source.classification === "EXCLUDED_NONCASH").length,
+    excludedCount: sourceDetails.filter((source) => source.classification === "EXCLUDED_NONCASH" || source.classification === "EXCLUDED_WALLET_VOID").length,
     unassignedAmount: unassigned.total, totalsAreComplete: coverageStatus === "COMPLETE", sourceDetails,
-    team, employees, unassigned, pending, rawNetCents: rawNet, taxNetCents: taxNet, pendingRawCents: pendingRaw, excludedPackageNetCents: excludedPackageNet,
+    team, employees, unassigned, pending, rawNetCents: rawNet, taxNetCents: taxNet, pendingRawCents: pendingRaw, excludedPackageNetCents: excludedPackageNet, excludedWalletVoidNetCents: excludedWalletVoidNet,
     target: null, targetState: "NOT_IMPLEMENTED", details };
 }

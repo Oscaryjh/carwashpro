@@ -5,7 +5,7 @@ import { runFinancialOperation, financialOperationKeySchema } from "@/lib/financ
 import { writeAuditLog } from "@/lib/audit";
 import { recordRefundInventory, type RefundStockLineInput } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
-import { reverseLoyaltyPointsForRefund, restoreRedeemedLoyaltyPointsForRefund } from "@/lib/loyalty/service";
+import { refundWalletInvoiceLoyalty } from "@/lib/loyalty/wallet-settlement";
 import { capturePerformanceRefund } from "@/lib/performance/service";
 import { reconcileInvoiceSettlementAfterRefund } from "@/lib/invoices/refund-settlement-service";
 import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
@@ -94,8 +94,6 @@ export async function refundWalletSale(ctx:WalletContext, raw:WalletRefundInput,
         refundIds.push(refund.id);
         const before=payment.method==="MEMBER_WALLET"?await tx.walletTransaction.findFirstOrThrow({where:{paymentId:payment.id},include:{account:true}}):null;
         if(before) await restoreWalletForRefund(tx,ctx,{refundId:refund.id,financialOperationId:op.id});
-        const loyalty={businessId:ctx.businessId,branchId:payment.branchId,paymentId:payment.id,refundId:refund.id,paymentAmountCents:toCents(payment.amount),createdById:ctx.user.userId};
-        await reverseLoyaltyPointsForRefund(tx,loyalty); await restoreRedeemedLoyaltyPointsForRefund(tx,loyalty);
         const amounts=calculateCreditNoteAmounts({invoiceSubtotal:Number(invoice.subtotal),invoiceTax:Number(invoice.taxAmount),invoiceTotal:Number(invoice.total),refundTotal:leg.amountCents/100});
         const note=await tx.creditNote.create({data:{businessId:ctx.businessId,branchId:invoice.branchId,invoiceId:invoice.id,refundId:refund.id,customerId:invoice.customerId,createdById:ctx.user.userId,creditNoteNumber:makeCreditNoteNumber(),reason:input.reason,subtotal:fromCents(toCents(amounts.subtotal)),taxableSubtotal:fromCents(toCents(amounts.taxableSubtotal)),taxAmount:fromCents(toCents(amounts.tax)),taxRate:invoice.taxRate,taxLabel:invoice.taxLabel,total:fromCents(toCents(amounts.total)),items:{create:{businessId:ctx.businessId,name:`Refund for ${invoice.invoiceNumber}`,quantity:1,unitPrice:fromCents(toCents(amounts.subtotal)),lineTotal:fromCents(toCents(amounts.subtotal)),taxable:amounts.tax>0,taxRate:invoice.taxRate,taxAmount:fromCents(toCents(amounts.tax))}}}});
         creditNoteNumbers.push(note.creditNoteNumber);
@@ -103,6 +101,8 @@ export async function refundWalletSale(ctx:WalletContext, raw:WalletRefundInput,
         const after=before?await tx.walletAccount.findUniqueOrThrow({where:{id:before.account.id}}):null;
         await writeAuditLog({businessId:ctx.businessId,branchId:invoice.branchId,actor,action:"PAYMENT_REFUNDED",entityType:"PaymentRefund",entityId:refund.id,summary:`Refunded RM${fromCents(leg.amountCents)} from ${invoice.invoiceNumber}`,before:before?.account,after,metadata:{operationId:op.id,paymentId:payment.id,originalTransactionId:before?.id??null,shiftId:null,sourceShiftId:payment.shiftId,method:leg.method,reason:input.reason,reference:leg.reference??null}},tx);
       }
+      // One balance adjustment for this entire operation, after every refund leg exists.
+      await refundWalletInvoiceLoyalty(tx,{businessId:ctx.businessId,invoiceId:invoice.id,refundId:refundIds[0],actorUserId:ctx.user.userId});
       if(input.stockLines.length) await recordRefundInventory(tx,{businessId:ctx.businessId,branchId:invoice.branchId!,actorUserId:ctx.user.userId,paymentRefundId:refundIds[0],lines:input.stockLines as RefundStockLineInput[]});
       await reconcileInvoiceSettlementAfterRefund(tx,{businessId:ctx.businessId,invoiceId:invoice.id,totalCents:toCents(invoice.total),workOrderId:invoice.workOrderId});
       await writeAuditLog({businessId:ctx.businessId,branchId:invoice.branchId,actor,action:"WALLET_SALE_REFUNDED",entityType:"Invoice",entityId:invoice.id,summary:"Wallet sale refund recorded",metadata:{operationId:op.id,refundIds,stockLines:input.stockLines,shiftId:null,reason:input.reason}},tx);

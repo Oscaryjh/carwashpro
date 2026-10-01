@@ -4,6 +4,7 @@ import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
 import { GroupLogoUpload } from "@/components/group-logo-upload";
+import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { GroupPageHero } from "@/components/group-page-hero";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
 import { requireUser } from "@/lib/auth/session";
@@ -349,6 +350,9 @@ export default async function GroupClosingPage({
                           <td>
                             <strong>{row.branchName}</strong>
                             {row.closingNote ? <small>{row.closingNote}</small> : null}
+                            {row.walletActivity ? <details><summary>Frozen wallet activity · v{row.reportVersion}</summary>
+                              <WalletFinancialSummary activity={row.walletActivity} unassignedCashRefundCents={row.unassignedCashRefundCents}/>
+                            </details> : null}
                           </td>
                           <td>{money(row.financial?.grossSalesCents ?? null)}</td>
                           <td>{money(row.financial?.netSalesCents ?? null)}</td>

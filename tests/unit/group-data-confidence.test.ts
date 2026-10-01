@@ -465,11 +465,11 @@ function validClosingRow(
     closingNote: null,
     closedAt: new Date("2026-07-01T18:00:00.000Z"),
     closedByName: "QA Owner",
-    reportVersion: 2,
+    reportVersion: 3,
     generatedAt: new Date("2026-07-01T18:00:00.000Z"),
     businessDayCutoffTime: "00:00",
     businessDayDefinitionVersion: 1,
-    metricDefinitionVersion: 1,
+    metricDefinitionVersion: 2,
     financial: {
       grossSalesCents: 10_000,
       netSalesCents: 9_000,

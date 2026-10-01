@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { notFound, redirect } from "next/navigation";
 import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
@@ -186,6 +187,7 @@ export default async function GroupReportsPage({
               </div>
               <ExportLinks groupId={groupId} query={query} />
               <SummaryGrid summary={report.summary} />
+              <WalletFinancialSummary activity={report.walletActivity} salesRefundsCents={report.summary.refundsCents} externalRefundsCents={report.externalRefundsCents} />
             </section>
 
             <GroupStoreComparison

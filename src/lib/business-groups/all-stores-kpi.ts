@@ -35,6 +35,7 @@ import {
   type FinancialMetricRefund,
 } from "@/lib/financial-metrics";
 import { prisma } from "@/lib/prisma";
+import type { Method, Purpose } from "@/lib/payments/fact-classification";
 
 export type AllStoresRange = "today" | "7days" | "month" | "custom";
 
@@ -94,6 +95,7 @@ export type AllStoresAnalyticsFallbackReason =
   | "STALE_SUMMARIES"
   | "INVALID_SUMMARIES"
   | "UNSUPPORTED_FILTERS"
+  | "WALLET_CANONICAL"
   | null;
 
 type ReportingDatabase = Pick<
@@ -135,12 +137,16 @@ type InvoiceRow = {
 };
 
 type PaymentRow = {
+  purpose?: Purpose;
+  method?: Method;
   amount: unknown;
   businessId: string;
   paidAt: Date;
 };
 
 type RefundRow = {
+  method?: Method;
+  payment?: { purpose: Purpose; method: Method };
   amount: unknown;
   businessId: string;
   refundedAt: Date;
@@ -273,6 +279,8 @@ export async function getAllStoresKpiReport(
         amount: true,
         businessId: true,
         paidAt: true,
+        purpose: true,
+        method: true,
       },
     }),
     database.paymentRefund.findMany({
@@ -297,6 +305,8 @@ export async function getAllStoresKpiReport(
         amount: true,
         businessId: true,
         refundedAt: true,
+        method: true,
+        payment: { select: { purpose: true, method: true } },
       },
     }),
   ]);
@@ -567,6 +577,8 @@ export function calculateAllStoresKpis(input: {
     source[bucket].payments.push({
       amountCents: moneyToCents(payment.amount),
       isPackage: false,
+      method: payment.method,
+      purpose: payment.purpose,
     });
   }
 
@@ -578,6 +590,8 @@ export function calculateAllStoresKpis(input: {
     source[bucket].refunds.push({
       amountCents: moneyToCents(refund.amount),
       isPackage: false,
+      method: refund.method,
+      originalPayment: refund.payment,
     });
   }
 

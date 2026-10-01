@@ -121,7 +121,9 @@ test("a reversed redemption cannot be reactivated and invoice identity stays pro
     return { invoice, payment, ledger };
   });
   await assert.rejects(db.payment.update({ where: { id: graph.payment.id }, data: { status: "VOID" } }), /WALLET_VOID_REQUIRES_REVERSAL/);
-  await assert.rejects(getDailyClosingReport({ businessId: f.business.id, branchId: f.branch.id, industryType: "SALON_BEAUTY" }, db), /MEMBER_WALLET_CLOSING_NOT_SUPPORTED/);
+  // This schema fixture intentionally leaves its financial operation IN_PROGRESS.
+  // Valid Wallet closing is supported in P1F; incomplete source evidence must still fail closed.
+  await assert.rejects(getDailyClosingReport({ businessId: f.business.id, branchId: f.branch.id, industryType: "SALON_BEAUTY" }, db), /Wallet operation is incomplete/);
   await assert.rejects(db.invoice.update({ where: { id: graph.invoice.id }, data: { customerId: null } }), /WALLET_INVOICE_IDENTITY_IMMUTABLE/);
   await db.$transaction(async tx => {
     await tx.payment.update({ where: { id: graph.payment.id }, data: { status: "VOID" } });

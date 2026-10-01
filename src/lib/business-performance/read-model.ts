@@ -7,6 +7,7 @@ import {
   startOfBusinessMonth,
 } from "@/lib/business-time";
 import { calculateFinancialMetrics } from "@/lib/financial-metrics";
+import { classifyRefundFact, type Method, type Purpose } from "@/lib/payments/fact-classification";
 import { getExpenseDashboard } from "@/lib/expense/service";
 import { reconcileExpenseSources } from "@/lib/expense/source-integration";
 import { getAccountsPayableOverview, reconcileAccountsPayable } from "@/lib/inventory/supplier-ap-service";
@@ -14,6 +15,8 @@ import { reconcileInventory } from "@/lib/inventory/service";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { prisma } from "@/lib/prisma";
+import { readWalletActivity } from "@/lib/reports/wallet-activity";
+import { financialReadSnapshot } from "@/lib/reports/financial-read-snapshot";
 
 export type PerformanceRange = "today" | "7days" | "yesterday" | "this_week" | "last_week" | "month" | "last_month" | "custom";
 
@@ -22,13 +25,17 @@ export type PerformanceReadModel = Awaited<ReturnType<typeof getBusinessPerforma
 type ReadDatabase = Pick<Prisma.TransactionClient,
   "business" | "branch" | "invoice" | "payment" | "paymentRefund" | "invoiceItem" |
   "product" | "productStock" | "businessExpense" | "expenseSourceSettlement" |
-  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement">;
+  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement" | "walletTransaction">;
 type SalesInvoiceRow = { branchId: string | null; issuedAt: Date; total: unknown; tipAmount: unknown; discountAmount: unknown; loyaltyDiscountAmount: unknown; payments: Array<{ amount: unknown }> };
-type SalesPaymentRow = { amount: unknown; branchId: string | null; paidAt: Date };
-type SalesRefundRow = { amount: unknown; branchId: string | null; refundedAt: Date };
+type SalesPaymentRow = { amount: unknown; branchId: string | null; paidAt: Date; purpose?: Purpose; method?: Method };
+type SalesRefundRow = { amount: unknown; branchId: string | null; refundedAt: Date; method?: Method; payment?: { purpose: Purpose; method: Method } };
 type TopLineRow = { name: string; serviceId: string | null; productId: string | null; _sum: { lineTotal: unknown; quantity: number | null } };
 
-export async function getBusinessPerformanceReadModel(input: {
+export function getBusinessPerformanceReadModel(input: Parameters<typeof readBusinessPerformanceReadModel>[0], database: ReadDatabase = prisma) {
+  return financialReadSnapshot(database, tx => readBusinessPerformanceReadModel(input, tx));
+}
+
+async function readBusinessPerformanceReadModel(input: {
   businessId: string;
   allowedBranchIds: readonly string[];
   includeBusinessWide: boolean;
@@ -63,9 +70,9 @@ export async function getBusinessPerformanceReadModel(input: {
       select: { id: true, branchId: true, issuedAt: true, total: true, tipAmount: true, discountAmount: true, loyaltyDiscountAmount: true,
         payments: { where: { method: "PACKAGE", status: "ACTIVE" }, select: { amount: true } } } }),
     database.payment.findMany({ where: { businessId: input.businessId, ...branchFilter, status: "ACTIVE", method: { not: "PACKAGE" }, paidAt: completeWindow,
-      OR: [{ invoiceId: null }, { invoice: { status: { not: "VOID" } } }] }, select: { amount: true, branchId: true, paidAt: true } }),
+      OR: [{ invoiceId: null }, { invoice: { status: { not: "VOID" } } }] }, select: { amount: true, branchId: true, paidAt: true, purpose: true, method: true } }),
     database.paymentRefund.findMany({ where: { businessId: input.businessId, ...branchFilter, method: { not: "PACKAGE" }, refundedAt: completeWindow,
-      OR: [{ invoiceId: null }, { invoice: { status: { not: "VOID" } } }] }, select: { amount: true, branchId: true, refundedAt: true } }),
+      OR: [{ invoiceId: null }, { invoice: { status: { not: "VOID" } } }] }, select: { amount: true, branchId: true, refundedAt: true, method: true, payment: { select: { purpose: true, method: true } } } }),
   ]) : [[], [], []];
   const currentSales = salesForPeriod(invoices, payments, refunds, periods.current.fromDate, periods.current.toDateExclusive);
   const previousSales = salesForPeriod(invoices, payments, refunds, periods.previous.fromDate, periods.previous.toDateExclusive);
@@ -100,6 +107,10 @@ export async function getBusinessPerformanceReadModel(input: {
   const recordedCents = spending ? moneyToCents(spending.recorded) : null;
   return {
     scope: { businessId: business.id, businessName: business.name, branchIds, selectedBranchId },
+    walletActivity: enabled.has("POS") ? await readWalletActivity(database, {
+      businessId: input.businessId, branchIds,
+      from: periods.current.fromDate, toExclusive: periods.current.toDateExclusive,
+    }) : undefined,
     dateRange: { range: periods.range, from: periods.current.fromDateValue, to: periods.current.toDateValue,
       previousFrom: periods.previous.fromDateValue, previousTo: periods.previous.toDateValue,
       timezone: business.timezone, businessDayCutoffTime: business.businessDayCutoffTime },
@@ -150,17 +161,17 @@ function centsToMoney(value: number) { return (value / 100).toFixed(2); }
 function salesForPeriod(invoices: SalesInvoiceRow[], payments: SalesPaymentRow[], refunds: SalesRefundRow[], from: Date, to: Date) {
   const metrics = calculateFinancialMetrics({
     invoices: invoices.filter((row) => inPeriod(row.issuedAt, from, to)).map((row) => ({ totalCents: moneyToCents(row.total), tipCents: moneyToCents(row.tipAmount), discountCents: moneyToCents(row.discountAmount), loyaltyDiscountCents: moneyToCents(row.loyaltyDiscountAmount), packageVoucherCents: row.payments.reduce((sum, payment) => sum + moneyToCents(payment.amount), 0) })),
-    payments: payments.filter((row) => inPeriod(row.paidAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false })),
-    refunds: refunds.filter((row) => inPeriod(row.refundedAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false })),
+    payments: payments.filter((row) => inPeriod(row.paidAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false, purpose: row.purpose, method: row.method })),
+    refunds: refunds.filter((row) => inPeriod(row.refundedAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false, method: row.method, originalPayment: row.payment })),
   });
-  return { grossSalesCents: metrics.grossSalesCents, netSalesCents: metrics.netSalesCents, paymentsCollectedCents: metrics.netCollectionsCents, refundsCents: metrics.refundsCents, transactions: metrics.transactionCount, averageTransactionValueCents: metrics.averageTransactionValueCents ?? 0 };
+  return { grossSalesCents: metrics.grossSalesCents, netSalesCents: metrics.netSalesCents, paymentsCollectedCents: metrics.netCollectionsCents, refundsCents: metrics.refundsCents, externalRefundsCents: metrics.externalRefundsCents, transactions: metrics.transactionCount, averageTransactionValueCents: metrics.averageTransactionValueCents ?? 0 };
 }
 function buildSalesTrend(invoices: SalesInvoiceRow[], refunds: SalesRefundRow[], from: string, to: string, timezone: string, businessDayCutoffTime: string) {
   const points = []; for (let day = from; day <= to; day = addDaysToDateValue(day, 1)) {
     const dayRange = getBusinessDayRange({ fromDateValue: day, toDateValue: day, timezone, businessDayCutoffTime });
     const dayInvoices = invoices.filter((row) => inPeriod(row.issuedAt, dayRange.fromDate, dayRange.toDateExclusive));
     const recognized = dayInvoices.reduce((sum, row) => sum + moneyToCents(row.total) - moneyToCents(row.tipAmount) - row.payments.reduce((paymentSum, payment) => paymentSum + moneyToCents(payment.amount), 0), 0);
-    const refunded = refunds.filter((row) => inPeriod(row.refundedAt, dayRange.fromDate, dayRange.toDateExclusive)).reduce((sum, row) => sum + moneyToCents(row.amount), 0);
+    const refunded = refunds.filter((row) => inPeriod(row.refundedAt, dayRange.fromDate, dayRange.toDateExclusive)).reduce((sum, row) => sum + (classifyRefundFact({ originalPayment: row.payment ?? { purpose: "LEGACY", method: row.method ?? "CASH" }, refundMethod: row.method ?? "CASH" }).salesRefund ? moneyToCents(row.amount) : 0), 0);
     points.push({ date: day, netSalesCents: recognized - refunded });
   } return points;
 }

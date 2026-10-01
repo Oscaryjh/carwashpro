@@ -23,10 +23,14 @@ export function calculateDailyClosingReport(
     payments: source.payments.map((payment) => ({
       amountCents: payment.amountCents,
       isPackage: payment.method === "PACKAGE",
+      method: payment.method,
+      purpose: payment.purpose,
     })),
     refunds: source.refunds.map((refund) => ({
       amountCents: refund.amountCents,
       isPackage: refund.method === "PACKAGE",
+      method: refund.method,
+      originalPayment: refund.originalPayment,
     })),
   });
   const {
@@ -121,6 +125,13 @@ export function calculateDailyClosingReport(
     alerts,
     cashDrawer: {
       expensePayoutCents: source.drawerExpensePayouts.reduce((sum, payout) => sum + payout.amountCents, 0),
+      unassignedRefundCents: source.refunds.reduce((sum, refund) => sum + (refund.method === "CASH" && refund.shiftId === null ? refund.amountCents : 0), 0),
+    },
+    wallet: {
+      topUpPrincipalCents: financialMetrics.topUpPrincipalCents,
+      topUpReversalsCents: financialMetrics.topUpReversalsCents,
+      redemptionsCents: financialMetrics.walletRedemptionsCents,
+      refundsCents: financialMetrics.walletRefundsCents,
     },
     financial: {
       collectedCents,

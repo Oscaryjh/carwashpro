@@ -10,7 +10,7 @@ import {
 } from "./range";
 import type { DailyClosingReport } from "./types";
 
-export const DAILY_CLOSING_REPORT_VERSION = 2;
+export const DAILY_CLOSING_REPORT_VERSION = 3;
 export const DAILY_CLOSING_METRIC_DEFINITION_VERSION =
   FINANCIAL_METRIC_DEFINITION_VERSION;
 export const DAILY_CLOSING_BUSINESS_DAY_DEFINITION_VERSION = 1;
@@ -134,6 +134,7 @@ export function isDailyClosingSnapshotPayload(
 
   const isSupportedVersion =
     payload.version === LEGACY_DAILY_CLOSING_REPORT_VERSION ||
+    payload.version === 2 ||
     payload.version === DAILY_CLOSING_REPORT_VERSION;
   const hasBasePayload =
     isSupportedVersion &&

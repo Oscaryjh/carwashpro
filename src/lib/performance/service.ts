@@ -97,6 +97,7 @@ export async function capturePerformancePayment(tx: Tx, paymentId: string, optio
   const existing = await tx.performanceReceipt.findUnique({ where: { businessId_sourceKey: { businessId: options.businessId, sourceKey: `PAYMENT:${paymentId}` } } });
   if (existing) return existing;
   const payment = await receiptData(tx, paymentId, options.businessId);
+  if (payment.purpose === "WALLET_TOP_UP") return null;
   if (payment.branchId) await assertPerformanceActor(tx, { businessId: options.businessId, branchId: payment.branchId, actorUserId: options.actorUserId });
   const amount = cents(payment.amount);
   const timezone = performanceTimezone(payment.business.timezone);
@@ -165,6 +166,7 @@ export async function capturePerformanceRefund(tx: Tx, refundId: string, options
   const existing = await tx.performanceReceipt.findUnique({ where: { businessId_sourceKey: { businessId: options.businessId, sourceKey: `REFUND:${refund.id}` } } });
   if (existing) return existing;
   const payment = await receiptData(tx, refund.paymentId, options.businessId);
+  if (payment.purpose === "WALLET_TOP_UP") return null;
   if (payment.branchId) await assertPerformanceActor(tx, { businessId: options.businessId, branchId: payment.branchId, actorUserId: options.actorUserId });
   if (payment.branchId !== refund.branchId) throw new Error("Performance refund branch scope mismatch.");
   const original = await tx.performanceReceipt.findUnique({ where: { businessId_sourceKey: { businessId: options.businessId, sourceKey: `PAYMENT:${payment.id}` } } });

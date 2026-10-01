@@ -343,7 +343,7 @@ function dailyRow(businessDate: string): AnalyticsDailyRow {
     discountsCents: 0,
     grossCollectionsCents: 0,
     grossSalesCents: 0,
-    metricDefinitionVersion: 1,
+    metricDefinitionVersion: 2,
     netCollectionsCents: 0,
     netSalesCents: 0,
     outstandingCents: 0,

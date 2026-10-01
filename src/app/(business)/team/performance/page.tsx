@@ -15,7 +15,7 @@ import styles from "./performance.module.css";
 export const dynamic = "force-dynamic";
 type Params = { range?: string; q?: string; branch?: string; year?: string; month?: string; tab?: string; employee?: string; page?: string; status?: string; component?: string };
 const percent = (v: number | null) => v === null ? "N/A" : `${v.toFixed(2)}%`;
-const statuses: Record<string,string> = { CAPTURED_VERIFIED:"Captured and verified", CAPTURED_VERIFIED_UNASSIGNED:"Verified · Unassigned", CAPTURED_PENDING:"Pending verification", UNCAPTURED:"Not captured", EXCLUDED_NONCASH:"Non-cash redemption · Excluded" };
+const statuses: Record<string,string> = { CAPTURED_VERIFIED:"Captured and verified", CAPTURED_VERIFIED_UNASSIGNED:"Verified · Unassigned", CAPTURED_PENDING:"Pending verification", UNCAPTURED:"Not captured", EXCLUDED_NONCASH:"Non-cash redemption · Excluded", EXCLUDED_WALLET_VOID:"Wallet void · Excluded" };
 type Data = Awaited<ReturnType<typeof readPerformanceDashboard>>;
 function Composition({value}:{value:Data["annual"]["team"]}) {
   return <dl className={styles.composition}><div><dt>Sales received</dt><dd>{money(value.salesReceived)}</dd></div><div><dt>Tips received</dt><dd>{money(value.tipsReceived)}</dd></div><div><dt>Refund deductions</dt><dd>− {money(value.refunds)}</dd></div></dl>;

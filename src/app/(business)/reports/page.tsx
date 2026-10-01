@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { redirect } from "next/navigation";
 import type { PaymentMethod, Prisma } from "@prisma/client";
 import { ReportDrawerShell } from "@/components/report-drawer-shell";
@@ -881,6 +882,7 @@ function DailySalesSection({
           </Link>
         </div>
       </div>
+      <WalletFinancialSummary activity={report.walletActivity} salesRefundsCents={report.summary.refundsCents} externalRefundsCents={report.paymentMethods.reduce((sum, row) => sum + row.refundCents, 0)} />
       {visibleDays.length ? (
         <>
           <div className="report-table-shell report-desktop-table">

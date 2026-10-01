@@ -174,7 +174,7 @@ test("Wallet split preserves rounding, valid staff allocation, zero-tip and requ
     assert.equal(receipts.length, 2); assert.equal(receipts.reduce((n, r) => n + Number(r.salesCents), 0), 4002);
     assert.equal(receipts.reduce((n, r) => n + Number(r.tipCents), 0), 0);
     const earned = await db.loyaltyTransaction.findMany({ where: { businessId: f.business.id, type: "EARN" } });
-    assert.equal(earned.reduce((n, r) => n + r.points, 0), 39); // Existing per-Payment flooring: floor(20.99) + floor(19.03).
+    assert.equal(earned.reduce((n, r) => n + r.points, 0), 40); // P1F approved Wallet invoice flooring: floor(20.99 + 19.03).
     assert.equal(await db.performanceShare.count({ where: { businessId: f.business.id, membershipId: member.id } }), 1);
     process.env.TETAMU_PERFORMANCE_LEGACY_COMPAT = "true";
     f.form.set("operationId", randomUUID()); f.form.delete("performanceAttribution");

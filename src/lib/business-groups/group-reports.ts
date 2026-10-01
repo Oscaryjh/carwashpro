@@ -36,7 +36,11 @@ import {
   isEventWithinAuthorizedMembership,
 } from "@/lib/business-groups/historical-membership";
 import { calculateInvoiceFinancialMetrics } from "@/lib/financial-metrics";
+import { calculateWalletLedgerMetrics, type WalletLedgerMetrics } from "@/lib/financial-metrics";
+import { readWalletActivity } from "@/lib/reports/wallet-activity";
+import { financialReadSnapshot } from "@/lib/reports/financial-read-snapshot";
 import { prisma } from "@/lib/prisma";
+import { classifyPaymentFact, classifyRefundFact, type Method, type Purpose } from "@/lib/payments/fact-classification";
 
 export const GROUP_REPORT_PAGE_SIZE = 25;
 export const GROUP_REPORT_EXPORT_LIMIT = 5_000;
@@ -126,6 +130,8 @@ export type GroupReportCatalogRanking = {
 };
 
 export type GroupReportsResult = {
+  walletActivity?: WalletLedgerMetrics;
+  externalRefundsCents?: number;
   groupId: string;
   groupName: string;
   role: AuthorizedGroupReportingContext["role"];
@@ -149,7 +155,7 @@ export type GroupReportsResult = {
 
 type GroupReportsDatabase = Pick<
   Prisma.TransactionClient,
-  "analyticsDailyStoreSummary" | "invoice" | "payment" | "paymentRefund"
+  "analyticsDailyStoreSummary" | "invoice" | "payment" | "paymentRefund" | "walletTransaction"
 >;
 
 type ResolveScope = typeof resolveAuthorizedGroupReportingScope;
@@ -179,7 +185,11 @@ const optionalUuid = z.string().uuid();
 export class GroupReportsInputError extends Error {}
 export class GroupReportsExportLimitError extends Error {}
 
-export async function getGroupReports(
+export function getGroupReports(input: GroupReportsInput, database: GroupReportsDatabase = prisma, dependencies: GroupReportsDependencies = {}) {
+  return financialReadSnapshot(database, tx => readGroupReports(input, tx, dependencies));
+}
+
+async function readGroupReports(
   input: GroupReportsInput,
   database: GroupReportsDatabase = prisma,
   dependencies: GroupReportsDependencies = {},
@@ -245,6 +255,13 @@ export async function getGroupReports(
   );
   const supportsDailySummary =
     filters.paymentMethod === null && filters.status === null;
+  const walletActivity = supportsDailySummary ? calculateWalletLedgerMetrics([]) : undefined;
+  if (walletActivity) {
+    for (const range of currentRanges) {
+      const activity = await readWalletActivity(database, { businessId: range.businessId, from: range.gte, toExclusive: range.lt });
+      for (const key of Object.keys(walletActivity) as Array<keyof WalletLedgerMetrics>) walletActivity[key] += activity[key];
+    }
+  }
   let summaryRead:
     | Awaited<ReturnType<typeof tryLoadAllStoresKpisFromDailySummaries>>
     | null = null;
@@ -264,6 +281,11 @@ export async function getGroupReports(
     });
     if (!summaryRead.ok) analyticsFallbackReason = summaryRead.reason;
   }
+  if (walletActivity && Object.values(walletActivity).some(value => value !== 0)) {
+    // Wallet details have no persisted analytics columns. Do not mix a cached total with live ledger detail.
+    summaryRead = null;
+    analyticsFallbackReason = "WALLET_CANONICAL";
+  }
 
   let calculated: Map<
     string,
@@ -276,6 +298,7 @@ export async function getGroupReports(
   let totalRows: number;
   let invoices: DetailInvoice[];
   let summaryDataSource: "DAILY_SUMMARY" | "RAW";
+  let externalRefundsCents: number | undefined;
 
   if (summaryRead?.ok) {
     const [catalogInvoices, detailCount, detailInvoices] = await Promise.all([
@@ -392,11 +415,11 @@ export async function getGroupReports(
       }),
       database.payment.findMany({
         where: paymentWhere,
-        select: { amount: true, businessId: true, paidAt: true },
+        select: { amount: true, businessId: true, paidAt: true, purpose: true, method: true },
       }),
       database.paymentRefund.findMany({
         where: refundWhere,
-        select: { amount: true, businessId: true, refundedAt: true },
+        select: { amount: true, businessId: true, refundedAt: true, method: true, payment: { select: { purpose: true, method: true } } },
       }),
       database.invoice.count({ where: detailWhere }),
       database.invoice.findMany({
@@ -435,6 +458,9 @@ export async function getGroupReports(
       }),
     ]);
 
+    externalRefundsCents = summaryRefunds.reduce((sum, refund) => sum + (classifyRefundFact({
+      originalPayment: refund.payment, refundMethod: refund.method,
+    }).externalRefund ? moneyToCents(refund.amount) : 0), 0);
     calculated = calculateAllStoresKpis({
       businessIds: businesses.map((business) => business.id),
       periods,
@@ -499,6 +525,8 @@ export async function getGroupReports(
 
   return {
     groupId: scope.groupId,
+    walletActivity,
+    externalRefundsCents,
     groupName: scope.groupName,
     role: scope.role,
     authorizedBusinesses: reportingBusinesses,
@@ -565,12 +593,16 @@ type CatalogRankingRow = {
 };
 
 type TrendPaymentRow = {
+  purpose?: Purpose;
+  method?: Method;
   amount: unknown;
   businessId: string;
   paidAt: Date;
 };
 
 type TrendRefundRow = {
+  method?: Method;
+  payment?: { purpose: Purpose; method: Method };
   amount: unknown;
   businessId: string;
   refundedAt: Date;
@@ -638,7 +670,7 @@ export function buildGroupReportTrend(input: {
       payment.businessId,
       payment.paidAt,
       (point) => {
-        point.paymentsCollectedCents += moneyToCents(payment.amount);
+        if (classifyPaymentFact({ purpose: payment.purpose ?? "LEGACY", method: payment.method ?? "CASH" }).externalCollection) point.paymentsCollectedCents += moneyToCents(payment.amount);
       },
     );
   }
@@ -651,7 +683,8 @@ export function buildGroupReportTrend(input: {
       refund.businessId,
       refund.refundedAt,
       (point) => {
-        const amount = moneyToCents(refund.amount);
+        const fact = classifyRefundFact({ originalPayment: refund.payment ?? { purpose: "LEGACY", method: refund.method ?? "CASH" }, refundMethod: refund.method ?? "CASH" });
+        const amount = fact.salesRefund ? moneyToCents(refund.amount) : 0;
         point.refundsCents += amount;
         point.netSalesCents -= amount;
       },

@@ -23,6 +23,7 @@ import {
   type FinancialMetrics,
 } from "@/lib/financial-metrics";
 import { prisma } from "@/lib/prisma";
+import type { Method, Purpose } from "@/lib/payments/fact-classification";
 
 export {
   ANALYTICS_BUSINESS_DAY_DEFINITION_VERSION,
@@ -75,6 +76,7 @@ type SourceInvoice = {
 };
 
 type SourcePayment = {
+  purpose?: Purpose;
   amount: unknown;
   invoice: { status: string } | null;
   method: PaymentMethod;
@@ -83,6 +85,7 @@ type SourcePayment = {
 };
 
 type SourceRefund = {
+  payment?: { purpose: Purpose; method: Method };
   amount: unknown;
   invoice: { status: string } | null;
   method: PaymentMethod;
@@ -203,10 +206,14 @@ export function calculateDailyStoreSummaryCandidate(input: {
     payments: activePayments.map((payment) => ({
       amountCents: moneyToCents(payment.amount),
       isPackage: false,
+      purpose: payment.purpose,
+      method: payment.method,
     })),
     refunds: activeRefunds.map((refund) => ({
       amountCents: moneyToCents(refund.amount),
       isPackage: false,
+      method: refund.method,
+      originalPayment: refund.payment,
     })),
   });
   const paymentMethods = DAILY_CLOSING_PAYMENT_METHODS.map((method) => {
@@ -296,6 +303,7 @@ export async function computeDailyStoreSummary(
         invoice: { select: { status: true } },
         method: true,
         status: true,
+        purpose: true,
         updatedAt: true,
       },
     }),
@@ -309,6 +317,7 @@ export async function computeDailyStoreSummary(
         invoice: { select: { status: true } },
         method: true,
         updatedAt: true,
+        payment: { select: { purpose: true, method: true } },
       },
     }),
   ]);

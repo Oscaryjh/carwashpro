@@ -82,6 +82,13 @@ export function buildGroupClosingExportRows(report: GroupClosingReport) {
       "Report version",
     ],
     ...report.rows.map(snapshotExportRow),
+    ...report.rows.flatMap(row => row.walletActivity ? [
+      [],
+      ["Frozen wallet activity", row.businessDate, row.businessName, row.branchName, row.id, row.reportVersion],
+      walletColumns.map(([label]) => label),
+      walletColumns.map(([, key]) => centsValue(row.walletActivity![key])),
+      ["Unassigned cash refund", row.unassignedCashRefundCents === undefined ? "Unavailable" : centsValue(row.unassignedCashRefundCents)],
+    ] : []),
   ] satisfies Array<Array<string | number>>;
 }
 
@@ -120,9 +127,22 @@ export function buildGroupClosingPdf(report: GroupClosingReport) {
       (row) =>
         `${row.businessDate} | ${row.businessName} | ${row.branchName} | ${money(row.financial?.netSalesCents ?? null)} | ${money(row.cashDifferenceCents)} | ${row.closedByName}`,
     ),
+    ...report.rows.flatMap(row => row.walletActivity ? [
+      `Frozen wallet activity | ${row.businessDate} | ${row.businessName} | ${row.branchName} | ${row.id}`,
+      ...walletColumns.map(([label, key]) => `${label}: ${money(row.walletActivity![key])}`),
+      `Unassigned cash refund: ${money(row.unassignedCashRefundCents ?? null)}`,
+    ] : []),
   ];
   return buildTextPdf(lines);
 }
+
+const walletColumns = [
+  ["Wallet top-up principal", "topUpPrincipalCents"], ["Bonus credited", "topUpBonusCents"],
+  ["Wallet redemption (paid)", "redemptionPaidCents"], ["Wallet redemption (bonus)", "redemptionBonusCents"],
+  ["Wallet refund (paid)", "refundPaidCents"], ["Wallet refund (bonus)", "refundBonusCents"],
+  ["Top-up reversal (principal)", "reversedPrincipalCents"], ["Top-up reversal (bonus)", "reversedBonusCents"],
+  ["Void restoration (paid)", "voidRestoredPaidCents"], ["Void restoration (bonus)", "voidRestoredBonusCents"],
+] as const;
 
 export function groupClosingExportFileName(
   report: GroupClosingReport,

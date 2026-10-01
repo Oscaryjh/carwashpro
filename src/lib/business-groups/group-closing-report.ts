@@ -83,6 +83,8 @@ export type GroupClosingRow = {
   businessDayDefinitionVersion: number | null;
   metricDefinitionVersion: number | null;
   financial: DailyClosingSnapshotPayload["report"]["financial"] | null;
+  walletActivity?: DailyClosingSnapshotPayload["report"]["walletActivity"];
+  unassignedCashRefundCents?: number;
   whatsappStatus: string;
 };
 
@@ -580,6 +582,8 @@ function toGroupClosingRow(snapshot: SnapshotRow): GroupClosingRow {
       payload?.businessDayDefinitionVersion ?? null,
     metricDefinitionVersion: payload?.metricDefinitionVersion ?? null,
     financial: payload?.report.financial ?? null,
+    walletActivity: payload?.report.walletActivity,
+    unassignedCashRefundCents: payload?.report.cashDrawer?.unassignedRefundCents,
     whatsappStatus: snapshot.closingWhatsAppSends[0]?.status ?? "NOT_QUEUED",
   };
 }

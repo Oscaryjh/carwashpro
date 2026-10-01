@@ -49,6 +49,7 @@ test("projects membership coverage onto each store trend date", async () => {
     paymentRefund: {
       findMany: async () => [],
     },
+    walletTransaction: { findMany: async () => [] },
   };
   const result = await getGroupReports(
     {

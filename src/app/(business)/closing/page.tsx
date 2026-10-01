@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { BranchSelect } from "@/components/branch-select";
 import { selectedOrOnlyBranch } from "@/lib/branch-selection";
 import type { PaymentMethod, PaymentRecordStatus } from "@prisma/client";
@@ -1239,6 +1240,7 @@ function DailyClosingSummary({
           <span className="daily-closing-details-action">Expand</span>
         </summary>
         <div className="daily-closing-details-content">
+      <WalletFinancialSummary activity={report.walletActivity} unassignedCashRefundCents={report.cashDrawer.unassignedRefundCents} salesRefundsCents={report.financial.refundsCents} externalRefundsCents={report.paymentMethods.reduce((sum, row) => sum + row.refundCents, 0)} />
       <div className="daily-closing-kpis">
         <ClosingMetric label="Gross sales" value={formatMoneyFromCents(report.financial.grossSalesCents)} />
         <ClosingMetric label="Net collections" value={formatMoneyFromCents(report.financial.collectedCents)} />

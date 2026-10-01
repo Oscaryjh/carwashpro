@@ -171,6 +171,8 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
           {
             amount: "5.00",
             businessId: salon.id,
+            method: "CASH" as const,
+            payment: { purpose: "LEGACY" as const, method: "CASH" as const },
             refundedAt: new Date("2026-06-30T22:00:00.000Z"),
           },
         ];
@@ -326,6 +328,7 @@ test("primary mode reads summary, trend, and store ranking from validated daily 
     paymentRefund: {
       findMany: async () => [],
     },
+    walletTransaction: { findMany: async () => [] },
   };
 
   const result = await getGroupReports(
@@ -627,7 +630,7 @@ function dailyRow(input: {
     timezone: input.timezone,
     businessDayCutoffTime: input.businessDayCutoffTime,
     businessDayDefinitionVersion: 1,
-    metricDefinitionVersion: 1,
+    metricDefinitionVersion: 2,
     sourceFrom: new Date(input.sourceFrom),
     sourceToExclusive: new Date(input.sourceToExclusive),
     computedAt: input.computedAt,

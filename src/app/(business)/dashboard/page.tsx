@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import type { ReactNode } from "react";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveExpenseReadScope } from "@/lib/expense/access";
@@ -57,6 +58,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
     {(model.topServices.length || model.topProducts.length) ? <div className="performance-two-column"><Ranking title="Top Services" rows={model.topServices} empty="No service sales in this period." /><Ranking title="Top Products" rows={model.topProducts} empty="No product sales in this period." /></div> : null}
     {model.inventory ? <div className="performance-two-column"><Panel title="Inventory Summary" meta="Selling value, not accounting valuation"><div className="performance-breakdown"><Metric label="Tracked Products" value={model.inventory.trackedProducts} /><Metric label="Low Stock" value={model.inventory.lowStock} tone="warning" /><Metric label="Out of Stock" value={model.inventory.outOfStock} tone="danger" /><Metric label="Inventory Selling Value" value={money(model.inventory.sellingValue)} /></div><Link href="/inventory/reorder">Review low stock</Link></Panel>{model.accountsPayable ? <Panel title="Accounts Payable" meta="Liability / settlement view"><div className="performance-breakdown"><Metric label="Outstanding" value={money(model.accountsPayable.totalOutstanding)} /><Metric label="Due Soon" value={model.accountsPayable.dueSoon} /><Metric label="Overdue" value={model.accountsPayable.overdue} tone="danger" /><Metric label="Open Bills" value={model.accountsPayable.openBills} /></div><Link href="/inventory/accounts-payable">Open Accounts Payable</Link></Panel> : null}</div> : null}
+    <WalletFinancialSummary activity={model.walletActivity} salesRefundsCents={sales?.refundsCents} externalRefundsCents={sales?.externalRefundsCents} />
     <Panel title="Coverage" meta="Missing module data is not zero"><div className="performance-coverage-grid"><Coverage label="Sales" included={model.coverage.sales} /><Coverage label="Recorded Spending" included={model.coverage.recordedSpending} /><Coverage label="Inventory" included={model.coverage.inventory} /><Coverage label="Accounts Payable" included={model.coverage.accountsPayable} /><Coverage label="COGS" included={false} /><Coverage label="Accounting Profit" included={false} /></div></Panel>
   </section>;
 }

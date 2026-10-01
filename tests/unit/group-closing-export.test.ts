@@ -7,6 +7,7 @@ import {
   groupClosingExportFileName,
 } from "../../src/lib/business-groups/group-closing-export";
 import type { GroupClosingReport } from "../../src/lib/business-groups/group-closing-report";
+import { calculateWalletLedgerMetrics } from "../../src/lib/financial-metrics";
 
 const report: GroupClosingReport = {
   groupId: "11111111-1111-4111-8111-111111111111",
@@ -127,4 +128,20 @@ test("Closing PDF export and filename are audit specific", () => {
     groupClosingExportFileName(report, "pdf"),
     "QA-Group-closing-audit.pdf",
   );
+});
+
+test("frozen Wallet export preserves per-snapshot facts and never invents values for old snapshots", () => {
+  const before = JSON.stringify(report);
+  const updated: GroupClosingReport = { ...report, rows: [...report.rows, {
+    ...report.rows[0], id: "v3", reportVersion: 3, metricDefinitionVersion: 2,
+    walletActivity: { ...calculateWalletLedgerMetrics([]), topUpPrincipalCents: 100000, topUpBonusCents: 10000 },
+    unassignedCashRefundCents: 1200,
+  }] };
+  const csv = buildGroupClosingCsv(updated).toString("utf8");
+  assert.match(csv, /Wallet top-up principal/);
+  assert.match(csv, /Unassigned cash refund/);
+  assert.match(csv, /"1000","100"/);
+  assert.match(buildGroupClosingPdf(updated).toString("latin1"), /Wallet top-up principal: RM 1000.00/);
+  assert.doesNotMatch(buildGroupClosingCsv(report).toString("utf8"), /Wallet top-up principal/);
+  assert.equal(JSON.stringify(report), before);
 });

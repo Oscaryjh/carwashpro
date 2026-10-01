@@ -1,3 +1,6 @@
+import type { Method, Purpose } from "../payments/fact-classification";
+import type { WalletLedgerMetrics } from "../financial-metrics";
+
 export const DAILY_CLOSING_PAYMENT_METHODS = [
   "CASH",
   "CARD",
@@ -55,12 +58,15 @@ export type DailyClosingSourceData = {
   }[];
   payments: {
     amountCents: number;
-    method: DailyClosingPaymentMethod | "PACKAGE";
+    method: Method;
+    purpose?: Purpose;
     packageUses: number;
   }[];
   refunds: {
     amountCents: number;
-    method: DailyClosingPaymentMethod | "PACKAGE";
+    method: Method;
+    originalPayment?: { purpose: Purpose; method: Method };
+    shiftId?: string | null;
     packageUsesRestored: number;
   }[];
   shifts: {
@@ -80,6 +86,7 @@ export type DailyClosingAlert = {
 };
 
 export type DailyClosingReport = {
+  walletActivity?: WalletLedgerMetrics;
   alerts: DailyClosingAlert[];
   financial: {
     collectedCents: number;
@@ -91,6 +98,13 @@ export type DailyClosingReport = {
   };
   cashDrawer: {
     expensePayoutCents: number;
+    unassignedRefundCents?: number;
+  };
+  wallet?: {
+    topUpPrincipalCents: number;
+    topUpReversalsCents: number;
+    redemptionsCents: number;
+    refundsCents: number;
   };
   invoiceCounts: {
     paid: number;

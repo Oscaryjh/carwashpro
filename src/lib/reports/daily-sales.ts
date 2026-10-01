@@ -5,8 +5,12 @@ import {
 } from "@/lib/business-day";
 import { addDaysToDateValue } from "@/lib/business-time";
 import { calculateFinancialMetrics } from "@/lib/financial-metrics";
+import { classifyPaymentFact, classifyRefundFact, type Method, type Purpose } from "@/lib/payments/fact-classification";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/validation/pos";
+import { readWalletActivity } from "./wallet-activity";
+import { financialReadSnapshot } from "./financial-read-snapshot";
+import type { WalletLedgerMetrics } from "@/lib/financial-metrics";
 
 const DEFAULT_PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MEMBER_WALLET: "Member wallet",
@@ -22,7 +26,7 @@ const DEFAULT_PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 type ReadDatabase = Pick<
   Prisma.TransactionClient,
-  "invoice" | "payment" | "paymentRefund"
+  "invoice" | "payment" | "paymentRefund" | "walletTransaction"
 >;
 
 export type DailySalesInvoiceSource = {
@@ -39,6 +43,8 @@ export type DailySalesInvoiceSource = {
 };
 
 export type DailySalesPaymentSource = {
+  purpose?: Purpose;
+  method?: Method;
   id: string;
   branchId: string | null;
   invoiceId: string | null;
@@ -51,6 +57,8 @@ export type DailySalesPaymentSource = {
 };
 
 export type DailySalesRefundSource = {
+  method?: Method;
+  originalPayment?: { purpose: Purpose; method: Method };
   id: string;
   branchId: string | null;
   invoiceId: string | null;
@@ -116,6 +124,7 @@ export type PaymentMethodDetailRow = {
 };
 
 export type DailySalesReport = {
+  walletActivity: WalletLedgerMetrics;
   range: BusinessDayRange;
   summary: DailySalesSummary;
   days: DailySalesRow[];
@@ -205,14 +214,8 @@ export function buildDailySalesReport(input: {
     );
     const metrics = calculateFinancialMetrics({
       invoices: invoices.map(toFinancialInvoice),
-      payments: payments.map((row) => ({
-        amountCents: row.amountCents,
-        isPackage: row.isPackage,
-      })),
-      refunds: refunds.map((row) => ({
-        amountCents: row.amountCents,
-        isPackage: row.isPackage,
-      })),
+      payments,
+      refunds,
     });
 
     days.push({
@@ -231,14 +234,8 @@ export function buildDailySalesReport(input: {
 
   const summaryMetrics = calculateFinancialMetrics({
     invoices: invoicesInScope.map(toFinancialInvoice),
-    payments: paymentsInScope.map((row) => ({
-      amountCents: row.amountCents,
-      isPackage: row.isPackage,
-    })),
-    refunds: refundsInScope.map((row) => ({
-      amountCents: row.amountCents,
-      isPackage: row.isPackage,
-    })),
+    payments: paymentsInScope,
+    refunds: refundsInScope,
   });
 
   return {
@@ -257,7 +254,11 @@ export function buildDailySalesReport(input: {
   };
 }
 
-export async function getDailySalesReport(
+export function getDailySalesReport(input: Parameters<typeof readDailySalesReport>[0], database: ReadDatabase = prisma) {
+  return financialReadSnapshot(database, tx => readDailySalesReport(input, tx));
+}
+
+async function readDailySalesReport(
   input: {
     businessId: string;
     branchId: string | null;
@@ -310,6 +311,7 @@ export async function getDailySalesReport(
         branchId: true,
         invoiceId: true,
         paidAt: true,
+        purpose: true,
         amount: true,
         method: true,
         paymentMethodLabel: true,
@@ -347,6 +349,8 @@ export async function getDailySalesReport(
         },
         payment: {
           select: {
+            purpose: true,
+            method: true,
             paymentMethodLabel: true,
             businessPaymentMethod: { select: { label: true } },
           },
@@ -375,6 +379,8 @@ export async function getDailySalesReport(
     branchId: row.branchId,
     invoiceId: row.invoiceId,
     paidAt: row.paidAt,
+    purpose: row.purpose,
+    method: row.method,
     amountCents: toCents(row.amount),
     isPackage: false,
     label: paymentLabel(row),
@@ -386,6 +392,8 @@ export async function getDailySalesReport(
     branchId: row.branchId,
     invoiceId: row.invoiceId,
     refundedAt: row.refundedAt,
+    method: row.method,
+    originalPayment: row.payment,
     amountCents: toCents(row.amount),
     isPackage: false,
     label: paymentLabel({
@@ -429,6 +437,10 @@ export async function getDailySalesReport(
 
   return {
     range: input.range,
+    walletActivity: await readWalletActivity(database, {
+      businessId: input.businessId, branchId: input.branchId,
+      from: input.range.fromDate, toExclusive: input.range.toDateExclusive,
+    }),
     ...built,
     selectedDay,
     selectedPaymentMethod: selectedPaymentMethod
@@ -517,7 +529,7 @@ export function buildPaymentMethodDetails(
 ): PaymentMethodDetailRow[] {
   return [
     ...payments
-      .filter((payment) => !payment.isPackage && payment.label === label)
+      .filter((payment) => isExternalPayment(payment) && payment.label === label)
       .map((payment) => ({
         id: payment.id,
         kind: "PAYMENT" as const,
@@ -532,7 +544,7 @@ export function buildPaymentMethodDetails(
         processorName: null,
       })),
     ...refunds
-      .filter((refund) => !refund.isPackage && refund.label === label)
+      .filter((refund) => isExternalRefund(refund) && refund.label === label)
       .map((refund) => ({
         id: refund.id,
         kind: "REFUND" as const,
@@ -549,6 +561,15 @@ export function buildPaymentMethodDetails(
   ].sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime());
 }
 
+function isExternalPayment(payment: DailySalesPaymentSource) {
+  return classifyPaymentFact({ purpose: payment.purpose ?? "LEGACY", method: payment.method ?? (payment.isPackage ? "PACKAGE" : "CASH") }).externalCollection;
+}
+
+function isExternalRefund(refund: DailySalesRefundSource) {
+  const method = refund.method ?? (refund.isPackage ? "PACKAGE" : "CASH");
+  return classifyRefundFact({ originalPayment: refund.originalPayment ?? { purpose: "LEGACY", method }, refundMethod: method }).externalRefund;
+}
+
 function buildPaymentCollections(
   payments: readonly DailySalesPaymentSource[],
   refunds: readonly DailySalesRefundSource[],
@@ -558,7 +579,7 @@ function buildPaymentCollections(
     Omit<PaymentCollectionRow, "sharePercent" | "netCents">
   >();
   for (const payment of payments) {
-    if (payment.isPackage) continue;
+    if (!isExternalPayment(payment)) continue;
     const current = rows.get(payment.label) ?? {
       label: payment.label,
       paymentCount: 0,
@@ -570,7 +591,7 @@ function buildPaymentCollections(
     rows.set(payment.label, current);
   }
   for (const refund of refunds) {
-    if (refund.isPackage) continue;
+    if (!isExternalRefund(refund)) continue;
     const current = rows.get(refund.label) ?? {
       label: refund.label,
       paymentCount: 0,

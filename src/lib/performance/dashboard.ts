@@ -22,7 +22,7 @@ export function slicePerformance(ledger: Ledger, from: Date, to: Date, asOf: Dat
   const team = blank(), unassigned = blank(), employees: Record<string, Totals> = {};
   let pendingCount = 0, unassignedCount = 0;
   for (const e of details) {
-    if (!e.verified) { if (!["PACKAGE", "RESTORE"].includes(e.kind)) pendingCount++; continue; }
+    if (!e.verified) { if (!e.voidExcluded && !["PACKAGE", "RESTORE"].includes(e.kind)) pendingCount++; continue; }
     // For intra-month comparisons, frozen-day membership alone must not include later times.
     if (!inRange(e.occurredAt)) continue;
     for (const a of e.allocations) {
@@ -54,7 +54,7 @@ export function comparisonWindow(year: number, month: number, timezone: string, 
 export async function readPerformanceDashboard(context: PerformanceActor, input: { year: number; month: number; asOf: Date; employeeId?: string; page?: number; status?: string; component?: string; detailRange?: "year" | "month" }, db: PrismaClient = prisma) {
   assertTargetsEnabled();
   if (!(input.asOf instanceof Date) || !Number.isFinite(input.asOf.getTime())) throw new Error("必须指定有效统计截止时间。");
-  if (input.status && !["CAPTURED_VERIFIED", "CAPTURED_VERIFIED_UNASSIGNED", "CAPTURED_PENDING", "UNCAPTURED", "EXCLUDED_NONCASH"].includes(input.status)) throw new Error("来源状态无效。");
+  if (input.status && !["CAPTURED_VERIFIED", "CAPTURED_VERIFIED_UNASSIGNED", "CAPTURED_PENDING", "UNCAPTURED", "EXCLUDED_NONCASH", "EXCLUDED_WALLET_VOID"].includes(input.status)) throw new Error("来源状态无效。");
   if (input.component && !["SALE", "TIP"].includes(input.component)) throw new Error("贡献类型无效。");
   if (!Number.isInteger(input.page ?? 1) || (input.page ?? 1) < 1) throw new Error("页码无效。");
   return db.$transaction(async tx => {

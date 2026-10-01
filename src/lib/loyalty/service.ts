@@ -82,6 +82,12 @@ export async function awardLoyaltyPointsForPayment(
     return null;
   }
 
+  const source = await tx.payment.findFirstOrThrow({
+    where: { id: input.paymentId, businessId: input.businessId },
+    select: { purpose: true },
+  });
+  if (source.purpose === "WALLET_TOP_UP") return null;
+
   const existing = await tx.loyaltyTransaction.findFirst({
     where: {
       businessId: input.businessId,

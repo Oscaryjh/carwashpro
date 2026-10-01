@@ -628,10 +628,14 @@ test("freezes report, cash reconciliation, closer, and timezone in one payload",
   assert.equal(payload.timezone, "Asia/Kuching");
   assert.equal(payload.businessDayCutoffTime, "02:00");
   assert.equal(payload.businessDayDefinitionVersion, 1);
-  assert.equal(payload.metricDefinitionVersion, 1);
-  assert.equal(payload.version, 2);
+  assert.equal(payload.metricDefinitionVersion, 2);
+  assert.equal(payload.version, 3);
   assert.equal(payload.report.paymentMethods[0]?.netCents, 10_000);
   assert.equal(isDailyClosingSnapshotPayload(payload), true);
+  const previousPayload = { ...payload, version: 2, metricDefinitionVersion: 1 };
+  const previousBytes = JSON.stringify(previousPayload);
+  assert.equal(isDailyClosingSnapshotPayload(previousPayload), true);
+  assert.equal(JSON.stringify(previousPayload), previousBytes);
   const legacyPayload = {
     ...payload,
     businessDayCutoffTime: undefined,

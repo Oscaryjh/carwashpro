@@ -1,4 +1,5 @@
 "use server";
+import { awardWalletInvoiceLoyalty } from "@/lib/loyalty/wallet-settlement";
 
 import { FinancialOperationType, type Payment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -971,7 +972,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             createdById: user.userId,
           });
         }
-        for (const createdPayment of createdPayments) {
+        if (createdPayments.some(entry => entry.method === "MEMBER_WALLET")) {
+          await awardWalletInvoiceLoyalty(tx, { businessId, invoiceId: invoice.id, actorUserId: user.userId, operationKey: operationId });
+        } else for (const createdPayment of createdPayments) {
           await awardLoyaltyPointsForPayment(tx, {
             businessId,
             branchId,

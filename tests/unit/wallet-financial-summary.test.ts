@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import test, { after } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { build } from "esbuild";
+import { createRequire } from "node:module";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { calculateWalletLedgerMetrics } from "../../src/lib/financial-metrics";
+let directory: string;
+after(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
+test("wallet report separates principal, bonus and refunds and explains unassigned cash", async () => {
+  directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/wallet-report-ui-"));
+  await build({ entryPoints: ["src/components/wallet/wallet-financial-summary.tsx"], bundle: true, platform: "node", format: "cjs", packages: "external", outfile: join(directory, "ui.cjs") });
+  const { WalletFinancialSummary } = createRequire(import.meta.url)(join(directory, "ui.cjs"));
+  const activity = calculateWalletLedgerMetrics([{ type: "TOP_UP_PAID", paidCents: 100000, bonusCents: 0 }, { type: "TOP_UP_BONUS", paidCents: 0, bonusCents: 10000 }]);
+  const html = renderToStaticMarkup(createElement(WalletFinancialSummary, { activity, unassignedCashRefundCents: 5000, salesRefundsCents: 2000, externalRefundsCents: 3000 }));
+  assert.match(html, /Top-up principal/); assert.match(html, /Bonus credited/);
+  assert.match(html, /RM 1,000.00/); assert.match(html, /RM 100.00/);
+  assert.match(html, /Unassigned cash refund/); assert.match(html, /RM 50.00/);
+  assert.match(html, /not assigned to a cashier shift or a specific cash drawer/);
+  assert.match(html, /Sales refunds/); assert.match(html, /External refunds/); assert.match(html, /RM 30.00/);
+  assert.equal(renderToStaticMarkup(createElement(WalletFinancialSummary, {})), "");
+});

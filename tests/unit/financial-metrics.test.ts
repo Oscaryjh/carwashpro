@@ -12,14 +12,14 @@ import {
 } from "../../src/lib/financial-metrics";
 
 test("publishes a versioned and explicit financial metric contract", () => {
-  assert.equal(FINANCIAL_METRIC_DEFINITION_VERSION, 1);
+  assert.equal(FINANCIAL_METRIC_DEFINITION_VERSION, 2);
   assert.equal(
     FINANCIAL_METRIC_DEFINITIONS.grossCollectionsCents.label,
     "Gross collections",
   );
   assert.equal(
     FINANCIAL_METRIC_DEFINITIONS.netCollectionsCents.formula,
-    "gross collections - monetary refunds",
+    "gross collections - external refunds",
   );
 });
 
@@ -59,6 +59,11 @@ test("calculates sales, gross and net collections, refunds, and outstanding", ()
     refundsCents: 1_500,
     tipsCents: 1_000,
     transactionCount: 1,
+    externalRefundsCents: 1_500,
+    topUpPrincipalCents: 0,
+    topUpReversalsCents: 0,
+    walletRedemptionsCents: 0,
+    walletRefundsCents: 0,
   });
 });
 
