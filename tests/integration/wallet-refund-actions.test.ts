@@ -17,11 +17,11 @@ test("consumed top-up action is a definitive business rejection without writes, 
   assert.equal(await snapshot(),before);
  }finally{await h.close();}
 });
-test("closed Local gate allows authenticated Owner recovery context but rejects all writes",async()=>{
+test("closed release gate rejects sensitive recovery context and all writes",async()=>{
  const h=await checkoutHarness(db),gate=process.env.TETAMU_WALLET_LOCAL_TEST;try{
   const f=await checkoutFixture(db);await h.login(db,f);const top=await db.walletTopUp.findFirstOrThrow({where:{businessId:f.business.id}});
   process.env.TETAMU_WALLET_LOCAL_TEST="false";
-  const options=await h.wallet.walletRefundOptionsAction(top.id,"top-up");assert.equal(options.ok,true);if(options.ok)assert.equal((options.data as unknown as {releaseEnabled:boolean}).releaseEnabled,false);
+  const options=await h.wallet.walletRefundOptionsAction(top.id,"top-up");assert.equal(options.ok,false);if(!options.ok){assert.equal(options.code,"WALLET_UNAVAILABLE");assert.equal(options.uncertain,false);}
   const form=new FormData();for(const[k,v]of Object.entries({businessId:f.business.id,topUpId:top.id,operationKey:randomUUID(),reason:"Protected reversal",externalRefundReference:""}))form.set(k,v);
   assert.equal((await h.wallet.reverseWalletTopUpAction(form)).ok,false);assert.equal(await db.paymentRefund.count({where:{businessId:f.business.id}}),0);
   await db.user.update({where:{id:f.actor.id},data:{role:"STAFF",permissions:["CRM","POS"]}});assert.equal((await h.wallet.walletRefundOptionsAction(top.id,"top-up")).ok,false);

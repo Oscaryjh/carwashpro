@@ -7,10 +7,11 @@ import { authorizeWallet, WalletServiceError, type WalletContext } from "./autho
 import { getWalletSummary } from "./read-model";
 import { parseWalletAmount } from "./rules";
 import { postWalletTopUp, type WalletTopUpInput } from "./top-up";
-import { assertWalletLocalTestEnabled, isWalletLocalTestEnabled } from "./release-policy";
+import { assertWalletAccessAllowed, isWalletAccessAllowed } from "./release-policy";
 
 // Internal adapter context: public actions must derive business/user from the session.
 async function accessFor(ctx: WalletContext, db: Prisma.TransactionClient) {
+  assertWalletAccessAllowed(ctx);
   const access = await resolveBusinessAccess({ userId: ctx.user.userId, requestedBusinessId: ctx.businessId }, db);
   if (!access.granted || access.businessId !== ctx.businessId || !["BUSINESS_OWNER", "STAFF"].includes(access.effectiveBusinessRole ?? "")) {
     throw new WalletServiceError("WALLET_ACCESS_DENIED", "Wallet access denied.");
@@ -49,7 +50,7 @@ export async function saveWalletOffer(ctx: WalletContext, input: WalletOfferInpu
 export async function getWalletPanel(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
   const access = await accessFor(ctx, db);
   const summary = await getWalletSummary(ctx, customerId, db);
-  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp && isWalletLocalTestEnabled(),
+  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp && isWalletAccessAllowed(ctx),
     ownerDetails: access.owner ? { paidBalance: summary.paidBalance, bonusBalance: summary.bonusBalance } : null };
 }
 async function collectionContext(ctx: WalletContext, customerId: string, db: PrismaClient) {
@@ -63,7 +64,7 @@ async function collectionContext(ctx: WalletContext, customerId: string, db: Pri
   return verified;
 }
 export async function getWalletTopUpOptions(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
-  assertWalletLocalTestEnabled();
+  assertWalletAccessAllowed(ctx);
   await collectionContext(ctx, customerId, db);
   const configured = await db.businessPaymentMethod.findMany({ where: { businessId: ctx.businessId } });
   const byCode = new Map(configured.map(row => [row.code, row]));
@@ -75,7 +76,7 @@ export async function getWalletTopUpOptions(ctx: WalletContext, customerId: stri
   };
 }
 export async function submitWalletTopUp(ctx: WalletContext, input: WalletTopUpInput, db: PrismaClient = prisma) {
-  assertWalletLocalTestEnabled();
+  assertWalletAccessAllowed(ctx);
   if (!(await accessFor(ctx, db)).canTopUp) throw new WalletServiceError("WALLET_ACCESS_DENIED", "You do not have permission to top up wallets.");
   await authorizeWallet(db, ctx, input.customerId, "READ");
   // A completed intent keeps its original fingerprint even after a shift closes.
@@ -91,7 +92,7 @@ export async function getWalletHistory(ctx: WalletContext, customerId: string, p
   const rows = await db.walletTopUp.findMany({ where: { businessId: ctx.businessId, account: { customerId } },
     orderBy: [{ postedAt: "desc" }, { id: "desc" }], skip: currentPage * 20, take: 21,
     include: { actor: { select: { name: true } }, payment: { select: { paymentMethodLabel: true, method: true } }, transactions: { where: { type: { in: ["TOP_UP_PAID", "TOP_UP_BONUS"] } }, orderBy: { sequence: "desc" }, take: 1 } } });
-  return { canReverse: isWalletLocalTestEnabled(), hasMore: rows.length > 20, rows: rows.slice(0, 20).map(row => ({ id: row.id, date: row.postedAt.toISOString(), type: "Top-up" as const,
+  return { canReverse: isWalletAccessAllowed(ctx), hasMore: rows.length > 20, rows: rows.slice(0, 20).map(row => ({ id: row.id, date: row.postedAt.toISOString(), type: "Top-up" as const,
     amount: row.totalCredited.toFixed(2), paidAmount: row.paidAmount.toFixed(2), bonusAmount: row.bonusAmount.toFixed(2),
     balanceAfter: row.transactions[0] ? row.transactions[0].paidBalanceAfter.plus(row.transactions[0].bonusBalanceAfter).toFixed(2) : null,
     source: row.payment.paymentMethodLabel ?? row.payment.method, staff: row.actor.name, offer: row.offerNameSnapshot })) };

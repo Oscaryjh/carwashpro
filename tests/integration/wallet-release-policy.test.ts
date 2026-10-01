@@ -10,7 +10,7 @@ test("Top-up service rejects disabled release without money writes even for owne
   const old = process.env.TETAMU_WALLET_LOCAL_TEST;
   process.env.TETAMU_WALLET_LOCAL_TEST = "false";
   try {
-    await assert.rejects(postWalletTopUp(f.ctx, f.input, db), /controlled Local/i);
+    await assert.rejects(postWalletTopUp(f.ctx, f.input, db), /Member Wallet is not enabled for this business/);
     await assertNoWalletMoney(db, f.business.id);
   } finally {
     if (old === undefined) delete process.env.TETAMU_WALLET_LOCAL_TEST;

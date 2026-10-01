@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { CashierSalesPanel } from "@/components/cashier-sales-panel";
-import { isWalletLocalTestEnabled } from "@/lib/wallet/release-policy";
+import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { getCashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
 import type {
   CashierCartLine,
@@ -347,7 +347,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         ) : null}
         <CashierSalesPanel
           walletCheckoutScope={`${businessId}:${user.userId}`}
-          walletCheckoutEnabled={isWalletLocalTestEnabled()}
+          walletCheckoutEnabled={isWalletAccessAllowed({ businessId })}
           catalogCreateAccess={getCashierCatalogCreateAccess(user, moduleContext.enabledModules, industryType)}
           action={completeCashierSaleAction}
           appointmentError={appointmentError}

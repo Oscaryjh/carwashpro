@@ -32,7 +32,7 @@ import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
-import { assertWalletLocalTestEnabled } from "@/lib/wallet/release-policy";
+import { assertWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { parseWalletAmount } from "@/lib/wallet/rules";
 import { postWalletRedemption } from "@/lib/wallet/redemption";
 import { resolveBusinessAccess, hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -134,7 +134,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
   try {
     const walletCents = input.walletAmount ? parseWalletAmount(input.walletAmount) : 0;
-    if (walletCents) assertWalletLocalTestEnabled();
+    if (walletCents) assertWalletAccessAllowed({ businessId });
     const tipCents = parseCheckoutTipCents(formData);
     const branchId = await resolveOperationalBranchId(
       businessId,
@@ -157,7 +157,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         ...(walletCents ? { walletAmount: fromCents(walletCents), walletActorId: user.userId } : {}) },
       execute: async (tx) => {
       if (walletCents) {
-        assertWalletLocalTestEnabled();
+        assertWalletAccessAllowed({ businessId });
         const access = await resolveBusinessAccess({ userId: user.userId, requestedBusinessId: businessId }, tx);
         if (!access.granted || !access.industryType || !hasBusinessCapability(access, "PROCESS_CASHIER_PAYMENT") ||
           (access.effectiveBusinessRole === "STAFF" && (!access.permissions.includes("POS") || access.branchId !== branchId))) throw new Error("Wallet checkout access denied.");

@@ -36,7 +36,7 @@ test("general void cannot erase a settled Wallet service payment when Local rele
     let result;
     try { process.env.TETAMU_WALLET_LOCAL_TEST = "false"; result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form); }
     finally { process.env.TETAMU_WALLET_LOCAL_TEST = gate; }
-    assert.equal(result.status, "error"); assert.match(result.message, /restricted to controlled Local testing/);
+    assert.equal(result.status, "error"); assert.match(result.message, /Member Wallet is not enabled for this business/);
     assert.equal((await db.invoice.findUniqueOrThrow({ where: { id: sale.invoice!.id } })).status, "PAID");
     assert.equal(await db.payment.count({ where: { invoiceId: sale.invoice!.id, status: "ACTIVE" } }), 1);
     assert.equal(await db.walletTransaction.count({ where: { businessId: f.business.id, type: "REDEMPTION" } }), 1);

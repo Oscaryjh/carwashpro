@@ -3,16 +3,16 @@ import { resolveBusinessAccess, hasBusinessCapability } from "@/lib/business-gro
 import { requireBusinessModules } from "@/lib/modules/entitlements";
 import { modulesForCapability } from "@/lib/modules/registry";
 import { WalletServiceError, type WalletContext } from "./authorization";
-import { assertWalletLocalTestEnabled } from "./release-policy";
+import { assertWalletAccessAllowed } from "./release-policy";
 
 /** D5: no cashier shift is required or fabricated for an owner refund. */
 export async function requireWalletRefundOwner(tx: Prisma.TransactionClient, ctx: WalletContext, customerId: string, branchId: string) {
-  assertWalletLocalTestEnabled();
   return readWalletRefundOwner(tx,ctx,customerId,branchId);
 }
 
-/** Read-only recovery context. Every money writer still calls the gated helper above. */
+/** Recovery context and money writers share the current business release gate. */
 export async function readWalletRefundOwner(tx: Prisma.TransactionClient, ctx: WalletContext, customerId: string, branchId: string) {
+  assertWalletAccessAllowed(ctx);
   const access = await resolveBusinessAccess({userId:ctx.user.userId, requestedBusinessId:ctx.businessId},tx);
   if (!access.granted || access.businessId !== ctx.businessId || !access.industryType ||
       access.effectiveBusinessRole !== "BUSINESS_OWNER" || !hasBusinessCapability(access,"PROCESS_REFUND")) {

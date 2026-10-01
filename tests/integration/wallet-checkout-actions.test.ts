@@ -107,7 +107,7 @@ test("gate, tenant, shift, amount and actor replay boundaries fail closed with n
     const f = await checkoutFixture(db); const foreign = await checkoutFixture(db); await h.login(db, f);
     const originalFlag = process.env.TETAMU_WALLET_LOCAL_TEST;
     process.env.TETAMU_WALLET_LOCAL_TEST = "false";
-    try { assert.match((await h.action.completeCashierSaleAction(f.form)).message, /controlled Local/); }
+    try { assert.match((await h.action.completeCashierSaleAction(f.form)).message, /Member Wallet is not enabled for this business/); }
     finally { process.env.TETAMU_WALLET_LOCAL_TEST = originalFlag; }
     f.form.set("customerId", foreign.customer.id);
     assert.equal((await h.action.completeCashierSaleAction(f.form)).status, "error");

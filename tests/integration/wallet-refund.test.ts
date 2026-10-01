@@ -15,7 +15,7 @@ test("Wallet refund source, tenant, owner and local gate are fail-closed",async(
   await assert.rejects(refundWalletSale(f.ctx,{...input,legs:[{...input.legs[0],method:"CASH"}]},db));
   await assert.rejects(refundWalletSale(f.ctx,{...input,legs:[input.legs[0],input.legs[0]]},db));
   await assert.rejects(refundWalletSale(f.ctx,{...input,legs:[{...input.legs[0],amountCents:4001}]},db));
-  const gate=process.env.TETAMU_WALLET_LOCAL_TEST;try{process.env.TETAMU_WALLET_LOCAL_TEST="false";await assert.rejects(refundWalletSale(f.ctx,input,db),/restricted/);}finally{process.env.TETAMU_WALLET_LOCAL_TEST=gate;}
+  const gate=process.env.TETAMU_WALLET_LOCAL_TEST;try{process.env.TETAMU_WALLET_LOCAL_TEST="false";await assert.rejects(refundWalletSale(f.ctx,input,db),/Member Wallet is not enabled for this business\./);}finally{process.env.TETAMU_WALLET_LOCAL_TEST=gate;}
   await db.user.update({where:{id:f.actor.id},data:{role:"STAFF",permissions:["POS","CRM"]}});await assert.rejects(refundWalletSale(f.ctx,input,db),/owner/i);
   assert.equal(await db.paymentRefund.count({where:{businessId:f.business.id}}),0);
  }finally{await h.close();}

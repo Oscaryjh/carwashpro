@@ -3,6 +3,7 @@ import type { AppSession } from "@/lib/auth/session";
 import { hasBusinessCapability, resolveBusinessAccess } from "@/lib/business-groups/business-access";
 import { requireBusinessModules } from "@/lib/modules/entitlements";
 import { modulesForCapability } from "@/lib/modules/registry";
+import { assertWalletAccessAllowed } from "./release-policy";
 
 /** Server-only contract. Future adapters MUST derive user from authenticated session,
  * business from verified context, and branch/shift from server scope, never request JSON.
@@ -25,6 +26,7 @@ export async function authorizeWallet(
   customerId: string,
   mode: "READ" | "TOP_UP",
 ) {
+  assertWalletAccessAllowed(ctx);
   const access = await resolveBusinessAccess({
     userId: ctx.user.userId,
     requestedBusinessId: ctx.businessId,

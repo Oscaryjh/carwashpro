@@ -29,7 +29,7 @@ test("recovery identity survives gate closure and is checked before an empty cat
   const page = readFileSync("src/app/(business)/cashier/page.tsx", "utf8");
   const panel = readFileSync("src/components/cashier-sales-panel.tsx", "utf8");
   assert.match(page, /walletCheckoutScope=\{`\$\{businessId\}:\$\{user.userId\}`\}/);
-  assert.match(page, /walletCheckoutEnabled=\{isWalletLocalTestEnabled\(\)\}/);
+  assert.match(page, /walletCheckoutEnabled=\{isWalletAccessAllowed\(\{ businessId \}\)\}/);
   assert.match(panel, /!mustRecover && !hasCatalogItems/);
   assert.match(panel, /readWalletCheckoutRecovery\(sessionStorage, props.walletCheckoutScope!/);
   assert.match(form, /walletCheckoutEnabled && walletScope && customer/);
