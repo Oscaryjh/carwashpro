@@ -1,3 +1,4 @@
+import { setWalletModule } from "../helpers/wallet-fixture";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -34,8 +35,8 @@ test("general void cannot erase a settled Wallet service payment when Local rele
     const form = new FormData(); form.set("operationId", randomUUID()); form.set("invoiceId", sale.invoice!.id); form.set("voidReason", "Synthetic guard check");
     const gate = process.env.TETAMU_WALLET_LOCAL_TEST;
     let result;
-    try { process.env.TETAMU_WALLET_LOCAL_TEST = "false"; result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form); }
-    finally { process.env.TETAMU_WALLET_LOCAL_TEST = gate; }
+    try { await setWalletModule(db, f.business.id, false); result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form); }
+    finally { await setWalletModule(db, f.business.id, true); }
     assert.equal(result.status, "error"); assert.match(result.message, /Member Wallet is not enabled for this business/);
     assert.equal((await db.invoice.findUniqueOrThrow({ where: { id: sale.invoice!.id } })).status, "PAID");
     assert.equal(await db.payment.count({ where: { invoiceId: sale.invoice!.id, status: "ACTIVE" } }), 1);

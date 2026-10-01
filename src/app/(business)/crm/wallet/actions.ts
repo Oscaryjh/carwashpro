@@ -55,18 +55,18 @@ export async function reverseWalletTopUpAction(form: FormData) {
 export async function walletRefundOptionsAction(sourceId:string,kind:"invoice"|"top-up") {
   return result(async()=>{
     const ctx=await context();z.string().uuid().parse(sourceId);
-    assertWalletAccessAllowed(ctx);
+    await assertWalletAccessAllowed(ctx);
     if(kind==="top-up"){
       const top=await prisma.walletTopUp.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{account:true,payment:true,reversals:true}});
       await readWalletRefundOwner(prisma,ctx,top.account.customerId,top.branchId);
-      return {kind,releaseEnabled:isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:top-up:${sourceId}`,sourceId,canVoid:false,
+      return {kind,releaseEnabled:await isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:top-up:${sourceId}`,sourceId,canVoid:false,
         paidAmount:top.paidAmount.toFixed(2),bonusAmount:top.bonusAmount.toFixed(2),method:top.payment.method,reversed:top.reversals.length>0,legs:[],stockLines:[]};
     }
     if(kind!=="invoice")throw new Error("Invalid source type.");
     const invoice=await prisma.invoice.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{payments:{include:{refunds:true}},items:{include:{inventoryRefundLines:true}}}});
     if(!invoice.branchId||!invoice.customerId||!invoice.payments.some(p=>p.method==="MEMBER_WALLET"))throw new Error("Wallet invoice unavailable.");
     await readWalletRefundOwner(prisma,ctx,invoice.customerId,invoice.branchId);
-    return {kind,releaseEnabled:isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:invoice:${sourceId}`,sourceId,
+    return {kind,releaseEnabled:await isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:invoice:${sourceId}`,sourceId,
       canVoid:!!(invoice.appointmentId||invoice.workOrderId)&&!invoice.customerPackageId&&!invoice.items.some(i=>i.productId||i.customerPackageId)&&!invoice.payments.some(p=>p.refunds.length)&&!["VOID","REFUNDED"].includes(invoice.status),
       paidAmount:"",bonusAmount:"",method:"",reversed:invoice.status==="VOID",
       legs:invoice.payments.filter(p=>p.status==="ACTIVE").map(p=>({paymentId:p.id,method:p.method,availableCents:toCents(p.amount)-p.refunds.reduce((n,r)=>n+toCents(r.amount),0)})),

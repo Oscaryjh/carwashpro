@@ -10,5 +10,9 @@
   {
     "name": "20260930000100_attendance_constraint_naming_alignment",
     "hash": "948ae4c30bdf4c782ed69848568d9b92472d6b7bc31e0e8b30fe537020fe08f1"
+  },
+  {
+    "name": "20261002000000_wallet_module_entitlement",
+    "hash": "87a021b3ec4c790eb04cacb50056654a6b87b02909c85dda54e3695b673847d3"
   }
 ]

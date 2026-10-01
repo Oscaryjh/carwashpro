@@ -26,7 +26,7 @@ export async function authorizeWallet(
   customerId: string,
   mode: "READ" | "TOP_UP",
 ) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database: tx });
   const access = await resolveBusinessAccess({
     userId: ctx.user.userId,
     requestedBusinessId: ctx.businessId,

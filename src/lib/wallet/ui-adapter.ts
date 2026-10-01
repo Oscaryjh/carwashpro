@@ -11,7 +11,7 @@ import { assertWalletAccessAllowed, isWalletAccessAllowed } from "./release-poli
 
 // Internal adapter context: public actions must derive business/user from the session.
 async function accessFor(ctx: WalletContext, db: Prisma.TransactionClient) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database: db });
   const access = await resolveBusinessAccess({ userId: ctx.user.userId, requestedBusinessId: ctx.businessId }, db);
   if (!access.granted || access.businessId !== ctx.businessId || !["BUSINESS_OWNER", "STAFF"].includes(access.effectiveBusinessRole ?? "")) {
     throw new WalletServiceError("WALLET_ACCESS_DENIED", "Wallet access denied.");
@@ -50,7 +50,7 @@ export async function saveWalletOffer(ctx: WalletContext, input: WalletOfferInpu
 export async function getWalletPanel(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
   const access = await accessFor(ctx, db);
   const summary = await getWalletSummary(ctx, customerId, db);
-  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp && isWalletAccessAllowed(ctx),
+  return { intentScope: `${ctx.businessId}:${ctx.user.userId}:${customerId}`, totalBalance: summary.totalBalance, hasAccount: summary.hasAccount, canTopUp: access.canTopUp && await isWalletAccessAllowed(ctx, { database: db }),
     ownerDetails: access.owner ? { paidBalance: summary.paidBalance, bonusBalance: summary.bonusBalance } : null };
 }
 async function collectionContext(ctx: WalletContext, customerId: string, db: PrismaClient) {
@@ -64,7 +64,7 @@ async function collectionContext(ctx: WalletContext, customerId: string, db: Pri
   return verified;
 }
 export async function getWalletTopUpOptions(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database: db });
   await collectionContext(ctx, customerId, db);
   const configured = await db.businessPaymentMethod.findMany({ where: { businessId: ctx.businessId } });
   const byCode = new Map(configured.map(row => [row.code, row]));
@@ -76,7 +76,7 @@ export async function getWalletTopUpOptions(ctx: WalletContext, customerId: stri
   };
 }
 export async function submitWalletTopUp(ctx: WalletContext, input: WalletTopUpInput, db: PrismaClient = prisma) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database: db });
   if (!(await accessFor(ctx, db)).canTopUp) throw new WalletServiceError("WALLET_ACCESS_DENIED", "You do not have permission to top up wallets.");
   await authorizeWallet(db, ctx, input.customerId, "READ");
   // A completed intent keeps its original fingerprint even after a shift closes.
@@ -133,7 +133,7 @@ export async function getWalletHistory(ctx: WalletContext, customerId: string, p
       where: { ...scope, financialOperationId: { in: operationIds } }, orderBy: [{ postedAt: "desc" }, { id: "desc" }],
       select: { id: true, postedAt: true, offerNameSnapshot: true, paidAmount: true },
     });
-    return { canReverse: isWalletAccessAllowed(ctx), hasMore: groups.length > 20, rows,
+    return { canReverse: await isWalletAccessAllowed(ctx, { database: tx }), hasMore: groups.length > 20, rows,
       reversalSources: topUps.map(top => ({ id: top.id, date: top.postedAt.toISOString(), offer: top.offerNameSnapshot, paidAmount: top.paidAmount.toFixed(2) })) };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

@@ -7687,6 +7687,7 @@ enum BusinessLanguage {
 enum BusinessModuleKey {
   CORE
   POS
+  WALLET
   SALON
   AUTO
   WHATSAPP

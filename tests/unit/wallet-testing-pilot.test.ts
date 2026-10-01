@@ -1,54 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as policy from "../../src/lib/wallet/release-policy";
+import { isWalletAccessAllowed } from "../../src/lib/wallet/release-policy";
 
-const A = "10000000-0000-4000-8000-000000000001";
-const B = "10000000-0000-4000-8000-000000000002";
-const testing = { APP_ENVIRONMENT: "testing", RAILWAY_ENVIRONMENT_NAME: "testing", NODE_ENV: "production",
-  TETAMU_WALLET_TESTING_PILOT: "true", TETAMU_WALLET_TESTING_BUSINESS_IDS: A };
-type Env = Record<string, string | undefined>;
-function enabled(businessId: string, env: Env) {
-  const fn = (policy as unknown as { isWalletAccessAllowed?: (input: {businessId: string}, env: Env) => boolean }).isWalletAccessAllowed;
-  assert.equal(typeof fn, "function", "Business-scoped Wallet release policy must exist");
-  return fn!({ businessId }, env);
-}
-test("Testing Wallet allows only the exact server allowlisted business, including production build mode", () => {
-  assert.equal(enabled(A, testing), true);
-  assert.equal(enabled(B, testing), false);
-  assert.equal(enabled("", testing), false);
-  assert.equal(enabled("not-a-uuid", testing), false);
-});
-test("Testing Wallet normalizes whitespace and duplicates but rejects the entire malformed list", () => {
-  assert.equal(enabled(A, {...testing, TETAMU_WALLET_TESTING_BUSINESS_IDS: ` ${A}, ${A} `}), true);
-  for (const ids of ["", " ", `${A},bad`, `${A},`, `,${A}`, `${A},,${B}`, "*", "all"]) {
-    assert.equal(enabled(A, {...testing, TETAMU_WALLET_TESTING_BUSINESS_IDS: ids}), false, ids);
-  }
-});
-test("Testing Wallet requires explicit matching deployment identities and exact opt-in", () => {
-  for (const overrides of [
-    {TETAMU_WALLET_TESTING_PILOT: undefined}, {TETAMU_WALLET_TESTING_PILOT: "false"},
-    {TETAMU_WALLET_TESTING_PILOT: "TRUE"}, {TETAMU_WALLET_TESTING_BUSINESS_IDS: undefined},
-    {APP_ENVIRONMENT: undefined}, {RAILWAY_ENVIRONMENT_NAME: undefined},
-    {APP_ENVIRONMENT: "unknown"}, {APP_ENVIRONMENT: "development"},
-    {RAILWAY_ENVIRONMENT_NAME: "preview"}, {TETAMU_ENVIRONMENT: "development"},
-    {TETAMU_ENVIRONMENT: "unknown"}, {VERCEL: "1"}, {NETLIFY: "true"}, {RENDER: "true"},
-  ]) assert.equal(enabled(A, {...testing, ...overrides}), false, JSON.stringify(overrides));
-  assert.equal(enabled(A, {...testing, TETAMU_ENVIRONMENT: "TESTING"}), true);
-});
-test("any Production deployment identity denies even with pilot and allowlist configured", () => {
-  for (const overrides of [
-    {APP_ENVIRONMENT: "production"}, {RAILWAY_ENVIRONMENT_NAME: "production"},
-    {TETAMU_ENVIRONMENT: "PRODUCTION"},
-    {APP_ENVIRONMENT: "development", RAILWAY_ENVIRONMENT_NAME: "production"},
-    {APP_ENVIRONMENT: "production", RAILWAY_ENVIRONMENT_NAME: "development"},
-  ]) assert.equal(enabled(A, {...testing, ...overrides}), false);
-});
-test("Local disposable contract remains opt-in and never accepts ordinary or hosted databases", () => {
-  const local = { TETAMU_WALLET_LOCAL_TEST: "true", NODE_ENV: "test", DATABASE_URL: "postgresql://test:test@localhost:5432/tetamu_wallet_disposable_123" };
-  assert.equal(enabled(A, local), true);
-  for (const overrides of [{TETAMU_WALLET_LOCAL_TEST: "false"}, {DATABASE_URL: "postgresql://test:test@localhost/ordinary"},
-    {DATABASE_URL: "postgresql://test:test@remote.example/tetamu_wallet_disposable_123"}, {NODE_ENV: "production"},
-    {APP_ENVIRONMENT: "production"}, {RAILWAY_ENVIRONMENT_NAME: "production"}, {RAILWAY_ENVIRONMENT_ID: "hosted"}]) {
-    assert.equal(enabled(A, {...local, ...overrides}), false);
-  }
+const businessId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+test("testing availability is controlled by module, never legacy flags or allowlists", async () => {
+  const keys = ["APP_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "TETAMU_WALLET_LOCAL_TEST", "TETAMU_WALLET_TESTING_PILOT", "TETAMU_WALLET_TESTING_BUSINESS_IDS", "TETAMU_WALLET_PRODUCTION_PILOT", "TETAMU_WALLET_PRODUCTION_BUSINESS_IDS"];
+  const before = keys.map(key => [key, process.env[key]] as const);
+  try {
+    for (const value of [undefined, "", "false", "true", "malformed", businessId, `${businessId},bad`]) {
+      for (const key of keys) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+      for (const status of ["ENABLED", "DISABLED"]) {
+        const database = { businessModuleEntitlement: { findMany: async (query: {where:{businessId:string}}) => {
+          assert.equal(query.where.businessId, businessId);
+          return [{moduleKey:"POS",status:"ENABLED",enabledFrom:new Date(0),enabledUntil:null},
+            {moduleKey:"WALLET",status,enabledFrom:new Date(0),enabledUntil:null}];
+        } } } as never;
+        assert.equal(await isWalletAccessAllowed({businessId}, {database}), status === "ENABLED");
+        assert.equal(await isWalletAccessAllowed({businessId:"invalid"}, {database}), false);
+      }
+    }
+  } finally { for (const [key,value] of before) { if(value === undefined) delete process.env[key]; else process.env[key] = value; } }
 });

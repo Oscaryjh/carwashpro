@@ -42,14 +42,10 @@ async function inspectPrismaDiff(url) {
   let errors = "";
   for await (const chunk of child.stderr) errors += chunk;
   const code = await new Promise((resolvePromise) => child.once("close", resolvePromise));
-  const expected = [
-    "[*] Changed the `attendance_timesheet_p2_segment_snapshots` table",
-    '  [*] Renamed the foreign key "attendance_timesheet_p2_segment_snapshots_source_day_snapshot_i" to "att_ts_p2_segment_source_day_snapshot_fkey_probe"',
-  ].join("\n");
-  if (code !== 2 || output.trim().replaceAll("\r\n", "\n") !== expected) {
+  if (code !== 0 || output.trim() !== "No difference detected.") {
     throw new Error(`Unexpected Prisma/database drift (exit ${code}):\n${output}\n${errors}`);
   }
-  console.log("Verified Prisma schema diff: only the documented same-name FK/index representation limitation.");
+  console.log("Verified Prisma schema diff: CLEAN / No difference detected.");
 }
 
 async function inspectCatalog(targetName) {
@@ -63,19 +59,22 @@ async function inspectCatalog(targetName) {
       (SELECT count(*)::int FROM pg_constraint x JOIN pg_namespace n ON n.oid=x.connamespace WHERE n.nspname='public' AND x.contype='f') AS foreign_keys,
       (SELECT count(*)::int FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal) AS user_triggers`);
     const name = "attendance_timesheet_p2_segment_snapshots_source_day_snapshot_i";
-    const fk = await client.query("SELECT count(*)::int AS total FROM pg_constraint WHERE conname=$1 AND contype='f'", [name]);
+    const fk = await client.query("SELECT count(*)::int AS total FROM pg_constraint WHERE conname=$1 AND contype='f'", ["att_ts_p2_segment_source_day_snapshot_fkey_probe"]);
     const index = await client.query("SELECT count(*)::int AS total FROM pg_indexes WHERE schemaname='public' AND indexname=$1", [name]);
     const performance = await client.query("SELECT count(*)::int AS total FROM pg_tables WHERE schemaname='public' AND tablename=ANY($1::text[])", [[
       "performance_attributions", "performance_shares", "performance_receipts", "performance_target_versions", "performance_contributions", "performance_source_issues",
     ]]);
-    const expectedCounts = { tables: 247, columns: 3869, indexes: 1186, foreign_keys: 835, user_triggers: 291 };
+    const wallet = await client.query("SELECT count(*)::int AS total FROM pg_tables WHERE schemaname='public' AND tablename=ANY($1::text[])", [[
+      "wallet_accounts", "wallet_transactions", "wallet_top_up_offers", "wallet_top_ups", "wallet_top_up_reversals",
+    ]]);
+    const expectedCounts = { tables: 252, columns: 3932, indexes: 1226, foreign_keys: 857, user_triggers: 305 };
     if (JSON.stringify(counts.rows[0]) !== JSON.stringify(expectedCounts)) {
-      throw new Error(`Fresh 222 catalog drift: expected ${JSON.stringify(expectedCounts)}, got ${JSON.stringify(counts.rows[0])}`);
+      throw new Error(`Fresh 226 catalog drift: expected ${JSON.stringify(expectedCounts)}, got ${JSON.stringify(counts.rows[0])}`);
     }
-    if (fk.rows[0].total !== 1 || index.rows[0].total !== 1 || performance.rows[0].total !== 6) {
-      throw new Error(`Fresh catalog objects incomplete: FK=${fk.rows[0].total}, index=${index.rows[0].total}, Performance=${performance.rows[0].total}`);
+    if (fk.rows[0].total !== 1 || index.rows[0].total !== 1 || performance.rows[0].total !== 6 || wallet.rows[0].total !== 5) {
+      throw new Error(`Fresh catalog objects incomplete: FK=${fk.rows[0].total}, index=${index.rows[0].total}, Performance=${performance.rows[0].total}, Wallet=${wallet.rows[0].total}`);
     }
-    console.log(`[catalog] ${JSON.stringify(counts.rows[0])}; same-name FK/index and six Performance tables verified.`);
+    console.log(`[catalog] ${JSON.stringify(counts.rows[0])}; aligned FK, unchanged historical index, six Performance and five Wallet tables verified.`);
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -91,8 +90,8 @@ async function verifyMigrationHistory(targetName) {
         .update(readFileSync(resolve(migrationRoot, entry.name, "migration.sql")))
         .digest("hex"),
     }));
-  if (expected.length !== 222) {
-    throw new Error(`Expected 222 canonical SQL migrations, got ${expected.length}`);
+  if (expected.length !== 226) {
+    throw new Error(`Expected 226 SQL migrations, got ${expected.length}`);
   }
   const client = pg.getPgClient(targetName, "127.0.0.1");
   try {
@@ -101,7 +100,7 @@ async function verifyMigrationHistory(targetName) {
       'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "_prisma_migrations"',
     );
     assertMigrationHistory(expected, result.rows);
-    console.log(`Verified ${result.rows.length}/222 completed migration history rows and SQL checksums.`);
+    console.log(`Verified ${result.rows.length}/226 completed migration history rows and SQL checksums.`);
   } finally {
     await client.end().catch(() => undefined);
   }

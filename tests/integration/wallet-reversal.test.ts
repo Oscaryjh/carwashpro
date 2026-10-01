@@ -1,3 +1,4 @@
+import { setWalletModule } from "../helpers/wallet-fixture";
 import assert from "node:assert/strict";
 import test,{after} from "node:test";
 import {randomUUID} from "node:crypto";
@@ -14,7 +15,7 @@ test("zero bonus reversal uses original snapshot after offer edit; foreign/Staff
  await db.walletTopUpOffer.update({where:{id:f.offer.id},data:{paidAmount:999,bonusAmount:999,version:{increment:1}}});
  const result=await reverseWalletTopUp(f.ctx,input,db);assert.equal((await db.paymentRefund.findUniqueOrThrow({where:{id:result.externalRefundId}})).amount.toFixed(2),"25.00");
  assert.equal(await db.walletTransaction.count({where:{businessId:f.business.id,type:"REVERSAL"}}),1);
- const gate=process.env.TETAMU_WALLET_LOCAL_TEST;try{process.env.TETAMU_WALLET_LOCAL_TEST="false";await assert.rejects(reverseWalletTopUp(f.ctx,input,db),/Member Wallet is not enabled for this business\./);}finally{process.env.TETAMU_WALLET_LOCAL_TEST=gate;}
+ const gate=process.env.TETAMU_WALLET_LOCAL_TEST;try{await setWalletModule(db, f.business.id, false);await assert.rejects(reverseWalletTopUp(f.ctx,input,db),/Member Wallet is not enabled for this business\./);}finally{await setWalletModule(db, f.business.id, true);}
 });
 test("concurrent reversal and consumption have only one legal winner",async()=>{
  const h=await checkoutHarness();try{

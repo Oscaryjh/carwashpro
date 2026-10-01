@@ -961,7 +961,7 @@ export function CashierUnifiedSaleForm({
             readOnly={Boolean(appointmentSale)}
             required={requiresCustomer}
           />
-          {customer ? <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} entry="cashier" /> : null}
+          {customer ? <MemberWalletSummary key={customer.id} enabled={walletCheckoutEnabled} customerId={customer.id} customerName={customer.name} entry="cashier" /> : null}
         </div>
 
         {lines.length > 0 && !appointmentSale ? (

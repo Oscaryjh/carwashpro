@@ -1,0 +1,1 @@
+ALTER TYPE "BusinessModuleKey" ADD VALUE 'WALLET';

@@ -257,6 +257,32 @@ test("canonical product profiles resolve independently", async () => {
   }
 });
 
+test("Wallet save uses POS dependency, audit and revision without default enablement", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const start = new Date("2026-01-01T00:00:00Z");
+  await assert.rejects(change(fixture, "WALLET", "ENABLED", start), new RegExp(MODULE_DEPENDENCY_REQUIRED));
+  assert.equal(await prisma.businessModuleEntitlement.count({ where: { businessId: fixture.businessId } }), 0);
+  await changeBusinessModuleEntitlements({ actor: fixture.actor, rawInputs: ["POS", "WALLET"].map(moduleKey => ({
+    businessId: fixture.businessId, moduleKey, status: "ENABLED", enabledFrom: start, enabledUntil: "", source: "MANUAL", reason: "Wallet dependency setup",
+  })) });
+  await requireBusinessModule(fixture.businessId, "WALLET" as never, { now: new Date("2026-10-01T00:00:00Z") });
+  await assert.rejects(change(fixture, "POS", "DISABLED", start), new RegExp(DEPENDENT_MODULE_ENABLED));
+  const wallet = await prisma.businessModuleEntitlement.findFirstOrThrow({ where: { businessId: fixture.businessId, moduleKey: "WALLET" as never } });
+  assert.equal(wallet.revision, 1);
+  assert.equal(await prisma.businessModuleEntitlementEvent.count({ where: { entitlementId: wallet.id } }), 1);
+  assert.equal(await prisma.auditLog.count({ where: { businessId: fixture.businessId, action: "BUSINESS_MODULE_ENTITLEMENT_CHANGED" } }), 2);
+});
+
+test("Wallet dependency window must be covered by POS window", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  await changeBusinessModuleEntitlement({ actor: fixture.actor, rawInput: { businessId: fixture.businessId, moduleKey: "POS", status: "ENABLED",
+    enabledFrom: "2026-01-01T00:00:00Z", enabledUntil: "2027-01-01T00:00:00Z", source: "MANUAL", reason: "Limited POS term" } });
+  await assert.rejects(change(fixture, "WALLET", "ENABLED", new Date("2026-01-01T00:00:00Z")), new RegExp(MODULE_DEPENDENCY_REQUIRED));
+  assert.equal(await prisma.businessModuleEntitlement.count({ where: { businessId: fixture.businessId, moduleKey: "WALLET" as never } }), 0);
+});
+
 async function createFixture() {
   const token = randomUUID().slice(0, 8);
   const business = await prisma.business.create({ data: { name: `Module ${token}`, slug: `module-${token}` } });

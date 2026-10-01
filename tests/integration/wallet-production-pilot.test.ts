@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { randomUUID } from "node:crypto";
-import { walletFixture, walletTestDatabase, assertNoWalletMoney } from "../helpers/wallet-fixture";
+import { walletFixture, walletTestDatabase, assertNoWalletMoney, setWalletModule, withWalletModules } from "../helpers/wallet-fixture";
 import { checkoutFixture, checkoutHarness } from "../helpers/wallet-checkout-fixture";
 import { postWalletTopUp } from "../../src/lib/wallet/top-up";
 import { getWalletSummary } from "../../src/lib/wallet/read-model";
@@ -16,7 +16,7 @@ async function production(ids: string, run: () => Promise<void>) {
     TETAMU_WALLET_PRODUCTION_PILOT: "true", TETAMU_WALLET_PRODUCTION_BUSINESS_IDS: ids };
   const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
   Object.assign(process.env, values);
-  try { await run(); } finally {
+  try { await withWalletModules(db, ids, run); } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
@@ -38,7 +38,7 @@ test("Production server gate controls top-up, summary, offers, history and compl
     await assert.rejects(listWalletOffers(b.ctx, db), denied);
     await assert.rejects(saveWalletOffer(b.ctx, { name: "Denied offer", paidAmount: "1", bonusAmount: "0", active: true }, db), denied);
     await assertNoWalletMoney(db, b.business.id);
-    process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = b.business.id;
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(postWalletTopUp(a.ctx, a.input, db), denied);
     await assert.rejects(getWalletSummary(a.ctx, a.customer.id, db), denied);
     assert.equal(await db.walletTopUp.count({ where: { businessId: a.business.id } }), 1);
@@ -70,7 +70,7 @@ test("Production authenticated actions reject business and customer injection wi
   }); } finally { await h.close(); }
 });
 
-for (const method of ["MEMBER_WALLET", "CARD"]) test(`Production ${method} checkout and refund recheck allowlist before replay and pending recovery`, async () => {
+for (const method of ["MEMBER_WALLET", "CARD"]) test(`Production ${method} checkout and refund recheck module entitlement before replay and pending recovery`, async () => {
   const a = await checkoutFixture(db, method), h = await checkoutHarness(db);
   try { await production(a.business.id, async () => {
     await h.login(db, a);
@@ -83,15 +83,15 @@ for (const method of ["MEMBER_WALLET", "CARD"]) test(`Production ${method} check
     const request = { operationKey: randomUUID(), invoiceId: sale.invoice!.id, reason: "Production gate synthetic refund",
       legs: payments.map(p => ({ paymentId: p.id, method: p.method as "MEMBER_WALLET" | "CARD", amountCents: Number(p.amount) * 100,
         ...(p.method === "CARD" ? { reference: "Synthetic card refund" } : {}) })), stockLines: [] };
-    process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = "";
+    await setWalletModule(db, a.business.id, false);
     assert.equal((await h.action.completeCashierSaleAction(a.form)).status, "error");
     await assert.rejects(refundWalletSale(a.ctx, request, db), denied);
     assert.equal((await h.wallet.walletRefundOptionsAction(sale.invoice!.id, "invoice")).ok, false);
     assert.equal(await db.paymentRefund.count({ where: { businessId: a.business.id } }), 0);
-    process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = a.business.id;
+    await setWalletModule(db, a.business.id, true);
     await refundWalletSale(a.ctx, request, db);
     await refundWalletSale(a.ctx, request, db);
-    process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = "";
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(refundWalletSale(a.ctx, request, db), denied);
     const pendingForm = new FormData(); for (const [key, value] of a.form) pendingForm.append(key, value);
     pendingForm.set("operationId", randomUUID());
@@ -102,7 +102,7 @@ for (const method of ["MEMBER_WALLET", "CARD"]) test(`Production ${method} check
   }); } finally { await h.close(); }
 });
 
-test("Production reversal completed replay and pending recovery deny after allowlist removal", async () => {
+test("Production reversal completed replay and pending recovery deny after module disablement", async () => {
   const a = await checkoutFixture(db), h = await checkoutHarness(db);
   const topUp = await db.walletTopUp.findFirstOrThrow({ where: { businessId: a.business.id } });
   const request = { operationKey: randomUUID(), topUpId: topUp.id, reason: "Production gate reversal" };
@@ -110,7 +110,7 @@ test("Production reversal completed replay and pending recovery deny after allow
     await h.login(db, a);
     await reverseWalletTopUp(a.ctx, request, db);
     await reverseWalletTopUp(a.ctx, request, db);
-    process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = "";
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(reverseWalletTopUp(a.ctx, request, db), denied);
     await assert.rejects(reverseWalletTopUp(a.ctx, { ...request, operationKey: randomUUID() }, db), denied);
     const recovery = await h.wallet.walletRefundOptionsAction(topUp.id, "top-up");
@@ -133,12 +133,12 @@ test("Production Wallet invoice void and completed replay require the current ga
       await h.login(db, a);
       const sale = await h.action.completeCashierSaleAction(a.form); assert.equal(sale.status, "success", sale.message);
       const form = new FormData(); form.set("invoiceId", sale.invoice!.id); form.set("operationId", randomUUID()); form.set("voidReason", "Synthetic correction");
-      process.env.TETAMU_WALLET_PRODUCTION_PILOT = "false";
+      await setWalletModule(db, a.business.id, false);
       assert.equal((await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form)).status, "error");
       assert.equal(await db.walletTransaction.count({ where: { businessId: a.business.id, type: "REVERSAL" } }), 0);
-      process.env.TETAMU_WALLET_PRODUCTION_PILOT = "true";
+      await setWalletModule(db, a.business.id, true);
       assert.equal((await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form)).status, "success");
-      process.env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS = "";
+      await setWalletModule(db, a.business.id, false);
       assert.equal((await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form)).status, "error");
       assert.equal(await db.walletTransaction.count({ where: { businessId: a.business.id, type: "REVERSAL" } }), 1);
     });
@@ -148,7 +148,7 @@ test("Production Wallet invoice void and completed replay require the current ga
 test("Production pilot disabled does not block ordinary Cash/Card sales or non-Wallet refunds", async () => {
   const a = await checkoutFixture(db), h = await checkoutHarness(db);
   try { await production("", async () => {
-    process.env.TETAMU_WALLET_PRODUCTION_PILOT = "false";
+    await setWalletModule(db, a.business.id, false);
     await h.login(db, a);
     for (const method of ["CASH", "CARD"]) {
       const form = new FormData(); for (const [key, value] of a.form) form.append(key, value);

@@ -347,7 +347,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         ) : null}
         <CashierSalesPanel
           walletCheckoutScope={`${businessId}:${user.userId}`}
-          walletCheckoutEnabled={isWalletAccessAllowed({ businessId })}
+          walletCheckoutEnabled={await isWalletAccessAllowed({ businessId })}
           catalogCreateAccess={getCashierCatalogCreateAccess(user, moduleContext.enabledModules, industryType)}
           action={completeCashierSaleAction}
           appointmentError={appointmentError}

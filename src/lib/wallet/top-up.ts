@@ -23,7 +23,7 @@ export type WalletTopUpInput = z.input<typeof requestSchema>;
  * Monetary result fields are exact decimal MYR strings, not floating-point ringgit.
  */
 export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInput, database: PrismaClient = prisma) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database });
   const request = requestSchema.parse(input);
   const reference = request.reference || null;
   // The shared runner can replay without execute(): always recheck access first.

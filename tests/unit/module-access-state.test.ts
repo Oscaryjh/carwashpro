@@ -18,7 +18,7 @@ test("unrelated server refresh preserves unsaved module edits; own save can relo
 });
 test("Core is counted as enabled but never included in pending writes", () => {
   const rows = fixture();
-  assert.deepEqual(moduleAccessCounts(rows), { enabled: 1, disabled: 14, total: 15 });
+  assert.deepEqual(moduleAccessCounts(rows), { enabled: 1, disabled: 15, total: 16 });
   assert.deepEqual(changedModules(rows, rows), []);
   assert.match(proposeModuleEdit(rows, { ...rows[0], status: "DISABLED" }, now).error!, /required/);
 });

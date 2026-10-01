@@ -12,7 +12,7 @@ export async function requireWalletRefundOwner(tx: Prisma.TransactionClient, ctx
 
 /** Recovery context and money writers share the current business release gate. */
 export async function readWalletRefundOwner(tx: Prisma.TransactionClient, ctx: WalletContext, customerId: string, branchId: string) {
-  assertWalletAccessAllowed(ctx);
+  await assertWalletAccessAllowed(ctx, { database: tx });
   const access = await resolveBusinessAccess({userId:ctx.user.userId, requestedBusinessId:ctx.businessId},tx);
   if (!access.granted || access.businessId !== ctx.businessId || !access.industryType ||
       access.effectiveBusinessRole !== "BUSINESS_OWNER" || !hasBusinessCapability(access,"PROCESS_REFUND")) {

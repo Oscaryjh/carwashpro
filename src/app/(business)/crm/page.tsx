@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
+import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { Prisma } from "@prisma/client";
 import { CrmActivityItem } from "@/components/crm-activity-item";
 import { CrmEditCustomerModal } from "@/components/crm-edit-customer-modal";
@@ -110,6 +111,7 @@ const MAX_ACTIVITY_LIMIT = 50;
 export default async function CrmPage({ searchParams }: CrmPageProps) {
   const context = await requireBusinessIndustryContext("VIEW_CRM");
   const { businessId } = context;
+  const walletEnabled = await isWalletAccessAllowed({ businessId });
   const operationalBranchWhere = authorizedOperationalBranchWhere(context.user);
   const packageBranchWhere = authorizedCustomerPackageBranchWhere(context.user);
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
@@ -328,7 +330,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       <div className="page-header crm-workspace-header">
         <div>
           <h1>CRM</h1>
-          {context.user.role === "BUSINESS_OWNER" ? <Link href="/crm/wallet/offers">Top-up offers</Link> : null}
+          {walletEnabled && context.user.role === "BUSINESS_OWNER" ? <Link href="/crm/wallet/offers">Top-up offers</Link> : null}
           {!isEmptyDirectory ? <p>{customerCount} customers</p> : null}
         </div>
         {!isEmptyDirectory ? (
@@ -463,6 +465,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
               tab={tab}
               timeline={timeline}
               totalSpent={Number(totalSpentResult._sum.paidAmount ?? 0)}
+              walletEnabled={walletEnabled}
             />
           ) : (
             <div className="crm-detail-empty">
@@ -491,6 +494,7 @@ type CustomerWorkspaceProps = {
   tab: CustomerTab;
   timeline: ReturnType<typeof buildTimeline>;
   totalSpent: number;
+  walletEnabled: boolean;
 };
 
 function CustomerWorkspace({
@@ -507,6 +511,7 @@ function CustomerWorkspace({
   tab,
   timeline,
   totalSpent,
+  walletEnabled,
 }: CustomerWorkspaceProps) {
   return (
     <>
@@ -569,7 +574,7 @@ function CustomerWorkspace({
       </nav>
 
       <div className="crm-detail-body">
-        <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} />
+        <MemberWalletSummary key={customer.id} enabled={walletEnabled} customerId={customer.id} customerName={customer.name} />
         {tab === "overview" ? (
           <section className="crm-tab-section">
             <div className="crm-section-heading">

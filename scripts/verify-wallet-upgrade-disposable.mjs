@@ -1,10 +1,11 @@
-// P1A-only migration evidence. Never accepts an external database URL.
+// Wallet append-only migration evidence. Never accepts an external database URL.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { cp, mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { PrismaClient } from '@prisma/client';
 import { createEmbeddedPostgres, ensurePostgresReady, ensureDatabaseExists, stopOwnedPostgres, DATABASE_PORT } from './embedded-postgres-utils.mjs';
 
 const baseline = '007bbf397185915f66c1477cf4a498f618298799';
@@ -27,6 +28,7 @@ const name = `tetamu_wallet_disposable_${process.pid}_${Date.now()}`;
 const url = `postgresql://postgres:postgres@localhost:${DATABASE_PORT}/${name}?schema=public`;
 let owns = false;
 let client;
+let reader;
 try {
   owns = await ensurePostgresReady(pg);
   await ensureDatabaseExists(pg, name);
@@ -48,17 +50,36 @@ try {
   await client.query('INSERT INTO businesses(id,name,slug,updated_at) VALUES($1,$2,$3,now())', [businessId, 'WALLET_UPGRADE_SYNTHETIC', `wallet-${randomUUID()}`]);
   await client.query('INSERT INTO customers(id,business_id,name,phone,updated_at) VALUES($1,$2,$3,$4,now())', [customerId, businessId, 'Synthetic migration customer', randomUUID()]);
   await client.query("INSERT INTO payments(id,business_id,amount,method,updated_at) VALUES($1,$2,12.34,'CARD',now())", [randomUUID(), businessId]);
+  await client.query("INSERT INTO business_module_entitlements(id,business_id,module_key,status,enabled_from,source) VALUES($1,$2,'POS','ENABLED','2026-01-01T00:00:00Z','SYSTEM')", [randomUUID(), businessId]);
   const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations' ORDER BY tablename")).rows.map(x => x.tablename);
   const before = await snapshots(tables, false);
   const checksums = (await client.query('SELECT migration_name,checksum FROM _prisma_migrations ORDER BY migration_name')).rows;
+  // Preserve the historical 222 -> 225 proof, then exercise 225 -> 226 separately.
+  for (const migration of migrations.slice(222, 225)) await cp(join(root, 'prisma/migrations', migration), join(temp, 'migrations', migration), { recursive: true });
+  await prisma(['migrate', 'deploy', '--schema', join(temp, 'schema.prisma')]);
+  assert.equal(Number((await client.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count), 225);
+  reader = new PrismaClient({ datasources: { db: { url } } });
+  const entitlementBefore226 = await reader.businessModuleEntitlement.findMany({ where: { businessId }, orderBy: { id: 'asc' } });
+  assert.equal(entitlementBefore226.length, 1);
+  assert.equal(entitlementBefore226[0].moduleKey, 'POS');
+  assert.equal(entitlementBefore226[0].status, 'ENABLED');
+  const tables225 = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations' ORDER BY tablename")).rows.map(x => x.tablename);
+  const before226 = await snapshots(tables225, false);
+  const checksums225 = (await client.query('SELECT migration_name,checksum FROM _prisma_migrations ORDER BY migration_name')).rows;
   await prisma(['migrate', 'deploy']);
+  assert.deepEqual(await snapshots(tables225, false), before226, '225 -> 226 must preserve every existing row');
+  assert.deepEqual(await reader.businessModuleEntitlement.findMany({ where: { businessId }, orderBy: { id: 'asc' } }), entitlementBefore226, 'Existing active POS entitlement must remain readable and unchanged after enum extension');
+  const enumValues = (await client.query(`SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_type.oid=enumtypid WHERE typname='BusinessModuleKey' ORDER BY enumsortorder`)).rows.map(row => row.enumlabel);
+  assert.equal(enumValues.filter(value => value === 'WALLET').length, 1);
+  assert.equal(Number((await client.query("SELECT count(*) FROM business_module_entitlements WHERE module_key='WALLET'")).rows[0].count), 0);
   const fkAfter = await foreignKey();
   assert.equal(fkAfter.conname, 'att_ts_p2_segment_source_day_snapshot_fkey_probe');
   assert.deepEqual({ ...fkAfter, conname: fkBefore.conname }, fkBefore, 'FK identity and entire definition must remain unchanged');
   assert.deepEqual(await indexes(), indexesBefore, 'All target Attendance table indexes must remain unchanged');
   assert.deepEqual(await snapshots(tables, true), before, 'Existing table contents must not change');
   const after = (await client.query('SELECT migration_name,checksum FROM _prisma_migrations ORDER BY migration_name')).rows;
-  assert.equal(after.length, 225);
+  assert.equal(after.length, 226);
+  assert.deepEqual(after.slice(0, 225), checksums225);
   assert.deepEqual(after.slice(0, 222), checksums);
   for (const row of after) {
     const contents = await readFile(join(root, 'prisma/migrations', row.migration_name, 'migration.sql'));
@@ -68,10 +89,11 @@ try {
     assert.equal(Number((await client.query(`SELECT count(*) FROM ${client.escapeIdentifier(table)}`)).rows[0].count), 0);
   }
   assert.equal(Number((await client.query("SELECT count(*) FROM payments WHERE purpose <> 'LEGACY'")).rows[0].count), 0);
-  console.log(`PASS: 222 -> 225; ${tables.length} old table row counts and contents unchanged; all checksums match; wallet tables empty; payments LEGACY; FK definition and all target Attendance table indexes unchanged.`);
+  console.log(`PASS: 222 -> 225 -> 226; ${tables.length} old table row counts and contents unchanged; 225 -> 226 all rows unchanged; all checksums match; wallet tables empty; no Wallet entitlement provisioned; payments LEGACY; FK definition and all target Attendance table indexes unchanged.`);
   await prisma(['migrate', 'diff', '--from-url', url, '--to-schema-datamodel', 'prisma/schema.prisma', '--exit-code']);
   console.log('PASS: schema drift absent.');
 } finally {
+  await reader?.$disconnect();
   await client?.end();
   assert.match(name, /^tetamu_wallet_disposable_\d+_\d+$/);
   const cleanup = pg.getPgClient('postgres', '127.0.0.1');

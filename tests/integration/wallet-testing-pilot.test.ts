@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { randomUUID } from "node:crypto";
-import { walletFixture, walletTestDatabase, assertNoWalletMoney } from "../helpers/wallet-fixture";
+import { walletFixture, walletTestDatabase, assertNoWalletMoney, setWalletModule, withWalletModules } from "../helpers/wallet-fixture";
 import { checkoutFixture, checkoutHarness } from "../helpers/wallet-checkout-fixture";
 import { postWalletTopUp } from "../../src/lib/wallet/top-up";
 import { getWalletSummary } from "../../src/lib/wallet/read-model";
@@ -16,7 +16,7 @@ async function pilot(ids: string, run: () => Promise<void>) {
     TETAMU_WALLET_TESTING_PILOT: "true", TETAMU_WALLET_TESTING_BUSINESS_IDS: ids };
   const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
   Object.assign(process.env, values);
-  try { await run(); } finally { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
+  try { await withWalletModules(db, ids, run); } finally { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
 }
 const denied = (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === "WALLET_UNAVAILABLE";
 test("Pilot invoice void and its completed replay require current release access",async()=>{
@@ -28,14 +28,14 @@ test("Pilot invoice void and its completed replay require current release access
     await pilot(a.business.id,async()=>{
       await h.login(db,a); const sale=await h.action.completeCashierSaleAction(a.form); assert.equal(sale.status,"success",sale.message);
       const form=new FormData();form.set("invoiceId",sale.invoice!.id);form.set("operationId",randomUUID());form.set("voidReason","Pilot synthetic correction");
-      process.env.TETAMU_WALLET_TESTING_PILOT="false";
+      await setWalletModule(db, a.business.id, false);
       const deniedVoid=await h.invoices.voidInvoiceAction({status:"idle",message:""},form);
       assert.equal(deniedVoid.status,"error");assert.match(deniedVoid.message,/Member Wallet is not enabled/);
       assert.equal(await db.walletTransaction.count({where:{businessId:a.business.id,type:"REVERSAL"}}),0);
-      process.env.TETAMU_WALLET_TESTING_PILOT="true";
+      await setWalletModule(db, a.business.id, true);
       assert.equal((await h.invoices.voidInvoiceAction({status:"idle",message:""},form)).status,"success");
       assert.equal((await h.invoices.voidInvoiceAction({status:"idle",message:""},form)).status,"success");
-      process.env.RAILWAY_ENVIRONMENT_NAME="production";
+      await setWalletModule(db, a.business.id, false);
       assert.equal((await h.invoices.voidInvoiceAction({status:"idle",message:""},form)).status,"error");
       assert.equal(await db.walletTransaction.count({where:{businessId:a.business.id,type:"REVERSAL"}}),1);
     });
@@ -54,7 +54,7 @@ test("Testing pilot gates top-up, sensitive reads, and completed replay by curre
     await assert.rejects(listWalletOffers(b.ctx, db), denied);
     await assert.rejects(saveWalletOffer(b.ctx, {name:"Denied",paidAmount:"1",bonusAmount:"0",active:true}, db), denied);
     await assertNoWalletMoney(db, b.business.id);
-    process.env.TETAMU_WALLET_TESTING_PILOT = "false";
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(postWalletTopUp(a.ctx, a.input, db), denied);
     await assert.rejects(getWalletSummary(a.ctx, a.customer.id, db), denied);
     assert.equal(await db.walletTopUp.count({where:{businessId:a.business.id}}), 1);
@@ -75,21 +75,21 @@ test("authenticated actions cannot inject a Pilot business or replay its operati
     await assertNoWalletMoney(db,b.business.id);
   }); } finally { await h.close(); }
 });
-test("Pilot checkout and refund honor allowlist before replay; ordinary Cash and Card are unaffected", async () => {
+test("Pilot checkout and refund honor module entitlement before replay; ordinary Cash and Card are unaffected", async () => {
   const a = await checkoutFixture(db), b = await checkoutFixture(db), h = await checkoutHarness(db);
   try { await pilot(a.business.id,async()=>{
     await h.login(db,a);
     const sale=await h.action.completeCashierSaleAction(a.form); assert.equal(sale.status,"success",sale.message);
     const payment=await db.payment.findFirstOrThrow({where:{invoiceId:sale.invoice!.id,method:"MEMBER_WALLET"}});
     const request={operationKey:randomUUID(),invoiceId:sale.invoice!.id,reason:"Pilot synthetic refund",legs:[{paymentId:payment.id,method:"MEMBER_WALLET" as const,amountCents:4000}],stockLines:[]};
-    process.env.TETAMU_WALLET_TESTING_BUSINESS_IDS=b.business.id;
+    await setWalletModule(db, a.business.id, false);
     assert.equal((await h.action.completeCashierSaleAction(a.form)).status,"error");
     await assert.rejects(refundWalletSale(a.ctx,request,db),denied);
     assert.equal(await db.paymentRefund.count({where:{businessId:a.business.id}}),0);
-    process.env.TETAMU_WALLET_TESTING_BUSINESS_IDS=a.business.id;
+    await setWalletModule(db, a.business.id, true);
     await refundWalletSale(a.ctx,request,db);
     await refundWalletSale(a.ctx,request,db);
-    process.env.TETAMU_WALLET_TESTING_PILOT="false";
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(refundWalletSale(a.ctx,request,db),denied);
     assert.equal(await db.paymentRefund.count({where:{businessId:a.business.id}}),1);
     await h.login(db,b); assert.equal((await h.action.completeCashierSaleAction(b.form)).status,"error");
@@ -101,14 +101,14 @@ test("Pilot checkout and refund honor allowlist before replay; ordinary Cash and
     assert.equal(await db.walletTransaction.count({where:{businessId:b.business.id,type:"REDEMPTION"}}),0);
   }); } finally { await h.close(); }
 });
-test("Pilot reversal and recovery reads deny after allowlist removal without additional money writes", async()=>{
+test("Pilot reversal and recovery reads deny after module disablement without additional money writes", async()=>{
   const a=await checkoutFixture(db), h=await checkoutHarness(db);
   const top=await db.walletTopUp.findFirstOrThrow({where:{businessId:a.business.id}});
   const request={operationKey:randomUUID(),topUpId:top.id,reason:"Pilot synthetic reversal"};
   try { await pilot(a.business.id,async()=>{
     await h.login(db,a); await reverseWalletTopUp(a.ctx,request,db);
     await reverseWalletTopUp(a.ctx,request,db);
-    process.env.TETAMU_WALLET_TESTING_BUSINESS_IDS="";
+    await setWalletModule(db, a.business.id, false);
     await assert.rejects(reverseWalletTopUp(a.ctx,request,db),denied);
     const options=await h.wallet.walletRefundOptionsAction(top.id,"top-up"); assert.equal(options.ok,false);
     if(!options.ok) assert.equal(options.code,"WALLET_UNAVAILABLE");

@@ -4,6 +4,7 @@ import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 export const moduleKeys = [
   "CORE",
   "POS",
+  "WALLET",
   "INVENTORY",
   "SALON",
   "AUTO",
@@ -33,6 +34,7 @@ export type ModuleDefinition = {
 export const MODULE_REGISTRY = {
   CORE: definition("CORE", "Core platform", "CORE", [], true, true),
   POS: definition("POS", "POS", "OPERATIONS", [], false, true),
+  WALLET: definition("WALLET", "Member Wallet", "OPERATIONS", ["POS"], false, true),
   INVENTORY: definition("INVENTORY", "Inventory", "OPERATIONS", ["POS"], false, true),
   SALON: definition("SALON", "Salon appointments", "OPERATIONS", [], false, true),
   AUTO: definition("AUTO", "Vehicle Work Orders", "OPERATIONS", [], false, true),

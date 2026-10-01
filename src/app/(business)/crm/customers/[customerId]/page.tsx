@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
+import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { DeleteCustomerForm } from "@/components/delete-customer-form";
@@ -28,6 +29,7 @@ export default async function CustomerDetailsPage({
 }: CustomerDetailsPageProps) {
   const context = await requireBusinessIndustryContext("VIEW_CRM");
   const { user, businessId } = context;
+  const walletEnabled = await isWalletAccessAllowed({ businessId });
   const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
@@ -181,7 +183,7 @@ export default async function CustomerDetailsPage({
           </div>
         </div>
 
-        <MemberWalletSummary key={customer.id} customerId={customer.id} customerName={customer.name} />
+        <MemberWalletSummary key={customer.id} enabled={walletEnabled} customerId={customer.id} customerName={customer.name} />
         <div className="customer-summary-grid">
           <InfoCard label="Email" value={customer.email || "No email"} />
           <InfoCard

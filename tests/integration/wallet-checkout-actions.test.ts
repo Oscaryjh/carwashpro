@@ -1,3 +1,4 @@
+import { setWalletModule } from "../helpers/wallet-fixture";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { walletTestDatabase } from "../helpers/wallet-fixture";
@@ -68,18 +69,18 @@ test("staff receipt privacy, actor replay binding, gate-closed replay and normal
     assert.equal(result.status, "success", result.message);
     assert.equal(result.invoice?.walletPaidAmount, 40);
     assert.doesNotMatch(JSON.stringify(result), /paidBalance|bonusBalance/);
-    process.env.TETAMU_WALLET_LOCAL_TEST = "false";
+    await setWalletModule(db, f.business.id, false);
     assert.equal((await h.action.completeCashierSaleAction(f.form)).status, "error");
     const cash = new FormData(); for (const [k,v] of f.form) cash.append(k,v);
     cash.set("operationId", randomUUID()); cash.delete("walletAmount"); cash.set("method", "CASH"); cash.set("paymentMethodCode", "BUILTIN_CASH");
     assert.equal((await h.action.completeCashierSaleAction(cash)).status, "success");
-    process.env.TETAMU_WALLET_LOCAL_TEST = flag;
+    await setWalletModule(db, f.business.id, true);
     const owner = await db.user.create({ data: { businessId: f.business.id, branchId: f.branch.id, name: "Other synthetic owner", role: "BUSINESS_OWNER" } });
     await h.login(db, { ...f, actor: owner });
     const replay = await h.action.completeCashierSaleAction(f.form);
     assert.equal(replay.status, "error"); assert.equal(replay.invoice, null);
     assert.equal(await db.walletTransaction.count({ where: { businessId: f.business.id, type: "REDEMPTION" } }), 1);
-  } finally { if (flag === undefined) delete process.env.TETAMU_WALLET_LOCAL_TEST; else process.env.TETAMU_WALLET_LOCAL_TEST = flag; await h.close(); }
+  } finally {  await h.close(); }
 });
 
 test("service checkout keeps completed appointment, customer and assigned staff contracts", async () => {
@@ -106,9 +107,9 @@ test("gate, tenant, shift, amount and actor replay boundaries fail closed with n
   try {
     const f = await checkoutFixture(db); const foreign = await checkoutFixture(db); await h.login(db, f);
     const originalFlag = process.env.TETAMU_WALLET_LOCAL_TEST;
-    process.env.TETAMU_WALLET_LOCAL_TEST = "false";
+    await setWalletModule(db, f.business.id, false);
     try { assert.match((await h.action.completeCashierSaleAction(f.form)).message, /Member Wallet is not enabled for this business/); }
-    finally { process.env.TETAMU_WALLET_LOCAL_TEST = originalFlag; }
+    finally { await setWalletModule(db, f.business.id, true); }
     f.form.set("customerId", foreign.customer.id);
     assert.equal((await h.action.completeCashierSaleAction(f.form)).status, "error");
     f.form.set("customerId", f.customer.id); f.form.set("walletAmount", "41");

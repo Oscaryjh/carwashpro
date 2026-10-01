@@ -8,7 +8,7 @@ import { WalletRefundForm } from "./wallet-refund-form";
 import "./wallet.css";
 
 type History = Extract<Awaited<ReturnType<typeof walletHistoryAction>>, { ok: true }>["data"];
-export function MemberWalletSummary({ customerId, customerName, entry = "customer" }: { customerId: string; customerName: string; entry?: "customer" | "cashier" }) {
+export function MemberWalletSummary({ customerId, customerName, entry = "customer", enabled = false }: { customerId: string; customerName: string; entry?: "customer" | "cashier"; enabled?: boolean }) {
   const [panel, setPanel] = useState<WalletPanel | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -19,6 +19,7 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
   const [revision, setRevision] = useState(0);
   const [reverseId, setReverseId] = useState<string | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     let current = true;
     setPanel(null); setError("");
     startTransition(async () => {
@@ -26,7 +27,7 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
       catch { if (current) setError("Wallet balance is unavailable. Try again."); }
     });
     return () => { current = false; };
-  }, [customerId, revision]);
+  }, [customerId, revision, enabled]);
   function transactions(nextPage: number) {
     setHistoryOpen(true); setHistory(null); setError("");
     startTransition(async () => {
@@ -34,6 +35,7 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
       catch { setError("Wallet transactions could not be loaded. Try again."); }
     });
   }
+  if (!enabled) return null;
   return <section className="wallet-ui" aria-label="Member wallet">
     {panel ? <WalletSummaryView panel={panel} entry={entry} onTopUp={() => setOpen(true)} onHistory={() => transactions(0)} /> : <p>{pending ? "Loading wallet…" : error}<button type="button" className="secondary" disabled={pending} onClick={() => setRevision(value => value + 1)}>Refresh wallet</button></p>}
     {open && panel ? <WalletTopUpModal intentScope={panel.intentScope} customerId={customerId} customerName={customerName} balance={panel.totalBalance} onClose={() => { setOpen(false); setRevision(value => value + 1); }} onSuccess={() => { /* Receipt uses the committed backend result. Refresh on Done. */ }} /> : null}

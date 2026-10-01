@@ -134,7 +134,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
   try {
     const walletCents = input.walletAmount ? parseWalletAmount(input.walletAmount) : 0;
-    if (walletCents) assertWalletAccessAllowed({ businessId });
+    if (walletCents) await assertWalletAccessAllowed({ businessId });
     const tipCents = parseCheckoutTipCents(formData);
     const branchId = await resolveOperationalBranchId(
       businessId,
@@ -157,7 +157,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         ...(walletCents ? { walletAmount: fromCents(walletCents), walletActorId: user.userId } : {}) },
       execute: async (tx) => {
       if (walletCents) {
-        assertWalletAccessAllowed({ businessId });
+        await assertWalletAccessAllowed({ businessId }, { database: tx });
         const access = await resolveBusinessAccess({ userId: user.userId, requestedBusinessId: businessId }, tx);
         if (!access.granted || !access.industryType || !hasBusinessCapability(access, "PROCESS_CASHIER_PAYMENT") ||
           (access.effectiveBusinessRole === "STAFF" && (!access.permissions.includes("POS") || access.branchId !== branchId))) throw new Error("Wallet checkout access denied.");

@@ -7,7 +7,7 @@ export async function postWalletRedemption(tx: Prisma.TransactionClient, input: 
   businessId: string; customerId: string; branchId: string; actorUserId: string;
   paymentId: string; financialOperationId: string; amountCents: number;
 }): Promise<{ transactionId: string; paidUsedCents: number; bonusUsedCents: number }> {
-  assertWalletAccessAllowed(input);
+  await assertWalletAccessAllowed(input, { database: tx });
   const operation = await tx.financialOperation.findFirst({ where: { id: input.financialOperationId,
     businessId: input.businessId, branchId: input.branchId, actorUserId: input.actorUserId, operationType: "CASHIER_CHECKOUT", state: "IN_PROGRESS" } });
   if (!operation) throw new Error("Wallet requires the current cashier financial operation.");
