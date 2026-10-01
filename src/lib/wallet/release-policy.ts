@@ -29,12 +29,18 @@ export function isWalletAccessAllowed({ businessId }: { businessId: string }, en
   if (isWalletLocalTestEnabled(env)) return true;
   // Match the existing Railway release contract, not NODE_ENV (a build mode).
   // Neither explicit variable may override a conflicting deployment identity.
-  if (env.APP_ENVIRONMENT?.trim().toLowerCase() !== "testing" ||
-      env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() !== "testing") return false;
-  if (env.TETAMU_ENVIRONMENT !== undefined && env.TETAMU_ENVIRONMENT.trim().toLowerCase() !== "testing") return false;
+  const environment = env.APP_ENVIRONMENT?.trim().toLowerCase();
+  if ((environment !== "testing" && environment !== "production") ||
+      env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() !== environment) return false;
+  if (env.TETAMU_ENVIRONMENT !== undefined && env.TETAMU_ENVIRONMENT.trim().toLowerCase() !== environment) return false;
   if (env.NODE_ENV !== undefined && !["production", "development", "test"].includes(env.NODE_ENV.trim().toLowerCase())) return false;
-  if (env.VERCEL || env.NETLIFY || env.RENDER || env.TETAMU_WALLET_TESTING_PILOT !== "true") return false;
-  const values = (env.TETAMU_WALLET_TESTING_BUSINESS_IDS ?? "").split(",").map(value => value.trim());
+  if (env.VERCEL || env.NETLIFY || env.RENDER) return false;
+  // Independent opt-ins: neither environment can reuse the other's flag or list.
+  const production = environment === "production";
+  const pilot = production ? env.TETAMU_WALLET_PRODUCTION_PILOT : env.TETAMU_WALLET_TESTING_PILOT;
+  if (pilot !== "true") return false;
+  const allowlist = production ? env.TETAMU_WALLET_PRODUCTION_BUSINESS_IDS : env.TETAMU_WALLET_TESTING_BUSINESS_IDS;
+  const values = (allowlist ?? "").split(",").map(value => value.trim());
   if (values.some(value => !uuid.safeParse(value).success)) return false;
   return new Set(values.map(value => value.toLowerCase())).has(businessId.toLowerCase());
 }
