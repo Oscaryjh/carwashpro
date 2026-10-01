@@ -121,6 +121,24 @@ test("real signed sessions cannot cross People, Payroll, tenant or branch HTTP b
     assert.equal(replay.status, 307);
     assert.match(replay.headers.get("location") ?? "", /\/login/);
     assert.equal(await database.authSecurityEvent.count({ where: { sessionId: adminSession.sessionId, eventType: "SESSION_REVOKED" } }), 1);
+    const jsonSession = { ...adminSession, sessionId: randomUUID() };
+    const storedJsonSession = await persistSessionContext(jsonSession, { database });
+    const jsonToken = await createSessionToken(jsonSession, { absoluteExpiresAt: storedJsonSession.absoluteExpiresAt });
+    const jsonHeaders = { cookie: `${SESSION_COOKIE}=${jsonToken}`, origin: base, "sec-fetch-site": "same-origin", accept: "application/json" };
+    const deniedJson = await fetch(base + "/logout", { method: "POST", redirect: "manual", headers: { ...jsonHeaders, origin: "https://evil.example", "sec-fetch-site": "cross-site" } });
+    assert.equal(deniedJson.status, 403);
+    assert.equal((await database.authSession.findUniqueOrThrow({ where: { id: jsonSession.sessionId } })).revokedAt, null);
+    const jsonLogout = await fetch(base + "/logout", { method: "POST", redirect: "manual", headers: jsonHeaders });
+    assert.equal(jsonLogout.status, 200, "enhanced logout acknowledges success without a POST redirect");
+    assert.deepEqual(await jsonLogout.json(), { ok: true });
+    assert.equal(jsonLogout.headers.get("location"), null);
+    assert.equal(jsonLogout.headers.get("cache-control"), "no-store");
+    assert.match(jsonLogout.headers.get("set-cookie") ?? "", /car_wash_session=;/);
+    assert.ok((await database.authSession.findUniqueOrThrow({ where: { id: jsonSession.sessionId } })).revokedAt);
+    assert.equal((await request("/admin/businesses", jsonToken)).status, 307);
+    const repeatedJsonLogout = await fetch(base + "/logout", { method: "POST", redirect: "manual", headers: jsonHeaders });
+    assert.equal(repeatedJsonLogout.status, 200);
+    assert.equal(await database.authSecurityEvent.count({ where: { sessionId: jsonSession.sessionId, eventType: "SESSION_REVOKED" } }), 1);
   } finally {
     child.kill();
     if (child.exitCode === null) await Promise.race([once(child, "exit"), new Promise((resolve) => setTimeout(resolve, 5_000))]);

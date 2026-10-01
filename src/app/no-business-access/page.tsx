@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SignOutForm } from "@/components/sign-out-form";
 import { getSession } from "@/lib/auth/session";
 
 export default async function NoBusinessAccessPage() {
@@ -14,9 +15,7 @@ export default async function NoBusinessAccessPage() {
         </p>
         <div className="form-actions">
           {session ? (
-            <form action="/logout" method="post">
-              <button className="button-link" type="submit">Sign out</button>
-            </form>
+            <SignOutForm buttonClassName="button-link" />
           ) : (
             <Link className="button-link" href="/login">Return to login</Link>
           )}

@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { PwaInstallButton } from "@/components/pwa-install-button";
+import { SignOutForm } from "@/components/sign-out-form";
 import { shouldPollWhatsAppUnread } from "@/lib/whatsapp/unread-access";
 
 export type NavItem = {
@@ -251,11 +252,7 @@ export function AppShellFrame({
           >
             {isCollapsed ? ">" : "<"}
           </button>
-          <form action="/logout" method="post">
-            <button className="secondary-button" type="submit">
-              Sign out
-            </button>
-          </form>
+          <SignOutForm />
         </div>
       </aside>
       <main className="main">

@@ -12,6 +12,9 @@ export async function POST(request: NextRequest) {
   }
   await auditLogout(request);
   await destroySession({ reason: "User logged out." });
+  if (request.headers.get("accept") === "application/json") {
+    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  }
   return new Response(null, {
     status: 303,
     headers: { Location: "/login", "Cache-Control": "no-store" },
