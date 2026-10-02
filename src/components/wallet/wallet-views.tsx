@@ -52,22 +52,22 @@ function receive(paid: string, bonus: string) {
   const total = cents(paid) + cents(bonus);
   return `${total / 100n}.${(total % 100n).toString().padStart(2, "0")}`;
 }
-export function WalletTopUpOfferForm({ businessId, offer, pending, onSubmit }: { businessId: string; offer?: WalletOffer; pending: boolean; onSubmit: (form: FormData) => void }) {
+export function WalletTopUpOfferForm({ businessId, offer, pending, onSubmit, onCancel }: { businessId: string; offer?: WalletOffer; pending: boolean; onSubmit: (form: FormData) => void; onCancel?: () => void }) {
   const [paid, setPaid] = useState(offer?.paidAmount ?? "");
   const [bonus, setBonus] = useState(offer?.bonusAmount ?? "0");
-  const total = receive(paid, bonus);
+  const total = Number(paid) > 0 ? receive(paid, bonus) : null;
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSubmit(new FormData(event.currentTarget)); }
   return <form className="wallet-offer-form" onSubmit={submit}>
     <input type="hidden" name="businessId" value={businessId} />
     {offer ? <><input type="hidden" name="id" value={offer.id} /><input type="hidden" name="version" value={offer.version} /></> : null}
-    <label>Name<input name="name" required maxLength={160} defaultValue={offer?.name} /></label>
+    <label>Offer name<input name="name" required maxLength={160} defaultValue={offer?.name} /></label>
     <div className="wallet-form-grid">
-      <label>Customer pays (RM)<input type="number" name="paidAmount" min="0.01" step="0.01" required value={paid} onChange={e => setPaid(e.target.value)} /></label>
-      <label>Bonus (RM)<input type="number" name="bonusAmount" min="0" step="0.01" required value={bonus} onChange={e => setBonus(e.target.value)} /></label>
+      <div className="wallet-offer-field"><label>Top-up amount (RM)<input type="number" name="paidAmount" min="0.01" step="0.01" required value={paid} onChange={e => setPaid(e.target.value)} /></label><small>Amount the customer pays.</small></div>
+      <div className="wallet-offer-field"><label>Bonus credit (RM)<input type="number" name="bonusAmount" min="0" step="0.01" required value={bonus} onChange={e => setBonus(e.target.value)} /></label><small>Extra wallet credit given by the business.</small></div>
     </div>
-    <dl className="wallet-amounts"><dt>Wallet receives</dt><dd>{total === null ? "—" : walletMoney(total)}</dd></dl>
-    <label>Status<select name="active" defaultValue={String(offer?.active ?? true)}><option value="true">Active</option><option value="false">Inactive</option></select></label>
-    <footer><button type="submit" disabled={pending}>{pending ? "Saving…" : offer ? "Save changes" : "Create offer"}</button></footer>
+    <div className="wallet-offer-preview" aria-live="polite"><div><span>Total wallet credit</span><strong>{walletMoney(total ?? "0.00")}</strong></div><small>{total === null ? "Enter valid amounts to preview the wallet credit." : `${walletMoney(paid)} top-up + ${walletMoney(bonus)} bonus credit`}</small></div>
+    <label className="wallet-offer-status">Status<select name="active" defaultValue={String(offer?.active ?? true)}><option value="true">Active</option><option value="false">Inactive</option></select></label>
+    <footer>{onCancel ? <button type="button" className="secondary" disabled={pending} onClick={onCancel}>Cancel</button> : null}<button type="submit" disabled={pending}>{pending ? "Saving…" : offer ? "Save changes" : "Create offer"}</button></footer>
   </form>;
 }
 export function WalletConfirmation({ receipt, customerName, staffName, onDone }: { receipt: WalletReceipt; customerName: string; staffName: string; onDone: () => void }) {

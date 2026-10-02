@@ -4,6 +4,7 @@ import { saveWalletOfferAction, walletOffersAction } from "@/app/(business)/crm/
 import { WalletDialog } from "./wallet-dialog";
 import { WalletTopUpOfferForm, walletMoney, type WalletOffer } from "./wallet-views";
 import "./wallet.css";
+import "./wallet-offers.css";
 
 export function WalletOffers({ businessId, initialOffers }: { businessId: string; initialOffers: WalletOffer[] }) {
   const [offers, setOffers] = useState(initialOffers);
@@ -26,13 +27,13 @@ export function WalletOffers({ businessId, initialOffers }: { businessId: string
     Object.entries({ businessId, id: offer.id, version: offer.version, name: offer.name, paidAmount: offer.paidAmount, bonusAmount: offer.bonusAmount, active: !offer.active }).forEach(([key, value]) => form.set(key, String(value)));
     save(form);
   }
-  return <div className="wallet-ui">
-    <header className="wallet-offers-header"><div><h1>Top-up offers</h1><p>Set the amount customers pay and the credit their wallet receives.</p></div><button type="button" onClick={() => { setEditing("new"); setMessage(""); }}>Create offer</button></header>
+  return <div className="wallet-ui wallet-offers">
+    <header className="wallet-offers-header"><div><h1>Top-up offers</h1><p>Create wallet top-up offers with optional bonus credit.</p></div><button type="button" onClick={() => { setEditing("new"); setMessage(""); }}>Create offer</button></header>
     {message && !editing ? <p role="status" className="wallet-note">{message}</p> : null}
-    <div className="wallet-table-wrap"><table className="wallet-table"><thead><tr><th>Name</th><th>Customer pays</th><th>Bonus</th><th>Wallet receives</th><th>Status</th><th>Actions</th></tr></thead><tbody>
-      {offers.map(offer => <tr key={offer.id}><td>{offer.name}</td><td>{walletMoney(offer.paidAmount)}</td><td>{walletMoney(offer.bonusAmount)}</td><td>{walletMoney(offer.totalCredited)}</td><td>{offer.active ? "Active" : "Inactive"}</td><td><button type="button" className="secondary" disabled={pending} onClick={() => { setEditing(offer); setMessage(""); }}>Edit</button><button type="button" className="secondary" disabled={pending} onClick={() => toggle(offer)}>{offer.active ? "Deactivate" : "Activate"}</button></td></tr>)}
-      {!offers.length ? <tr><td colSpan={6}>No top-up offers yet. Create an offer to get started.</td></tr> : null}
+    <div className="wallet-table-wrap"><table className="wallet-table"><thead><tr><th>Offer name</th><th className="wallet-offer-money">Top-up amount</th><th className="wallet-offer-money">Bonus credit</th><th className="wallet-offer-money">Total wallet credit</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+      {offers.map(offer => <tr key={offer.id}><td>{offer.name}</td><td className="wallet-offer-money">{walletMoney(offer.paidAmount)}</td><td className="wallet-offer-money">+{walletMoney(offer.bonusAmount)}</td><td className="wallet-offer-money"><strong>{walletMoney(offer.totalCredited)}</strong></td><td>{offer.active ? "Active" : "Inactive"}</td><td><button type="button" className="secondary" disabled={pending} onClick={() => { setEditing(offer); setMessage(""); }}>Edit</button><button type="button" className="secondary" disabled={pending} onClick={() => toggle(offer)}>{offer.active ? "Deactivate" : "Activate"}</button></td></tr>)}
+      {!offers.length ? <tr><td colSpan={6} className="wallet-offers-empty"><strong>No top-up offers yet</strong><span>Create your first wallet top-up offer.</span></td></tr> : null}
     </tbody></table></div>
-    {editing ? <WalletDialog title={editing === "new" ? "New top-up offer" : "Edit top-up offer"} locked={pending} onClose={() => setEditing(null)}>{message ? <p role="alert" className="wallet-error">{message}</p> : null}<WalletTopUpOfferForm key={editing === "new" ? "new" : `${editing.id}:${editing.version}`} businessId={businessId} offer={editing === "new" ? undefined : editing} pending={pending} onSubmit={save} /></WalletDialog> : null}
+    {editing ? <WalletDialog title={editing === "new" ? "New top-up offer" : "Edit top-up offer"} locked={pending} onClose={() => setEditing(null)}>{message ? <p role="alert" className="wallet-error">{message}</p> : null}<WalletTopUpOfferForm key={editing === "new" ? "new" : `${editing.id}:${editing.version}`} businessId={businessId} offer={editing === "new" ? undefined : editing} pending={pending} onSubmit={save} onCancel={() => setEditing(null)} /></WalletDialog> : null}
   </div>;
 }

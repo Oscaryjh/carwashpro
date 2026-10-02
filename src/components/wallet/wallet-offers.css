@@ -1,0 +1,19 @@
+.wallet-offers .wallet-offers-header h1 { margin: 0; font-size: 24px; }
+.wallet-offers .wallet-offers-header p { margin: 6px 0 0; }
+.wallet-offers .wallet-offers-header > button { flex-shrink: 0; }
+.wallet-offers .wallet-table .wallet-offer-money { text-align: right; font-variant-numeric: tabular-nums; }
+.wallet-offers .wallet-table .wallet-offers-empty { display: table-cell; padding: 24px 12px; text-align: center; white-space: normal; }
+.wallet-offers-empty strong,.wallet-offers-empty span { display: block; }
+.wallet-offers-empty span { margin-top: 6px; color: #5d7080; }
+.wallet-offer-form { gap: 12px; }
+.wallet-offer-field small { display: block; margin-top: 5px; color: #5d7080; line-height: 1.4; }
+.wallet-offer-preview { padding: 12px; border: 1px solid #d8e7e5; border-radius: 8px; background: #f1f8f7; }
+.wallet-offer-preview > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.wallet-offer-preview strong { font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wallet-offer-preview small { display: block; margin-top: 5px; color: #5d7080; overflow-wrap: anywhere; }
+.wallet-offer-status { max-width: 200px; }
+.wallet-offer-form footer { margin-top: 4px; }
+@media(max-width: 600px) {
+  .wallet-offers .wallet-offers-header { align-items: flex-start; flex-wrap: wrap; }
+  .wallet-offer-preview > div { flex-wrap: wrap; }
+}
