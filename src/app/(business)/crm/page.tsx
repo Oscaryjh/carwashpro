@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
+import { CrmWalletMetric, CrmWalletProvider } from "@/components/wallet/wallet-panel-context";
 import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { Prisma } from "@prisma/client";
 import { CrmActivityItem } from "@/components/crm-activity-item";
@@ -25,6 +26,7 @@ import {
   updateCustomerNotesAction,
   updateCustomerProfileAction,
 } from "./actions";
+import "./crm-layout.css";
 
 type CrmPageProps = {
   searchParams: Promise<{
@@ -330,9 +332,10 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       <div className="page-header crm-workspace-header">
         <div>
           <h1>CRM</h1>
-          {walletEnabled && context.user.role === "BUSINESS_OWNER" ? <Link href="/crm/wallet/offers">Top-up offers</Link> : null}
           {!isEmptyDirectory ? <p>{customerCount} customers</p> : null}
         </div>
+        <div className="crm-header-actions">
+        {walletEnabled && context.user.role === "BUSINESS_OWNER" ? <Link className="button-link crm-wallet-offers-link" href="/crm/wallet/offers">Wallet offers</Link> : null}
         {!isEmptyDirectory ? (
           <CrmNewCustomerModal
             action={createCustomerAction}
@@ -340,6 +343,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             isSalonBusiness={isSalonBusiness}
           />
         ) : null}
+        </div>
       </div>
 
       {isEmptyDirectory ? (
@@ -386,6 +390,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           </form>
 
           <nav className="crm-rail-tabs" aria-label="Customer sorting">
+            <span>Sort by</span>
             <CrmSortLink current={sort} label="Recently" sort="recent" query={query} />
             <CrmSortLink current={sort} label="Birthday" sort="birthday" query={query} />
             <CrmSortLink current={sort} label="Name" sort="name" query={query} />
@@ -407,20 +412,19 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
                 >
                   <span className="crm-customer-avatar">{initials(item.name)}</span>
                   <span className="crm-customer-list-copy">
-                    <strong>{item.name}</strong>
+                    <strong title={item.name}>{item.name}</strong>
                     <small>{item.phone}</small>
-                    <span>
+                    <span className="crm-customer-list-secondary">
+                    <span title={item.appointments[0] ? `Last visit ${formatBusinessDateTime(item.appointments[0].scheduledAt)}` : undefined}>
                       {sort === "birthday" && item.dateOfBirth
                         ? `Birthday ${formatBirthday(item.dateOfBirth)}`
                         : item.appointments[0]
                           ? `Last visit ${formatBusinessDateTime(item.appointments[0].scheduledAt)}`
                           : "No visits yet"}
                     </span>
-                  </span>
-                  <span className="crm-customer-list-stats">
-                    <strong>{item.membership?.pointsBalance ?? 0}</strong>
-                    <small>points</small>
+                    <span>{item.membership?.pointsBalance ?? 0} pts</span>
                     <span>{item._count.customerPackages} packages</span>
+                    </span>
                   </span>
                 </Link>
               );
@@ -514,7 +518,7 @@ function CustomerWorkspace({
   walletEnabled,
 }: CustomerWorkspaceProps) {
   return (
-    <>
+    <CrmWalletProvider key={customer.id} customerId={customer.id} enabled={walletEnabled}>
       <header className="crm-detail-summary">
         <div className="crm-detail-identity">
           <span className="crm-customer-avatar is-large">{initials(customer.name)}</span>
@@ -547,7 +551,8 @@ function CustomerWorkspace({
             })}
           />
         </div>
-        <div className="crm-summary-metrics">
+        <div className={`crm-summary-metrics${walletEnabled ? " has-wallet" : ""}`}>
+          <CrmWalletMetric />
           <SummaryMetric label="Loyalty points" value={`${customer.membership?.pointsBalance ?? 0} pts`} />
           <SummaryMetric label="Available packages" value={`${availablePackageCount} packages`} />
           <SummaryMetric label="Total spent" value={formatCurrency(totalSpent)} />
@@ -574,7 +579,7 @@ function CustomerWorkspace({
       </nav>
 
       <div className="crm-detail-body">
-        <MemberWalletSummary key={customer.id} enabled={walletEnabled} customerId={customer.id} customerName={customer.name} />
+        {tab === "overview" ? <MemberWalletSummary key={customer.id} enabled={walletEnabled} customerId={customer.id} customerName={customer.name} /> : null}
         {tab === "overview" ? (
           <section className="crm-tab-section">
             <div className="crm-section-heading">
@@ -686,7 +691,7 @@ function CustomerWorkspace({
           </section>
         ) : null}
       </div>
-    </>
+    </CrmWalletProvider>
   );
 }
 
