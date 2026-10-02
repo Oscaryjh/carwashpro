@@ -8,10 +8,10 @@ import type { WalletIntentConfirmation } from "@/lib/wallet/top-up-intent";
 export function WalletPendingConfirmation({ confirmation }: { confirmation: WalletIntentConfirmation }) {
   const { request, display } = confirmation;
   return <div><h3>Original confirmation</h3><dl className="wallet-amounts">
-    <dt>Offer</dt><dd>{display?.offerName ?? request.offerId}</dd>
+    <dt>Top-up offer</dt><dd>{display?.offerName ?? request.offerId}</dd>
     <dt>Payment method</dt><dd>{display?.paymentMethodLabel ?? request.paymentMethodCode}</dd>
     <dt>Reference</dt><dd>{request.reference || "—"}</dd>
-    {display ? <><dt>Customer pays</dt><dd>{walletMoney(display.paidAmount)}</dd><dt>Bonus credit</dt><dd>{walletMoney(display.bonusAmount)}</dd><dt>Wallet receives</dt><dd>{walletMoney(display.totalCredited)}</dd></> : null}
+    {display ? <><dt>Top-up amount</dt><dd>{walletMoney(display.paidAmount)}</dd><dt>Bonus credit</dt><dd>+{walletMoney(display.bonusAmount)}</dd><dt>Total wallet credit</dt><dd>{walletMoney(display.totalCredited)}</dd></> : null}
   </dl>{!display ? <p className="wallet-note">Original amounts were not saved by this older confirmation. Retry verifies the original request; do not collect payment again.</p> : null}</div>;
 }
 
@@ -52,6 +52,7 @@ function receive(paid: string, bonus: string) {
   const total = cents(paid) + cents(bonus);
   return `${total / 100n}.${(total % 100n).toString().padStart(2, "0")}`;
 }
+export { receive as walletAmountPreview };
 export function WalletTopUpOfferForm({ businessId, offer, pending, onSubmit, onCancel }: { businessId: string; offer?: WalletOffer; pending: boolean; onSubmit: (form: FormData) => void; onCancel?: () => void }) {
   const [paid, setPaid] = useState(offer?.paidAmount ?? "");
   const [bonus, setBonus] = useState(offer?.bonusAmount ?? "0");

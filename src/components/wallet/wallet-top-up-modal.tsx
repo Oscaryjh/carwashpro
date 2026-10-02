@@ -3,7 +3,12 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { walletTopUpAction, walletTopUpOptionsAction } from "@/app/(business)/crm/wallet/actions";
 import { WalletTopUpIntent, type WalletIntentConfirmation } from "@/lib/wallet/top-up-intent";
 import { WalletDialog } from "./wallet-dialog";
-import { WalletConfirmation, WalletPendingConfirmation, walletMoney } from "./wallet-views";
+import { WalletConfirmation, WalletPendingConfirmation, walletMoney, walletAmountPreview } from "./wallet-views";
+import "./wallet-top-up-modal.css";
+
+function compactOfferAmount(amount: string) {
+  return walletMoney(amount).replace("RM ", "RM").replace(/\.00$/, "");
+}
 
 type OptionsResult = Awaited<ReturnType<typeof walletTopUpOptionsAction>>;
 type Options = Extract<OptionsResult, { ok: true }>["data"];
@@ -76,18 +81,23 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
     });
   }
   return <WalletDialog title="Top up member wallet" onClose={onClose} locked={locked || pending}>
-    {receipt ? <WalletConfirmation receipt={receipt} customerName={customerName} staffName={receipt.staffName} onDone={onClose} /> : <>
-      <dl className="wallet-amounts"><dt>Customer</dt><dd>{customerName}</dd><dt>Wallet balance</dt><dd>{walletMoney(balance)}</dd></dl>
+    {receipt ? <WalletConfirmation receipt={receipt} customerName={customerName} staffName={receipt.staffName} onDone={onClose} /> : <div className="wallet-top-up-modal">
+      <dl className="wallet-amounts wallet-top-up-customer"><dt>Customer</dt><dd>{customerName}</dd><dt>Current wallet balance</dt><dd>{walletMoney(balance)}</dd></dl>
       {error ? <p role="alert" className="wallet-error">{error}</p> : null}
       {locked && confirmation ? <><WalletPendingConfirmation confirmation={confirmation} /><p className="wallet-note">Retry checks this same confirmation. Do not collect payment again.</p><footer><button type="button" disabled={pending || storageFailed} onClick={confirm}>{pending ? "Confirming…" : "Retry same confirmation"}</button></footer></> : options ? <div className="wallet-top-up-fields">
-        <label>Select offer<select value={offerId} disabled={locked || pending} onChange={e => setOfferId(e.target.value)}><option value="">Select a top-up offer</option>{options.offers.map(row => <option key={row.id} value={row.id}>{row.name} — Pay {walletMoney(row.paidAmount)}, bonus {walletMoney(row.bonusAmount)}, receive {walletMoney(row.totalCredited)}</option>)}</select></label>
+        <label>Top-up offer<select value={offerId} disabled={locked || pending} onChange={e => setOfferId(e.target.value)}><option value="">Select a top-up offer</option>{options.offers.map(row => <option key={row.id} value={row.id}>{row.name} · {compactOfferAmount(row.paidAmount)} + {compactOfferAmount(row.bonusAmount)} bonus</option>)}</select></label>
         {!options.offers.length ? <p className="wallet-note">No active top-up offers. Ask the business owner to create an offer.</p> : null}
         <div className="wallet-form-grid"><label>Payment method<select value={method} disabled={locked || pending} onChange={e => setMethod(e.target.value)}>{options.paymentMethods.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}</select></label>
         <label>Reference (optional)<input value={reference} maxLength={500} disabled={locked || pending} onChange={e => setReference(e.target.value)} /></label></div>
-        {offer ? <dl className="wallet-amounts"><dt>Customer pays</dt><dd>{walletMoney(offer.paidAmount)}</dd><dt>Bonus credit</dt><dd>{walletMoney(offer.bonusAmount)}</dd><dt>Wallet receives</dt><dd><strong>{walletMoney(offer.totalCredited)}</strong></dd></dl> : null}
-        <p className="wallet-note">Confirm only after collecting the payment. This records a wallet top-up; it does not charge a bank or payment provider.</p>
-        <footer><button type="button" disabled={storageFailed || pending || (!locked && (!offer || !method))} onClick={confirm}>{pending ? "Confirming…" : locked ? "Retry same confirmation" : "Confirm top-up"}</button></footer>
+        <dl className="wallet-amounts wallet-top-up-summary" aria-live="polite">
+          <dt>Top-up amount</dt><dd>{walletMoney(offer?.paidAmount ?? "0.00")}</dd>
+          <dt>Bonus credit</dt><dd>+{walletMoney(offer?.bonusAmount ?? "0.00")}</dd>
+          <dt>Total wallet credit</dt><dd><strong>{walletMoney(offer?.totalCredited ?? "0.00")}</strong></dd>
+          <dt className="wallet-top-up-result">Balance after top-up</dt><dd className="wallet-top-up-result"><strong>{walletMoney(walletAmountPreview(balance, offer?.totalCredited ?? "0.00") ?? balance)}</strong></dd>
+        </dl>
+        <p className="wallet-note">Confirm after receiving payment.<br />Tetamu POS records the top-up only; it does not charge the customer.</p>
+        <footer><button type="button" className="secondary" disabled={locked || pending} onClick={onClose}>Cancel</button><button type="button" disabled={storageFailed || pending || (!locked && (!offer || !method))} onClick={confirm}>{pending ? "Confirming…" : locked ? "Retry same confirmation" : "Confirm top-up"}</button></footer>
       </div> : <footer>{locked ? <button type="button" disabled={pending || storageFailed} onClick={confirm}>Retry same confirmation</button> : <button type="button" disabled={pending} onClick={() => startTransition(async () => { try { await load(); } catch { setError("Wallet options could not be loaded. Try again."); } })}>{pending ? "Loading…" : "Try again"}</button>}</footer>}
-    </>}
+    </div>}
   </WalletDialog>;
 }
