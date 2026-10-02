@@ -1453,6 +1453,7 @@ export function CashierUnifiedSaleForm({
                       inputMode="decimal"
                       min="0"
                       name="openingFloat"
+                      onFocus={(event) => event.currentTarget.select()}
                       required
                       step="0.01"
                       type="number"
