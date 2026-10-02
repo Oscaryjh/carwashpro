@@ -1,0 +1,92 @@
+import assert from "node:assert/strict";
+import test, { after } from "node:test";
+import { createElement, type Context, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createRequire } from "node:module";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { buildCashierUi, cashierCustomer, cashierItem, cashierProps } from "../helpers/cashier-ui-fixture";
+
+const require = createRequire(import.meta.url);
+let directory: string;
+let ui: { CashierUnifiedSaleForm: (props: unknown) => ReactElement; WalletPanelContext: Context<unknown> };
+after(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
+function nodes(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(nodes);
+  if (!node || typeof node !== "object" || !("props" in node)) return [];
+  const element = node as ReactElement<Record<string, unknown>>;
+  return [element, ...nodes(element.props.children as ReactNode)];
+}
+async function fixture(overrides: Record<number, unknown> = {}, wallet: "on" | "off" | "error" = "on") {
+  if (!ui) { directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/cashier-ui-")); const file = join(directory, "ui.cjs"); await buildCashierUi(file); ui = require(file); }
+  // Root hooks: customer=8, cart=9, staff=10, catalog type=6, category=7,
+  // search=21, page=23, payment modal=19. No effects/network execute here.
+  const state: Record<number, unknown> = { 8: cashierCustomer, 9: [{ ...cashierItem, quantity: 1 }], 10: "staff", ...overrides };
+  let index = 0, pickerIndex = 0;
+  Object.assign(globalThis, { __cashierHooks: {
+    state(initial: unknown) { const current = index++; const value = current in state ? state[current] : typeof initial === "function" ? (initial as () => unknown)() : initial; return [value, (next: unknown) => { state[current] = typeof next === "function" ? (next as (old: unknown) => unknown)(value) : next; }]; },
+    picker(initial: unknown) { return [pickerIndex++ === 3 ? state[8] : initial, () => {}]; },
+  }, __crmFixture: { actions: new Proxy({}, { get: () => () => { throw Error("Unexpected authenticated I/O"); } }) } });
+  const tree = ui.CashierUnifiedSaleForm({ ...cashierProps, walletCheckoutEnabled: wallet !== "off" });
+  const shared = { customerId: (state[8] as typeof cashierCustomer | null)?.id, enabled: wallet !== "off", panel: wallet === "error" ? null : { totalBalance: "1100.00", canTopUp: true, ownerDetails: null, intentScope: "scope" }, pending: false, error: wallet === "error" ? "Wallet balance is unavailable. Try again." : "", refresh() {} };
+  const html = renderToStaticMarkup(createElement(ui.WalletPanelContext.Provider, { value: shared }, tree));
+  return { tree, html, state };
+}
+function find(tree: ReactElement, type: string, predicate: (props: Record<string, unknown>) => boolean) { const result = nodes(tree).find(node => node.type === type && predicate(node.props)); assert.ok(result); return result.props; }
+
+test("cashier customer summary has readable identity, inline wallet and a compact Top up action", async () => {
+  const { html } = await fixture();
+  assert.match(html, /Isaac Liew/); assert.match(html, /0125286913/);
+  assert.match(html, /90 pts/); assert.match(html, /2 packages/);
+  assert.match(html, /Wallet RM 1,100\.00/); assert.match(html, />Top up<\/button>/);
+  assert.doesNotMatch(html, /<h3>Member wallet|Top up wallet/);
+});
+test("Wallet OFF hides wallet and Top up without hiding customer facts", async () => {
+  const { html } = await fixture({}, "off");
+  assert.match(html, /90 pts/); assert.match(html, /2 packages/);
+  assert.doesNotMatch(html, /Member wallet|Wallet RM|Top up/);
+});
+test("wallet read errors never substitute a zero balance", async () => {
+  const { html } = await fixture({}, "error");
+  assert.match(html, /Wallet balance is unavailable/); assert.doesNotMatch(html, /Wallet RM 0\.00|Top up<\/button>/);
+});
+test("staff field keeps required and assignment, hiding helper after selection", async () => {
+  const selected = await fixture();
+  const staff = find(selected.tree, "select", props => props.value === "staff");
+  assert.equal(staff.required, true);
+  assert.doesNotMatch(selected.html, /Required for service reporting/);
+  (staff.onChange as (event: unknown) => void)({ target: { value: "" } }); assert.equal(selected.state[10], "");
+  const missing = await fixture({ 10: "" });
+  assert.match(missing.html, /Required for service reporting/);
+  assert.equal(find(missing.tree, "button", props => props.children === "Select service staff to continue").disabled, true);
+});
+test("Pay CTA retains disabled conditions, total and existing payment opening handler", async () => {
+  const ready = await fixture();
+  const pay = find(ready.tree, "button", props => props.children === "Pay RM300.00");
+  assert.equal(pay.disabled, false); assert.match(ready.html, /Subtotal<\/span><strong>RM300\.00/); assert.match(ready.html, /Total<\/span><strong>RM300\.00/);
+  (pay.onClick as () => void)(); assert.equal(ready.state[19], true);
+  const missing = await fixture({ 8: null });
+  assert.equal(find(missing.tree, "button", props => props.children === "Select customer to continue").disabled, true);
+  assert.equal(find((await fixture({ 9: [] })).tree, "button", props => props.children === "Pay RM0.00").disabled, true);
+});
+test("cart quantity handlers retain totals and stock limits", async () => {
+  const cart = await fixture();
+  (find(cart.tree, "button", props => props["aria-label"] === "Add 200mins massage").onClick as () => void)();
+  assert.equal((cart.state[9] as { quantity: number }[])[0].quantity, 2);
+  const two = await fixture({ 9: [{ ...cashierItem, quantity: 2 }] }); assert.match(two.html, /RM600\.00/);
+  (find(two.tree, "button", props => props["aria-label"] === "Reduce 200mins massage").onClick as () => void)(); assert.equal((two.state[9] as { quantity: number }[])[0].quantity, 1);
+  const stock = await fixture({ 9: [{ ...cashierItem, type: "product", stock: 1, quantity: 1 }] });
+  assert.equal(find(stock.tree, "button", props => props["aria-label"] === "Add 200mins massage").disabled, true);
+});
+test("catalog tab, category, search, pagination and customer selection keep their existing state transitions", async () => {
+  const view = await fixture();
+  (find(view.tree, "button", props => props.children === "Products").onClick as () => void)(); assert.equal(view.state[6], "product");
+  (find(view.tree, "button", props => props.children === "Hair").onClick as () => void)(); assert.equal(view.state[7], "Hair");
+  const search = find(view.tree, "input", props => props["aria-label"] === "Search catalog");
+  (search.onChange as (event: unknown) => void)({ target: { value: "Haircut" } }); assert.equal(view.state[21], "Haircut");
+  (find(view.tree, "button", props => props["aria-label"] === "Next catalog page").onClick as () => void)(); assert.equal(view.state[23], 2);
+  const picker = nodes(view.tree).find(node => typeof node.type === "function" && "onSelectionChange" in node.props)!;
+  (picker.props.onSelectionChange as (customer: unknown) => void)({ ...cashierCustomer, id: "second", name: "Second customer" });
+  assert.equal((view.state[8] as typeof cashierCustomer).name, "Second customer");
+  assert.doesNotMatch((await fixture({ 8: { ...cashierCustomer, id: "second", name: "Second customer" } }, "off")).html, /Isaac Liew/);
+});

@@ -9,7 +9,7 @@ import { WalletPanelContext } from "./wallet-panel-context";
 import "./wallet.css";
 
 type History = Extract<Awaited<ReturnType<typeof walletHistoryAction>>, { ok: true }>["data"];
-export function MemberWalletSummary({ customerId, customerName, entry = "customer", enabled = false }: { customerId: string; customerName: string; entry?: "customer" | "cashier"; enabled?: boolean }) {
+export function MemberWalletSummary({ customerId, customerName, entry = "customer", enabled = false, compact = false }: { customerId: string; customerName: string; entry?: "customer" | "cashier"; enabled?: boolean; compact?: boolean }) {
   const read = useContext(WalletPanelContext);
   const shared = read?.customerId === customerId && read.enabled === enabled ? read : null;
   const [localPanel, setPanel] = useState<WalletPanel | null>(null);
@@ -43,7 +43,7 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
   }
   if (!enabled) return null;
   return <section className="wallet-ui" aria-label="Member wallet">
-    {panel ? <WalletSummaryView panel={panel} entry={entry} onTopUp={() => setOpen(true)} onHistory={() => transactions(0)} /> : <p>{pending || shared?.pending ? "Loading wallet…" : shared?.error || error}<button type="button" className="secondary" disabled={pending || shared?.pending} onClick={refresh}>Refresh wallet</button></p>}
+    {panel ? <WalletSummaryView panel={panel} entry={entry} compact={compact} onTopUp={() => setOpen(true)} onHistory={() => transactions(0)} /> : <p>{pending || shared?.pending ? "Loading wallet…" : shared?.error || error}<button type="button" className="secondary" disabled={pending || shared?.pending} onClick={refresh}>Refresh wallet</button></p>}
     {open && panel ? <WalletTopUpModal intentScope={panel.intentScope} customerId={customerId} customerName={customerName} balance={panel.totalBalance} onClose={() => { setOpen(false); refresh(); }} onSuccess={() => { /* Receipt uses the committed backend result. Refresh on Done. */ }} /> : null}
     {historyOpen ? <WalletDialog title="Wallet transactions" onClose={() => setHistoryOpen(false)}>
       {error ? <p role="alert" className="wallet-error">{error}</p> : null}

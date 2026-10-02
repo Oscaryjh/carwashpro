@@ -36,7 +36,11 @@ export function WalletHistoryRow({ row }: { row: Awaited<ReturnType<typeof getWa
     <dt>Staff</dt><dd>{row.staff}</dd>
   </dl></details>;
 }
-export function WalletSummaryView({ panel, entry, onTopUp, onHistory }: { panel: WalletPanel; entry: "customer" | "cashier"; onTopUp: () => void; onHistory: () => void }) {
+export function WalletSummaryView({ panel, entry, onTopUp, onHistory, compact = false }: { panel: WalletPanel; entry: "customer" | "cashier"; onTopUp: () => void; onHistory: () => void; compact?: boolean }) {
+  if (compact && entry === "cashier") return <div className="wallet-cashier-summary">
+    <span>Wallet {walletMoney(panel.totalBalance)}</span>
+    {panel.canTopUp ? <button type="button" className="secondary" onClick={onTopUp}>Top up</button> : null}
+  </div>;
   return <div className="wallet-summary">
     <div><h3>Member wallet</h3><span>Wallet balance</span><strong>{walletMoney(panel.totalBalance)}</strong></div>
     <div className="wallet-actions">

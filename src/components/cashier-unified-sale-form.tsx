@@ -786,7 +786,7 @@ export function CashierUnifiedSaleForm({
           : <p>Saved checkout could not be restored safely. Ask the owner to check the original transaction before starting another sale.</p>}
         {saleError ? <p role="alert">{saleError}</p> : null}
       </section> : null}
-      <form action={submitSale} style={walletPending || walletRecoveryBlocked ? { display: "none" } : undefined} className={`${styles.posShell} ${styles.formalShell}`}>
+      <form action={submitSale} style={walletPending || walletRecoveryBlocked ? { display: "none" } : undefined} className={`${styles.posShell} ${styles.formalShell} ${styles.compactCashier}`}>
       <input name="operationId" type="hidden" value={operationId} />
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
@@ -957,22 +957,21 @@ export function CashierUnifiedSaleForm({
               setCustomer(nextCustomer);
               if (!nextCustomer) setLoyaltyPoints("0");
             }}
-            posDisplay
+            posDisplay={false}
             readOnly={Boolean(appointmentSale)}
             required={requiresCustomer}
           />
-          {customer ? <MemberWalletSummary key={customer.id} enabled={walletCheckoutEnabled} customerId={customer.id} customerName={customer.name} entry="cashier" /> : null}
+          {customer ? <div className={styles.customerFacts}>
+            <span>{customer.loyaltyPoints ?? 0} pts · {customer.activePackageCount ?? 0} packages</span>
+            <MemberWalletSummary key={customer.id} enabled={walletCheckoutEnabled} customerId={customer.id} customerName={customer.name} entry="cashier" compact />
+          </div> : null}
         </div>
 
         {lines.length > 0 && !appointmentSale ? (
           <label className={`${styles.staffArea} ${!assignedStaffId ? styles.staffRequired : ""}`}>
             <span>
-              <strong>{hasServices ? "Service & sales staff" : "Salesperson (optional)"}</strong>
-              <small>
-                {hasServices
-                  ? "Required for service reporting and explicit line commission attribution."
-                  : "Select only when this product or package sale has an explicit commission recipient."}
-              </small>
+              <strong>{hasServices ? "Service staff" : "Salesperson (optional)"}</strong>
+              {hasServices && !assignedStaffId ? <small>Required for service reporting and explicit line commission attribution.</small> : null}
             </span>
             <select
               onChange={(event) => setAssignedStaffId(event.target.value)}
@@ -1117,7 +1116,7 @@ export function CashierUnifiedSaleForm({
             ? "Select customer to continue"
             : hasServices && !assignedStaffId
               ? "Select service staff to continue"
-            : `Payment · ${formatMoney(amountDue)}`}
+            : `Pay ${formatMoney(amountDue)}`}
         </button>
         <input name="branchId" type="hidden" value={branchId} />
         {appointmentSale ? (
