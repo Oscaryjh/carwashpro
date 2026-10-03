@@ -19,7 +19,7 @@ let actionForm: FormData | undefined;
 let closes = 0;
 after(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
-async function render(state: { offers?: typeof offer[]; offerId?: string; method?: string; pending?: boolean; locked?: boolean; storageFailed?: boolean; intent?: WalletTopUpIntent; balance?: string; multiBranch?: boolean; modeChanged?: boolean } = {}) {
+async function render(state: { offers?: typeof offer[]; offerId?: string; method?: string; pending?: boolean; locked?: boolean; storageFailed?: boolean; intent?: WalletTopUpIntent; balance?: string; multiBranch?: boolean; modeChanged?: boolean; onMode?: boolean } = {}) {
   if (!ui) {
     directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/wallet-modal-ui-"));
     const outfile = join(directory, "modal.cjs");
@@ -36,7 +36,7 @@ async function render(state: { offers?: typeof offer[]; offerId?: string; method
     ] });
     ui = require(outfile);
   }
-  const values = [{ ...options, activity:state.multiBranch ? null : options.activity, branches:state.multiBranch ? [...options.branches,{id:"other",name:"Other"}] : options.branches, offers: state.offers ?? options.offers }, state.offerId ?? "offer", state.method ?? "BUILTIN_CASH", "ref-123", "", null, state.locked ?? false, state.intent?.confirmation ?? null, state.storageFailed ?? false,state.modeChanged ?? false];
+  const values = [{ ...options, activity:state.onMode ? {...options.activity,modeAtConfirmation:"ON",shiftId:"real-shift"} : state.multiBranch ? null : options.activity, branches:state.multiBranch ? [...options.branches,{id:"other",name:"Other"}] : options.branches, offers: state.offers ?? options.offers }, state.offerId ?? "offer", state.method ?? "BUILTIN_CASH", "ref-123", "", null, state.locked ?? false, state.intent?.confirmation ?? null, state.storageFailed ?? false,state.modeChanged ?? false];
   let index = 0;
   Object.assign(globalThis, {
     __walletModalHooks: { next: () => [values[index++], () => {}], intent: state.intent ?? null, transition: [state.pending ?? false, (callback: () => Promise<unknown>) => tasks.push(callback())] },
@@ -61,21 +61,23 @@ test("selected offer uses compact terminology, signed bonus and current-plus-cre
   const { html, tree } = await render();
   assert.match(html, /Current wallet balance/);
   assert.match(html, /Top-up offer/);
-  assert.match(html, /Summer credit · RM1,000 \+ RM100 bonus/);
+  assert.match(html, /RM1,000/);
+  assert.match(html, /\+ RM100 bonus/);
+  assert.match(html, /Wallet receives RM1,100/);
   assert.match(html, /<dt>Top-up amount<\/dt><dd>RM 1,000\.00/);
   assert.match(html, /<dt>Bonus credit<\/dt><dd>\+RM 100\.00/);
-  assert.match(html, /Total wallet credit<\/dt><dd><strong>RM 1,100\.00/);
+  assert.match(html, /Wallet receives<\/dt><dd><strong>RM 1,100\.00/);
   assert.match(html, /Balance after top-up<\/dt><dd[^>]*><strong>RM 2,020\.00/);
   assert.match(html, /Confirm after receiving payment\./);
   assert.match(html, /Tetamu POS records the top-up only; it does not charge the customer\./);
-  assert.doesNotMatch(html, /Customer pays|Wallet receives|Pay RM|receive RM/);
+  assert.doesNotMatch(html, /Customer pays|Pay RM|receive RM/);
   assert.equal(button(tree, "Confirm top-up").disabled, false);
 });
 
 test("unselected and empty-offer states show zero credit and unchanged current balance", async () => {
   for (const offers of [options.offers, []]) {
     const { html, tree } = await render({ offers, offerId: "" });
-    assert.match(html, /Total wallet credit<\/dt><dd><strong>RM 0\.00/);
+    assert.match(html, /Wallet receives<\/dt><dd><strong>RM 0\.00/);
     assert.match(html, /Balance after top-up<\/dt><dd[^>]*><strong>RM 920\.00/);
     assert.doesNotMatch(html, /NaN|undefined|—/);
     assert.equal(button(tree, "Confirm top-up").disabled, true);
@@ -85,7 +87,7 @@ test("unselected and empty-offer states show zero credit and unchanged current b
 
 test("preview adds decimal amounts using the existing money helper without rounding drift", async () => {
   const { html } = await render({ balance: "0.60", offers: [{ ...offer, paidAmount: "0.60", bonusAmount: "0.60", totalCredited: "1.20" }] });
-  assert.match(html, /Total wallet credit<\/dt><dd><strong>RM 1\.20/);
+  assert.match(html, /Wallet receives<\/dt><dd><strong>RM 1\.20/);
   assert.match(html, /Balance after top-up<\/dt><dd[^>]*><strong>RM 1\.80/);
 });
 
@@ -96,7 +98,7 @@ test("confirm disabled conditions and payment/reference controls retain their or
   assert.equal(button((await render({ pending: true })).tree, "Confirming…").disabled, true);
   const { tree } = await render({ method: "BUILTIN_CARD" });
   const controls = elements(tree);
-  assert.ok(controls.some(node => node.type === "select" && node.props.value === "BUILTIN_CARD" && node.props.disabled === false));
+  assert.ok(controls.some(node => node.type === "button" && node.props.value === "BUILTIN_CARD" && node.props["aria-pressed"] === true && node.props.disabled === false));
   const reference = controls.find(node => node.type === "input")!.props;
   assert.equal(reference.maxLength, 500);
   assert.equal(reference.value, "ref-123");
@@ -140,12 +142,35 @@ test("new top-up captures the displayed mode and branch without inventing a shif
   assert.equal(intent.existing?.shiftId,null);
 });
 
+test("single authorised branch hides field and name while ON submission preserves real attribution", async () => {
+  for (const onMode of [false, true]) {
+    const intent = new WalletTopUpIntent();
+    const { tree, html } = await render({ intent, onMode });
+    assert.doesNotMatch(html, /Collection branch|Select collection branch|>Local</);
+    (button(tree, "Confirm top-up").onClick as () => void)();
+    await Promise.all(tasks.splice(0));
+    assert.equal(actionForm?.get("branchId"), "branch");
+    assert.equal(actionForm?.get("shiftId"), onMode ? "real-shift" : "");
+    assert.equal(actionForm?.get("operationKey"), intent.existing?.operationKey);
+    intent.uncertain();
+    const before = Object.fromEntries(actionForm!);
+    const retry = await render({ intent, locked: true });
+    (button(retry.tree, "Retry same confirmation").onClick as () => void)();
+    await Promise.all(tasks.splice(0));
+    assert.deepEqual(Object.fromEntries(actionForm!), before);
+  }
+});
+
 test("multiple branches require explicit selection, not the first branch",async()=>{
   const {tree,html}=await render({multiBranch:true});
   assert.equal(button(tree,"Confirm top-up").disabled,true);
   assert.match(html,/Select collection branch/);
   const selector=elements(tree).find(node=>node.type==="select" && node.props["aria-label"]==="Collection branch");
   assert.ok(selector); assert.equal(selector.props.value,"");
+  const before = actionForm;
+  (button(tree,"Confirm top-up").onClick as () => void)();
+  await Promise.all(tasks.splice(0));
+  assert.equal(actionForm, before, "even a direct handler invocation must not submit without an activity selection");
 });
 
 test("mode change requires an explicit button and preserves the original key/amounts",async()=>{
@@ -155,10 +180,12 @@ test("mode change requires an explicit button and preserves the original key/amo
   const {tree,html}=await render({intent,locked:true,modeChanged:true});
   assert.deepEqual(intent.existing,original);
   assert.match(html,/Cashier shifts: OFF/);
+  assert.doesNotMatch(html,/Collection branch|Local/);
   (button(tree,"Confirm with current cashier settings").onClick as () => void)();
   await Promise.all(tasks.splice(0));
   assert.equal(actionForm?.get("operationKey"),original.operationKey);
   assert.equal(actionForm?.get("offerId"),"old-offer");
+  assert.equal(actionForm?.get("branchId"),original.branchId);
   assert.equal(actionForm?.get("modeAtConfirmation"),"OFF");
   assert.equal(actionForm?.get("shiftId"),"");
 });
@@ -172,6 +199,7 @@ test("legacy pending without a branch requires selection and explicit confirmati
   const selector=elements(multiple.tree).find(node=>node.type==="select"&&node.props["aria-label"]==="Review collection branch");
   assert.ok(selector);assert.equal(selector.props.value,"");assert.deepEqual(intent.existing,original);
   const reviewed=await render({intent,locked:true,modeChanged:true});
+  assert.doesNotMatch(reviewed.html,/Collection branch|Select collection branch|Local/);
   assert.equal(button(reviewed.tree,"Confirm with current cashier settings").disabled,false);
   (button(reviewed.tree,"Confirm with current cashier settings").onClick as ()=>void)();
   await Promise.all(tasks.splice(0));

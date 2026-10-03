@@ -2,10 +2,19 @@ import type {RefundIntentRequest} from "@/lib/wallet/refund-intent";
 export function hasWalletInvoiceSource(invoice:{hasWalletPayment?:boolean;walletPaidAmount?:number;refundablePayments?:{method:string}[]}){
  return invoice.hasWalletPayment===true||(invoice.walletPaidAmount??0)>0||!!invoice.refundablePayments?.some(payment=>payment.method==="MEMBER_WALLET");
 }
-export type RefundOptions={kind:string;legs:{paymentId:string;method:string;availableCents:number}[];stockLines:{id:string;name:string;remainingQuantity:number}[];paidAmount:string;bonusAmount:string;method:string;canVoid:boolean};
+export type RefundOptions={kind:string;legs:{paymentId:string;method:string;availableCents:number}[];stockLines:{id:string;name:string;remainingQuantity:number}[];paidAmount:string;bonusAmount:string;method:string;canVoid:boolean;packagePurchaseRefund?:{refundableCents:number;unavailableReason:string|null}|null};
 export function WalletRefundFields({options}:{options:RefundOptions}){
  return <>
-  {options.kind==="top-up"?<p>Return RM {options.paidAmount} via {options.method}. Remove bonus RM {options.bonusAmount}. This records the original-channel refund; it does not send money.</p>:options.legs.filter(l=>l.availableCents>0).map(l=><fieldset key={l.paymentId}>
+  {options.kind==="top-up"?<p>Return RM {options.paidAmount} via {options.method}. Remove bonus RM {options.bonusAmount}. This records the original-channel refund; it does not send money.</p>:options.packagePurchaseRefund?<section aria-label="Package full refund">
+   <p>Unused packages can only be refunded in full.</p>
+   <p>Full refund total <strong>RM{(options.packagePurchaseRefund.refundableCents/100).toFixed(2)}</strong></p>
+   {options.packagePurchaseRefund.unavailableReason?<p role="alert">{options.packagePurchaseRefund.unavailableReason}</p>:null}
+   {options.legs.map(l=><div key={l.paymentId}>
+    <input type="hidden" name={`amount_${l.paymentId}`} value={(l.availableCents/100).toFixed(2)}/>
+    <input type="hidden" name={`method_${l.paymentId}`} value={l.method}/>
+    {l.method!=="MEMBER_WALLET"?<label>{l.method} external refund reference<input name={`reference_${l.paymentId}`}/></label>:null}
+   </div>)}
+  </section>:options.legs.filter(l=>l.availableCents>0).map(l=><fieldset key={l.paymentId}>
    <legend>{l.method==="MEMBER_WALLET"?"Return to member wallet":`${l.method} payment`}</legend>
    <label>Refund amount (RM)<input name={`amount_${l.paymentId}`} type="number" step="0.01" min="0" max={(l.availableCents/100).toFixed(2)} defaultValue="0"/></label>
    <small>Available: RM {(l.availableCents/100).toFixed(2)}</small>

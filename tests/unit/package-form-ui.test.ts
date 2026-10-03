@@ -12,7 +12,7 @@ let directory: string;
 let Form: (props: Record<string, unknown>) => ReactElement;
 let Benefits: (props: Record<string, unknown>) => ReactElement;
 const hookKey = "__packageUIHooks";
-const services = [{ id: "a", name: "Wash", categoryName: "Hair" }, { id: "b", name: "Treatment", categoryName: "Hair" }];
+const services = [{ id: "a", name: "Wash", categoryName: "Hair", price: "20.00" }, { id: "b", name: "Treatment", categoryName: "Hair", price: "50.00" }];
 const base = { action: async () => {}, branches: [{ id: "branch", name: "Outlet" }], services, isSalonBusiness: true, submitLabel: "Create package" };
 before(async () => {
   directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/package-ui-"));
@@ -20,8 +20,8 @@ before(async () => {
   await build({ ...options, entryPoints: ["src/components/package-form.tsx"], outfile: join(directory, "form.cjs") });
   Form = require(join(directory, "form.cjs")).PackageForm;
   await build({ ...options, entryPoints: ["src/components/package-service-benefits-field.tsx"], outfile: join(directory, "events.cjs"), plugins: [{ name: "state-harness", setup(b) {
-    b.onResolve({ filter: /^react$/ }, () => ({ path: "react", namespace: "hooks" }));
-    b.onLoad({ filter: /.*/, namespace: "hooks" }, () => ({ contents: `export function useState(initial){const h=globalThis.${hookKey};const i=h.index++;if(!(i in h.values))h.values[i]=typeof initial==='function'?initial():initial;return [h.values[i],v=>h.values[i]=typeof v==='function'?v(h.values[i]):v]}` }));
+    b.onResolve({ filter: /^react$/ }, args => args.importer.endsWith("package-service-benefits-field.tsx") ? ({ path: "react", namespace: "hooks" }) : ({ path: "react", external: true }));
+    b.onLoad({ filter: /.*/, namespace: "hooks" }, () => ({ contents: `export function useId(){return 'benefits-test'};export function useEffect(){};export function useState(initial){const h=globalThis.${hookKey};const i=h.index++;if(!(i in h.values))h.values[i]=typeof initial==='function'?initial():initial;return [h.values[i],v=>h.values[i]=typeof v==='function'?v(h.values[i]):v]}` }));
   } }] });
   Benefits = require(join(directory, "events.cjs")).PackageServiceBenefitsField;
 });
@@ -30,7 +30,7 @@ const render = (props: Record<string, unknown> = {}) => renderToStaticMarkup(cre
 type TestNode = { type: unknown; props: {
   children?: unknown; name?: string; value?: unknown; disabled?: boolean;
   min?: string; max?: string; required?: boolean; "aria-label"?: string;
-  onClick: () => void; onChange: (event: { target: { value: string } }) => void;
+  onClick: () => void; onChange: (event: { target: { value: string } } | string) => void;
 } };
 function nodes(node: unknown): TestNode[] {
   if (!node || typeof node !== "object") return [];
@@ -73,18 +73,18 @@ test("empty service does not count or allow another empty row; selected rows sum
   assert.equal(h.fields("benefitServiceId").length, 1);
   assert.match(renderToStaticMarkup(h.tree()), /Select a service before adding another\./);
   assert.equal(nodes(h.tree()).filter(n => n.props?.["aria-label"]?.startsWith("Remove")).length, 0);
-  h.fields("benefitServiceId")[0].props.onChange({ target: { value: "a" } });
+  h.fields("benefitServiceId")[0].props.onChange("a");
   h.fields("benefitTotalUses")[0].props.onChange({ target: { value: "5" } });
   assert.equal(h.total(), "5");
   assert.equal(h.add().props.disabled, false);
   h.add().props.onClick();
   assert.equal(h.fields("benefitServiceId").length, 2);
   assert.equal(h.total(), "5");
-  h.fields("benefitServiceId")[1].props.onChange({ target: { value: "b" } });
+  h.fields("benefitServiceId")[1].props.onChange("b");
   h.fields("benefitTotalUses")[1].props.onChange({ target: { value: "2" } });
   assert.equal(h.total(), "7");
   assert.deepEqual(h.fields("benefitServiceId").map(n => n.props.value), ["a", "b"]);
-  assert.deepEqual(h.fields("benefitTotalUses").map(n => n.props.value), [5, 2]);
+  assert.deepEqual(h.fields("benefitTotalUses").map(n => n.props.value), ["5", "2"]);
   const removes = nodes(h.tree()).filter(n => n.props?.["aria-label"]?.startsWith("Remove"));
   assert.equal(removes.length, 2);
   removes[0].props.onClick();

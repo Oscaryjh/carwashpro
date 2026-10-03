@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
+import { formatCatalogDiscountValue } from "../../src/lib/catalog-discounts";
 import {
   canMoveWorkOrderStatus,
   formatOrderNumber,
@@ -285,7 +288,20 @@ test("legacy single-service packages still produce one service balance", () => {
   );
 });
 
-test("cashier discounts require a reference and loyalty redemption requires a customer", () => {
+test("cashier persisted discount reason omits absent reference without changing real notes", () => {
+  // Execute the actual action's pure reason expression, without invoking financial writes.
+  const source=ts.createSourceFile("actions.ts",readFileSync("src/app/(business)/cashier/actions.ts","utf8"),ts.ScriptTarget.Latest,true);
+  let expression="";
+  function visit(node:ts.Node){if(ts.isVariableDeclaration(node)&&node.name.getText(source)==="discountReason")expression=node.initializer!.getText(source);ts.forEachChild(node,visit);}
+  visit(source);assert.ok(expression);
+  const reason=new Function("isTrainingComplimentary","catalogDiscount","input","formatCatalogDiscountValue",`return (${expression});`);
+  const discount={name:"Half price",discountType:"PERCENTAGE" as const,percentage:50,fixedAmount:null};
+  for(const reference of [undefined,null,""])assert.equal(reason(false,discount,{discountReference:reference},formatCatalogDiscountValue),"Catalog: Half price (50%)");
+  assert.equal(reason(false,discount,{discountReference:"PROMO"},formatCatalogDiscountValue),"Catalog: Half price (50%) · Reference: PROMO");
+  assert.equal(reason(false,null,{discountReference:"Manual note"},formatCatalogDiscountValue),"Manual note");
+});
+
+test("cashier discount reference is optional, bounded and trimmed; loyalty still requires a customer", () => {
   const productId = "11111111-1111-4111-8111-111111111111";
   const catalogDiscountId = "33333333-3333-4333-8333-333333333333";
   const baseSale = {
@@ -314,14 +330,14 @@ test("cashier discounts require a reference and loyalty redemption requires a cu
       discountType: "AMOUNT",
       discountValue: 5,
     }).success,
-    false,
+    true,
   );
   assert.equal(
     cashierSaleSchema.safeParse({
       ...baseSale,
       catalogDiscountId,
     }).success,
-    false,
+    true,
   );
   assert.equal(
     cashierSaleSchema.safeParse({
@@ -338,6 +354,10 @@ test("cashier discounts require a reference and loyalty redemption requires a cu
     }).success,
     false,
   );
+  assert.equal(cashierSaleSchema.safeParse({...baseSale,discountValue:5,discountReference:"x".repeat(160)}).success,true);
+  assert.equal(cashierSaleSchema.safeParse({...baseSale,discountValue:5,discountReference:"x".repeat(161)}).success,false);
+  assert.equal(cashierSaleSchema.parse({...baseSale,discountValue:5,discountReference:"  note  "}).discountReference,"note");
+  assert.equal(cashierSaleSchema.safeParse({...baseSale,discountValue:5,discountReference:""}).success,true);
 });
 
 test("salon appointment payments support partial payment and protect non-cash references", () => {

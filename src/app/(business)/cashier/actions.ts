@@ -618,7 +618,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       const discountReason = isTrainingComplimentary
         ? `Training / Complimentary: ${input.checkoutReason}`
         : catalogDiscount
-        ? `Catalog: ${catalogDiscount.name} (${formatCatalogDiscountValue(catalogDiscount)}) · Reference: ${input.discountReference}`
+        ? `Catalog: ${catalogDiscount.name} (${formatCatalogDiscountValue(catalogDiscount)})${input.discountReference ? ` · Reference: ${input.discountReference}` : ""}`
         : input.discountReference ?? null;
       let loyaltyPointsRedeemed = 0;
       let loyaltyDiscountCents = 0;
@@ -889,6 +889,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       const walletPayment = walletCents ? await tx.payment.create({ data: {
         businessId, branchId, cashierId: user.userId, shiftId: shiftActivity.shiftId, paidAt: shiftActivity.activityAt,
         invoiceId: invoice.id, appointmentId: effectiveAppointmentId, method: "MEMBER_WALLET", purpose: "SALE",
+        customerPackageId: primaryCustomerPackage?.id ?? null,
         amount: fromCents(walletCents), tenderCurrency: "MYR", tenderAmount: fromCents(walletCents), exchangeRateToMyr: 1,
         paymentMethodLabel: "Member wallet",
       } }) : null;

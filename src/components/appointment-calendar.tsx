@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { flushSync } from "react-dom";
+import { buildCalendarPresentation, type CalendarCardPlacement } from "./appointment-calendar-layout";
+import "./appointment-calendar-polish.css";
 import {
   addDaysToDateValue as addBusinessDaysToDateValue,
   addMonthsToDateValue,
@@ -308,7 +310,6 @@ export function AppointmentCalendar({
     windowScrollY: number;
   } | null>(null);
   const handledInitialAppointmentRef = useRef<string | null>(null);
-  const grouped = groupAppointments(appointments);
   const blockedSlots = groupBlockedAppointmentSlots(appointments);
   const selectedServices = selectedServiceIds
     .map((serviceId) => services.find((service) => service.id === serviceId))
@@ -376,8 +377,11 @@ export function AppointmentCalendar({
     appointments,
   );
   const calendarStaffSlots = buildStaffSlots(staffMembers);
+  const presentation = buildCalendarPresentation(appointments, selectedDateValue, visibleTimeSlots);
   const calendarStyle = {
-    "--appointment-slot-height": `${36 + calendarResize}px`,
+    "--appointment-slot-height": `${64 + calendarResize}px`,
+    "--appointment-staff-count": Math.max(1, calendarStaffSlots.length),
+    "--appointment-timeline-min-width": `${70 + Math.max(1, calendarStaffSlots.length) * 193}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -918,13 +922,17 @@ export function AppointmentCalendar({
             >
               <strong>{day.shortLabel}</strong>
               <span>{day.label}</span>
-              <small>{day.count} appts</small>
+              <small>{day.count} {day.count === 1 ? "appt" : "appts"}</small>
             </Link>
           ))}
           <Link aria-label="Next week" className="appointment-calendar-week-nav next" href={nextHref}>
             {"\u203a"}
           </Link>
-
+        </div>
+      </div>
+      <div className="appointment-calendar-timeline" style={calendarStyle}>
+       <div className="appointment-calendar-timeline-surface">
+        <div className="appointment-calendar-staff-grid">
           <div className="appointment-calendar-staff-head">Staff</div>
           <div className="appointment-calendar-staff-row">
             {staffMembers.length ? (
@@ -936,10 +944,9 @@ export function AppointmentCalendar({
                     key={`empty-staff-${index}`}
                   />
                 ) : (
-                  <div className="appointment-calendar-staff-card" key={staff.id}>
+                  <div className="appointment-calendar-staff-card" key={staff.id} aria-label={`${staff.name}, ${staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}`}>
                     <span>{getInitials(staff.name)}</span>
-                    <strong>{staff.name}</strong>
-                    <small>{staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}</small>
+                    <strong title={staff.name}>{staff.name}</strong>
                   </div>
                 ),
               )
@@ -948,7 +955,6 @@ export function AppointmentCalendar({
             )}
           </div>
         </div>
-      </div>
 
       <div className="appointment-calendar-grid appointment-calendar-body-grid" style={calendarStyle}>
         {hiddenPastSlots.length ? (
@@ -957,8 +963,7 @@ export function AppointmentCalendar({
             onClick={() => setShowEarlierSlots(true)}
             type="button"
           >
-            <span>Earlier time hidden</span>
-            <strong>{hiddenPastAppointmentCount ? `${hiddenPastAppointmentCount} appointments earlier` : "Show earlier"}</strong>
+            <span>Show earlier times{hiddenPastAppointmentCount ? ` (${hiddenPastAppointmentCount})` : ""}</span>
           </button>
         ) : showEarlierSlots && isTodayDateValue(selectedDateValue) ? (
           <button
@@ -966,15 +971,15 @@ export function AppointmentCalendar({
             onClick={() => setShowEarlierSlots(false)}
             type="button"
           >
-            <span>Earlier time shown</span>
-            <strong>Hide earlier</strong>
+            <span>Hide earlier times</span>
           </button>
         ) : null}
 
         {visibleTimeSlots.map((time) => (
           <CalendarRow
             blockedSlots={blockedSlots}
-            appointmentsBySlot={grouped}
+            appointmentsBySlot={presentation.cards}
+            occupiedSlots={presentation.occupied}
             draggingId={draggingId}
             dropTarget={dropTarget}
             key={time}
@@ -999,6 +1004,8 @@ export function AppointmentCalendar({
             isSalonBusiness={isSalonBusiness}
           />
         ))}
+      </div>
+       </div>
       </div>
 
       {isDatePickerOpen ? (
@@ -1088,7 +1095,7 @@ export function AppointmentCalendar({
         <div className="appointment-time-modal-backdrop" role="presentation">
           <section
             aria-labelledby="appointment-time-title"
-            className={`appointment-time-modal ${timeModalDrag ? "is-dragging" : ""}`}
+            className={`appointment-time-modal appointment-time-tablet ${timeModalDrag ? "is-dragging" : ""}`}
             role="dialog"
             style={{
               transform: `translate(${timeModalOffset.x}px, ${timeModalOffset.y}px)`,
@@ -1138,6 +1145,7 @@ export function AppointmentCalendar({
               {newAppointmentDays.map((day) => (
                 <button
                   className={day.date === newAppointmentDate ? "is-selected" : ""}
+                  aria-pressed={day.date === newAppointmentDate}
                   key={day.date}
                   onClick={() => setNewAppointmentDate(day.date)}
                   type="button"
@@ -2195,19 +2203,19 @@ export function AppointmentCalendar({
         <div className="business-hour-modal-backdrop" role="presentation">
           <section
             aria-labelledby="business-hour-title"
-            className="business-hour-modal"
+            className="business-hour-modal business-hours-compact"
             role="dialog"
           >
             <div className="business-hour-modal-header">
               <button
-                aria-label="Close business hour"
+                aria-label="Close business hours"
                 className="business-hour-close"
                 onClick={() => setIsBusinessHourOpen(false)}
                 type="button"
               >
                 {"\u00d7"}
               </button>
-              <h2 id="business-hour-title">Business Hour</h2>
+              <h2 id="business-hour-title">Business Hours</h2>
               <button
                 className="business-hour-save"
                 onClick={() => {
@@ -2223,9 +2231,10 @@ export function AppointmentCalendar({
             </div>
 
             <div className="business-hour-toggle-row">
-              <span>Use Daily Time</span>
+              <span>Same hours every day</span>
               <button
                 aria-pressed={useDailyTime}
+                aria-label="Same hours every day"
                 className={`business-hour-toggle ${useDailyTime ? "is-on" : ""}`}
                 onClick={() => setUseDailyTime((current) => !current)}
                 type="button"
@@ -2233,15 +2242,14 @@ export function AppointmentCalendar({
                 <span />
               </button>
             </div>
-            <p className="business-hour-help">Apply same hour for every day of the week</p>
+            <p className="business-hour-help">Apply the same opening hours to every day of the week.</p>
 
             <div className="business-hour-card">
               <div className="business-hour-card-header">
                 <div>
-                  <span className="business-hour-sun">{"\u2600"}</span>
                   <strong>Daily</strong>
                 </div>
-                <span className="business-hour-on">{"\u2713"} On</span>
+                <span className="business-hour-on">On</span>
               </div>
 
               <div className="business-hour-time-row">
@@ -2254,7 +2262,7 @@ export function AppointmentCalendar({
                     value={draftStartTime}
                   />
                 </label>
-                <strong>-</strong>
+                <strong aria-hidden="true">→</strong>
                 <label>
                   <span>End</span>
                   <input
@@ -2266,9 +2274,6 @@ export function AppointmentCalendar({
                 </label>
               </div>
 
-              <button className="business-hour-break" type="button">
-                Add Break
-              </button>
             </div>
           </section>
         </div>
@@ -2312,6 +2317,7 @@ export function AppointmentCalendar({
 
 function CalendarRow({
   appointmentsBySlot,
+  occupiedSlots,
   blockedSlots,
   draggingId,
   dropTarget,
@@ -2326,7 +2332,8 @@ function CalendarRow({
   time,
   isSalonBusiness,
 }: {
-  appointmentsBySlot: Map<string, AppointmentCalendarItem[]>;
+  appointmentsBySlot: Map<string, CalendarCardPlacement<AppointmentCalendarItem>[]>;
+  occupiedSlots: Set<string>;
   blockedSlots: Map<string, { endTime: string }>;
   draggingId: string | null;
   dropTarget: string | null;
@@ -2350,6 +2357,7 @@ function CalendarRow({
         const key = `${selectedDate}T${time}::${staff.id ?? `empty-${index}`}`;
         const appointments = appointmentsBySlot.get(key) ?? [];
         const blockedSlot = blockedSlots.get(key);
+        const occupied = !!blockedSlot || occupiedSlots.has(key);
         const isDropTarget = dropTarget === key;
 
         return (
@@ -2358,8 +2366,10 @@ function CalendarRow({
               isPastSlot ? "is-past" : ""
             }`}
             key={key}
+            data-slot={key}
+            data-occupied={occupied || undefined}
             onDragOver={(event) => {
-              if (isPastSlot || !staff.id || blockedSlot) {
+              if (isPastSlot || !staff.id || occupied) {
                 return;
               }
 
@@ -2367,7 +2377,7 @@ function CalendarRow({
               onDragOver(key);
             }}
             onDrop={(event) => {
-              if (isPastSlot || !staff.id || blockedSlot) {
+              if (isPastSlot || !staff.id || occupied) {
                 return;
               }
 
@@ -2375,7 +2385,7 @@ function CalendarRow({
               onDrop(selectedDate, time, staff.id);
             }}
           >
-            {staff.id && appointments.length === 0 && !blockedSlot && !isPastSlot ? (
+            {staff.id && appointments.length === 0 && !occupied && !isPastSlot ? (
               <button
                 aria-label={`New appointment for ${staff.name} at ${formatTimeLabel(time)}`}
                 className="appointment-calendar-slot-create"
@@ -2383,14 +2393,17 @@ function CalendarRow({
                 type="button"
               />
             ) : null}
-            {staff.id && appointments.length === 0 && blockedSlot ? (
-              <div className="appointment-calendar-slot-blocked" title={`Busy until ${formatTimeLabel(blockedSlot.endTime)}`}>
-                <span>Busy</span>
-                <small>until {formatTimeLabel(blockedSlot.endTime)}</small>
-              </div>
-            ) : null}
-            {appointments.map((appointment) => (
+            {appointments.map(({appointment,offsetSlots,spanSlots,lane,laneCount}) => (
               <button
+                style={{
+                  top: `calc(${offsetSlots} * (var(--appointment-slot-height) + 3px) + 3px)`,
+                  height: `calc(${spanSlots} * (var(--appointment-slot-height) + 3px) - 6px)`,
+                  left: `calc(${lane * 100 / laneCount}% + 3px)`,
+                  width: `calc(${100 / laneCount}% - 6px)`,
+                }}
+                title={`${appointment.customerName}${!isSalonBusiness && appointment.plateNumber ? ` · ${appointment.plateNumber}` : ""} · ${getAppointmentCardStatusLabel(appointment)} · ${formatAppointmentTimeRange(appointment)}`}
+                onDragOver={event => event.stopPropagation()}
+                onDrop={event => event.stopPropagation()}
                 className={`appointment-calendar-card ${
                   isLockedAppointment(appointment) ? "is-converted" : ""
                 } ${
@@ -2418,10 +2431,10 @@ function CalendarRow({
                 }}
                 type="button"
               >
-                <strong>{appointment.customerName}</strong>
-                {!isSalonBusiness && appointment.plateNumber ? (
-                  <span>{appointment.plateNumber}</span>
-                ) : null}
+                <strong>
+                  {appointment.customerName}
+                  {!isSalonBusiness && appointment.plateNumber ? ` · ${appointment.plateNumber}` : ""}
+                </strong>
                 <small>
                   {getAppointmentCardStatusLabel(appointment)}
                   {false
@@ -2769,23 +2782,6 @@ function MonthYearPicker({
   );
 }
 
-function groupAppointments(appointments: AppointmentCalendarItem[]) {
-  const grouped = new Map<string, AppointmentCalendarItem[]>();
-
-  appointments.forEach((appointment) => {
-    const scheduledAt = new Date(appointment.scheduledAt);
-    const date = toDateValue(scheduledAt);
-    const [hour, rawMinute] = toTimeValue(scheduledAt).split(":");
-    const minute = Math.floor(Number(rawMinute) / 15) * 15;
-    const key = `${date}T${hour}:${String(minute).padStart(2, "0")}::${appointment.staffId ?? "unassigned"}`;
-    const current = grouped.get(key) ?? [];
-    current.push(appointment);
-    grouped.set(key, current);
-  });
-
-  return grouped;
-}
-
 function groupBlockedAppointmentSlots(appointments: AppointmentCalendarItem[]) {
   const blocked = new Map<string, { endTime: string }>();
 
@@ -2834,18 +2830,7 @@ function buildStaffSlots(
     role: string;
   }[],
 ): CalendarStaffSlot[] {
-  const visibleSlots = staffMembers.map((staff) => ({ ...staff, isEmpty: false }));
-  const emptyCount = Math.max(0, 7 - visibleSlots.length);
-
-  return [
-    ...visibleSlots,
-    ...Array.from({ length: emptyCount }, () => ({
-      id: null,
-      name: "",
-      role: "",
-      isEmpty: true,
-    })),
-  ];
+  return staffMembers.map((staff) => ({ ...staff, isEmpty: false }));
 }
 
 function toDateValue(date: Date) {

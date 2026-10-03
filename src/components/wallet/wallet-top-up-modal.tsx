@@ -10,6 +10,11 @@ function compactOfferAmount(amount: string) {
   return walletMoney(amount).replace("RM ", "RM").replace(/\.00$/, "");
 }
 
+function isDuplicateOfferName(name: string, paidAmount: string) {
+  const match = /^top\s+up\s+(?:rm\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)$/i.exec(name.trim());
+  return Boolean(match && match[1].replace(/,/g, "").replace(/\.00$/, "") === paidAmount.replace(/\.00$/, ""));
+}
+
 type OptionsResult = Awaited<ReturnType<typeof walletTopUpOptionsAction>>;
 type Options = Extract<OptionsResult, { ok: true }>["data"];
 type Receipt = Extract<Awaited<ReturnType<typeof walletTopUpAction>>, { ok: true }>["data"];
@@ -31,7 +36,7 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
     const result = await walletTopUpOptionsAction(customerId, branchId);
     if (!result.ok) { setOptions(null); setError(result.message); return; }
     setOptions(result.data);
-    setOfferId(current => result.data.offers.some(row => row.id === current) ? current : "");
+    setOfferId(current => result.data.offers.some(row => row.id === current) ? current : result.data.offers.length === 1 ? result.data.offers[0].id : "");
     setMethod(current => result.data.paymentMethods.some(row => row.code === current) ? current : result.data.paymentMethods[0]?.code ?? "");
   }
   useEffect(() => {
@@ -86,17 +91,17 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
       }
     });
   }
-  return <WalletDialog title="Top up member wallet" onClose={onClose} locked={locked || pending}>
+  return <WalletDialog title="Top up member wallet" className="wallet-top-up-dialog" onClose={onClose} locked={locked || pending}>
     {receipt ? <WalletConfirmation receipt={receipt} customerName={customerName} staffName={receipt.staffName} onDone={onClose} /> : <div className="wallet-top-up-modal">
-      <dl className="wallet-amounts wallet-top-up-customer"><dt>Customer</dt><dd>{customerName}</dd><dt>Current wallet balance</dt><dd>{walletMoney(balance)}</dd></dl>
+      <dl className="wallet-top-up-customer"><div><dt>Customer</dt><dd>{customerName}</dd></div><div><dt>Current wallet balance</dt><dd>{walletMoney(balance)}</dd></div></dl>
       {error ? <p role="alert" className="wallet-error">{error}</p> : null}
       {locked && confirmation ? <><WalletPendingConfirmation confirmation={confirmation} /><p className="wallet-note">Retry checks this same confirmation. Do not collect payment again.</p>
         {modeChanged ? <>
-          {!confirmation.request.branchId && options && options.activity?.modeAtConfirmation !== "ON" ? <label>Collection branch<select aria-label="Review collection branch" value={options.activity?.branchId??""} disabled={pending} onChange={event=>{
+          {!confirmation.request.branchId && options && options.branches.length > 1 && options.activity?.modeAtConfirmation !== "ON" ? <label>Collection branch<select aria-label="Review collection branch" value={options.activity?.branchId??""} disabled={pending} onChange={event=>{
             const branchId=event.target.value;setOptions(current=>current?{...current,activity:null}:null);
             if(branchId)startTransition(async()=>{try{await load(branchId);}catch{setError("Current branch settings could not be loaded.");}});
           }}><option value="">Select collection branch</option>{options.branches.map(branch=><option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
-          {options?.activity ? <p>Collection branch: {options.branches.find(branch => branch.id === options.activity?.branchId)?.name}. Cashier shifts: {options.activity.modeAtConfirmation}</p> : null}
+          {options?.activity ? <p>{options.branches.length > 1 ? <>Collection branch: {options.branches.find(branch => branch.id === options.activity?.branchId)?.name}. </> : null}Cashier shifts: {options.activity.modeAtConfirmation}</p> : null}
           <footer><button type="button" disabled={pending || storageFailed} onClick={() => startTransition(async () => { try { await load(confirmation.request.branchId); } catch { setError("Current cashier settings could not be loaded."); } })}>Reload current cashier settings</button>
           <button type="button" disabled={pending || storageFailed || !options?.activity || Boolean(confirmation.request.branchId && options.activity.branchId !== confirmation.request.branchId)} onClick={() => {
             try { intent.current!.reconfirmActivity(options!.activity!); setModeChanged(false); setConfirmation(intent.current!.confirmation); confirm(); }
@@ -104,22 +109,38 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
           }}>Confirm with current cashier settings</button></footer>
         </> : <footer><button type="button" disabled={pending || storageFailed} onClick={confirm}>{pending ? "Confirming…" : "Retry same confirmation"}</button></footer>}
       </> : options ? <div className="wallet-top-up-fields">
-        <label>Collection branch<select aria-label="Collection branch" value={options.activity?.branchId ?? ""} disabled={locked || pending || options.activity?.modeAtConfirmation === "ON"} onChange={event => {
+        {options.branches.length > 1 ? <label>Collection branch<select aria-label="Collection branch" value={options.activity?.branchId ?? ""} disabled={locked || pending || options.activity?.modeAtConfirmation === "ON"} onChange={event => {
           const branchId = event.target.value;
           setOptions(current => current ? {...current,activity:null} : null);
           if (branchId) startTransition(async () => { try { await load(branchId); } catch { setError("Branch options could not be loaded. Try again."); } });
-        }}><option value="">Select collection branch</option>{options.branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
-        <label>Top-up offer<select value={offerId} disabled={locked || pending} onChange={e => setOfferId(e.target.value)}><option value="">Select a top-up offer</option>{options.offers.map(row => <option key={row.id} value={row.id}>{row.name} · {compactOfferAmount(row.paidAmount)} + {compactOfferAmount(row.bonusAmount)} bonus</option>)}</select></label>
+        }}><option value="">Select collection branch</option>{options.branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
+        <fieldset className="wallet-choice-group" disabled={locked || pending}>
+          <legend>Top-up offer</legend>
+          <div className={`wallet-offer-grid${options.offers.length > 5 ? " wallet-offer-scroll" : ""}`} data-offer-count={options.offers.length}>
+            {options.offers.map(row => <button type="button" className="wallet-offer-card" key={row.id} value={row.id} aria-pressed={offerId === row.id} onClick={() => setOfferId(row.id)}>
+              <span className="wallet-offer-copy">
+                {!isDuplicateOfferName(row.name, row.paidAmount) ? <span className="wallet-offer-heading">{row.name}</span> : null}
+                <strong className="wallet-offer-amount">{compactOfferAmount(row.paidAmount)}</strong>
+                <span className="wallet-offer-bonus">+ {compactOfferAmount(row.bonusAmount)} bonus</span>
+                <span className="wallet-offer-total">Wallet receives {compactOfferAmount(row.totalCredited)}</span>
+              </span>
+              <span className="wallet-choice-mark" aria-hidden="true">{offerId === row.id ? "✓" : ""}</span>
+            </button>)}
+          </div>
+        </fieldset>
         {!options.offers.length ? <p className="wallet-note">No active top-up offers. Ask the business owner to create an offer.</p> : null}
-        <div className="wallet-form-grid"><label>Payment method<select value={method} disabled={locked || pending} onChange={e => setMethod(e.target.value)}>{options.paymentMethods.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}</select></label>
-        <label>Reference (optional)<input value={reference} maxLength={500} disabled={locked || pending} onChange={e => setReference(e.target.value)} /></label></div>
-        <dl className="wallet-amounts wallet-top-up-summary" aria-live="polite">
-          <dt>Top-up amount</dt><dd>{walletMoney(offer?.paidAmount ?? "0.00")}</dd>
-          <dt>Bonus credit</dt><dd>+{walletMoney(offer?.bonusAmount ?? "0.00")}</dd>
-          <dt>Total wallet credit</dt><dd><strong>{walletMoney(offer?.totalCredited ?? "0.00")}</strong></dd>
-          <dt className="wallet-top-up-result">Balance after top-up</dt><dd className="wallet-top-up-result"><strong>{walletMoney(walletAmountPreview(balance, offer?.totalCredited ?? "0.00") ?? balance)}</strong></dd>
+        <fieldset className="wallet-choice-group" disabled={locked || pending}>
+          <legend>Payment method</legend>
+          <div className="wallet-payment-grid">{options.paymentMethods.map(row => <button type="button" className="wallet-payment-choice" key={row.code} value={row.code} disabled={locked || pending} aria-pressed={method === row.code} onClick={() => setMethod(row.code)}><span className="wallet-choice-mark" aria-hidden="true">{method === row.code ? "✓" : ""}</span><span>{row.label}</span></button>)}</div>
+        </fieldset>
+        <label>Reference (optional)<input value={reference} maxLength={500} disabled={locked || pending} onChange={e => setReference(e.target.value)} /></label>
+        <dl className="wallet-top-up-summary" aria-live="polite">
+          <div><dt>Top-up amount</dt><dd>{walletMoney(offer?.paidAmount ?? "0.00")}</dd></div>
+          <div><dt>Bonus credit</dt><dd>+{walletMoney(offer?.bonusAmount ?? "0.00")}</dd></div>
+          <div className="wallet-credit-total"><dt>Wallet receives</dt><dd><strong>{walletMoney(offer?.totalCredited ?? "0.00")}</strong></dd></div>
         </dl>
-        <p className="wallet-note">Confirm after receiving payment.<br />Tetamu POS records the top-up only; it does not charge the customer.</p>
+        <dl className="wallet-top-up-balance-after" aria-live="polite"><dt>Balance after top-up</dt><dd><strong>{walletMoney(walletAmountPreview(balance, offer?.totalCredited ?? "0.00") ?? balance)}</strong></dd></dl>
+        <p className="wallet-note">Confirm after receiving payment. Tetamu POS records the top-up only; it does not charge the customer.</p>
         <footer><button type="button" className="secondary" disabled={locked || pending} onClick={onClose}>Cancel</button><button type="button" disabled={storageFailed || pending || (!locked && (!offer || !method || !options.activity))} onClick={confirm}>{pending ? "Confirming…" : locked ? "Retry same confirmation" : "Confirm top-up"}</button></footer>
       </div> : <footer>{locked ? <button type="button" disabled={pending || storageFailed} onClick={confirm}>Retry same confirmation</button> : <button type="button" disabled={pending} onClick={() => startTransition(async () => { try { await load(); } catch { setError("Wallet options could not be loaded. Try again."); } })}>{pending ? "Loading…" : "Try again"}</button>}</footer>}
     </div>}

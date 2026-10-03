@@ -8,6 +8,7 @@ import {
   type RefundPaymentState,
 } from "@/app/(business)/invoices/actions";
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import type { PackagePurchaseRefundPresentation } from "@/lib/refunds/package-presentation";
 
 type RefundPaymentFormProps = {
   cashierShiftsEnabled?: boolean;
@@ -17,6 +18,7 @@ type RefundPaymentFormProps = {
   paymentId: string;
   originalMethod: string;
   refundableAmount: number;
+  packagePurchaseRefund?: PackagePurchaseRefundPresentation | null;
   onSuccess?: () => void;
   stockLines?: Array<{
     id: string;
@@ -46,6 +48,7 @@ export function RefundPaymentForm({
   paymentId,
   originalMethod,
   refundableAmount,
+  packagePurchaseRefund,
   onSuccess,
   stockLines = [],
 }: RefundPaymentFormProps) {
@@ -126,7 +129,7 @@ export function RefundPaymentForm({
       action={formAction}
       className="refund-payment-form"
       onSubmit={(event) => {
-        if(!activity){event.preventDefault();return;}
+        if(!activity || packagePurchaseRefund?.unavailableReason){event.preventDefault();return;}
         const amount = new FormData(event.currentTarget).get("amount");
         const confirmed = window.confirm(
           `Refund RM${amount} from invoice ${invoiceNumber}? This changes payment totals only; the related order status will stay unchanged.`,
@@ -149,7 +152,13 @@ export function RefundPaymentForm({
       ) : null}
 
       <div className="refund-form-grid">
-        <label>
+        {packagePurchaseRefund ? <div className="refund-package-note">
+          <span>Full refund total</span>
+          <strong>RM{refundableAmount.toFixed(2)}</strong>
+          <input type="hidden" name="amount" value={refundableAmount.toFixed(2)} />
+          <p>Unused packages can only be refunded in full.</p>
+          {packagePurchaseRefund.unavailableReason ? <p role="alert">{packagePurchaseRefund.unavailableReason}</p> : null}
+        </div> : <label>
           <span>Refund amount</span>
           <input
             name="amount"
@@ -162,13 +171,15 @@ export function RefundPaymentForm({
             required
           />
           <small>Available: RM{refundableAmount.toFixed(2)}</small>
-        </label>
+        </label>}
 
         {packageRefund ? (
           <div className="refund-package-note">
             <span>Refund method</span>
             <strong>Restore package use</strong>
           </div>
+        ) : packagePurchaseRefund ? (
+          <input type="hidden" name="method" value={defaultMethod} />
         ) : (
           <label>
             <span>Refund method</span>
@@ -226,8 +237,8 @@ export function RefundPaymentForm({
       ) : null}
 
       <div className="refund-form-footer">
-        <button className="danger-button" type="submit" disabled={pending || !activity}>
-          {pending ? "Processing..." : "Process refund"}
+        <button className="danger-button" type="submit" disabled={pending || !activity || !!packagePurchaseRefund?.unavailableReason}>
+          {pending ? "Processing..." : packagePurchaseRefund ? "Process full refund" : "Process refund"}
         </button>
         {safeState.status !== "idle" ? (
           <p className={`form-message ${safeState.status}`}>

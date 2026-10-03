@@ -20,7 +20,7 @@ export function WalletRefundForm({sourceId,kind="invoice",recoveryScope,onSucces
   }).catch(()=>{if(live)setMessage("Refund controls unavailable. Do not refund again if a confirmation is pending.");});return()=>{live=false;};
  },[sourceId,kind,recoveryScope]);
  async function submit(form:HTMLFormElement,mode:string){
-  if(!options||!options.releaseEnabled||!intent.current||busy||done)return;
+  if(!options||!options.releaseEnabled||!intent.current||busy||done||(!saved&&options.packagePurchaseRefund?.unavailableReason))return;
   try{
    const data=new FormData(form),legs=options.legs.flatMap(l=>{const amount=Number(data.get(`amount_${l.paymentId}`)??0);if(!Number.isFinite(amount)||Math.abs(amount*100-Math.round(amount*100))>0.0001)throw new Error("Use up to two decimal places.");return amount>0?[{paymentId:l.paymentId,amountCents:Math.round(amount*100),method:String(data.get(`method_${l.paymentId}`)),reference:String(data.get(`reference_${l.paymentId}`)??"")}]:[];});
    const fields={kind:mode,businessId:options.businessId,sourceId,reason:String(data.get("reason")??""),legs:JSON.stringify(legs),stockLines:JSON.stringify(options.stockLines.flatMap(i=>{const quantity=Number(data.get(`quantity_${i.id}`)??0);return quantity>0?[{invoiceItemId:i.id,quantity,disposition:String(data.get(`disposition_${i.id}`)),noRestockReason:String(data.get(`stockReason_${i.id}`)??"")}]:[];})),externalRefundReference:String(data.get("externalRefundReference")??"")};
@@ -40,7 +40,7 @@ export function WalletRefundForm({sourceId,kind="invoice",recoveryScope,onSucces
   {options&&!done?<form onSubmit={e=>{e.preventDefault();void submit(e.currentTarget,kind==="top-up"?"reversal":"refund");}}>
    {saved?<WalletRefundPending request={saved} invoiceNumber={invoiceNumber}/>:options.reversed?<p>This source is already reversed.</p>:<WalletRefundFields options={options}/>}
    {!options.releaseEnabled?<p>Wallet actions are unavailable. Your saved confirmation is retained. Do not refund again.</p>:null}
-   {!options.reversed||saved?<button type="submit" disabled={busy||!options.releaseEnabled}>{busy?"Processing…":saved?"Retry confirmation":kind==="top-up"?"Reverse top-up":"Confirm refund"}</button>:null}
+   {!options.reversed||saved?<button type="submit" disabled={busy||!options.releaseEnabled||(!saved&&!!options.packagePurchaseRefund?.unavailableReason)}>{busy?"Processing…":saved?"Retry confirmation":kind==="top-up"?"Reverse top-up":options.packagePurchaseRefund?"Process full refund":"Confirm refund"}</button>:null}
    {!saved&&options.canVoid?<button type="button" className="secondary" disabled={busy} onClick={e=>{const form=e.currentTarget.form;if(form?.reportValidity())void submit(form,"void");}}>Void invoice</button>:null}
   </form>:null}
  </section>;

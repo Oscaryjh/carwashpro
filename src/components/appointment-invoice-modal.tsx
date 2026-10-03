@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { RefundPaymentForm } from "@/components/refund-payment-form";
+import { InvoiceRefundPaymentForm as RefundPaymentForm } from "@/components/invoice-refund-payment-form";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";

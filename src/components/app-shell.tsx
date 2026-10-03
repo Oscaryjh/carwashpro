@@ -110,6 +110,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_CATALOG")
       ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "products" as const }]
       : []),
+    ...(isBusinessOwner && moduleEnabled("POS") && moduleEnabled("WALLET")
+      ? [{ href: "/crm/wallet/offers", label: "Top-up Offers", shortLabel: "Top-up", icon: "membership" as const }]
+      : []),
     ...(isStoreUser && moduleEnabled("INVENTORY") && canSeeCapability("INVENTORY_VIEW", "VIEW_INVENTORY")
       ? [{ href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: "inventory" as const }]
       : []),

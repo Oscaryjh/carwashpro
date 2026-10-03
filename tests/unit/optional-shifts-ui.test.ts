@@ -14,8 +14,9 @@ test("Cashier operations renders explicit ON/OFF without profile fields",async()
     const {CashierOperationsSettings}=createRequire(import.meta.url)(join(dir,'ui.cjs'));
     for(const enabled of [true,false]){
       const html=renderToStaticMarkup(createElement(CashierOperationsSettings,{enabled}));
-      assert.match(html,/Cashier shifts/);assert.match(html,/Track cashier shifts, opening cash and cash differences\./);assert.match(html,/Use Cashier without starting or ending a shift\./);
-      assert.match(html,new RegExp(`value="${enabled}" selected=""`));assert.match(html,/name="cashierShiftsEnabled"/);assert.doesNotMatch(html,/name="businessId"|name="slug"|name="openingFloat"/);
+      assert.match(html,/Cashier shifts/);
+      assert.match(html,enabled ? /Requires staff to start a shift/ : /Use Cashier directly without starting or ending a shift\./);
+      assert.match(html,new RegExp(`aria-checked="${enabled}"`));assert.match(html,/name="cashierShiftsEnabled"/);assert.doesNotMatch(html,/name="businessId"|name="slug"|name="openingFloat"/);
       assert.equal((html.match(/<form/g)||[]).length,1);
     }
   }finally{await rm(dir,{recursive:true,force:true});}
@@ -31,15 +32,14 @@ test("rejected OFF save preserves the user's selection in a real client form", a
   const document=dom.window.document;
   async function waitFor(predicate:()=>boolean){const deadline=Date.now()+5000;while(!predicate()){assert.ok(Date.now()<deadline,'React client did not settle');await new Promise(ok=>setTimeout(ok,10));}}
   try {
-    await waitFor(()=>!!document.querySelector('select'));
-    const select=document.querySelector('select') as HTMLSelectElement;
-    assert.equal(select.value,'true');
-    select.value='false';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
-    assert.equal(select.value,'false','client selection changed before save');
-    (document.querySelector('button') as HTMLButtonElement).click();
-    await waitFor(()=>!!document.querySelector('[role="alert"]'));
-    assert.equal(select.value,'false','failed save must not reset OFF to original ON');
-    assert.match(document.querySelector('[role="alert"]')!.textContent!,/Close all open/);
+    await waitFor(()=>!!document.querySelector('[role="switch"]'));
+    const select=document.querySelector('[role="switch"]') as HTMLButtonElement;
+    assert.equal(select.getAttribute('aria-checked'),'true');
+    select.click();await waitFor(()=>select.getAttribute('aria-checked')==='false');
+    (document.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    await waitFor(()=>!!document.querySelector('[role="alert"]') && !select.disabled);
+    assert.equal(select.getAttribute('aria-checked'),'false','failed save must not reset OFF to original ON');
+    assert.match(document.querySelector('[role="alert"]')!.textContent!,/End all open/);
     assert.equal(select.disabled,false);
   } finally {dom.window.close();}
 });

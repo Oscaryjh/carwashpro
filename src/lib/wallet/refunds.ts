@@ -16,6 +16,7 @@ import { MAX_PAYMENT_CENTS } from "./types";
 import type { WalletContext } from "./authorization";
 import { requireWalletRefundOwner } from "./refund-authorization";
 import { WalletRefundRejected } from "./refund-errors";
+import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
 
 const requestSchema = z.object({operationKey:financialOperationKeySchema,invoiceId:z.string().uuid(),reason:z.string().trim().min(3).max(500),
   legs:z.array(z.object({paymentId:z.string().uuid(),amountCents:z.number().int().positive().max(MAX_PAYMENT_CENTS),
@@ -70,7 +71,28 @@ export async function refundWalletSale(ctx:WalletContext, raw:WalletRefundInput,
   const {result}=await runFinancialOperation({businessId:ctx.businessId,actorUserId:ctx.user.userId,branchId:source.invoice.branchId,operationType:"PAYMENT_REFUND",operationKey,
     payload:{...payload,walletActorId:ctx.user.userId},execute:async tx=>{
       const {invoice,actor}=await sourceInvoice(tx,ctx,input.invoiceId);
-      if(invoice.status==="VOID" || invoice.customerPackageId || invoice.items.some(i=>i.customerPackageId)) throw new Error("Invoice cannot be refunded through Wallet checkout.");
+      if(invoice.status==="VOID") throw new Error("Invoice cannot be refunded through Wallet checkout.");
+      const packageIds = [...new Set([invoice.customerPackageId, ...invoice.items.map(item => item.customerPackageId)].filter((id): id is string => !!id))];
+      if (packageIds.length) {
+        // A package purchase is refunded as one operation across EVERY original source.
+        // Validation and entitlement reversal share the existing serializable transaction.
+        const payments = invoice.payments.filter(payment => payment.status === "ACTIVE");
+        if (payments.length !== input.legs.length || payments.some(payment => {
+          const leg = input.legs.find(entry => entry.paymentId === payment.id);
+          return payment.purpose === "WALLET_TOP_UP" || (payment.method === "MEMBER_WALLET" && payment.purpose !== "SALE")
+            || payment.method === "PACKAGE" || payment.packageUses > 0
+            || payment.refunds.length > 0 || !leg || leg.method !== payment.method
+            || leg.amountCents !== toCents(payment.amount);
+        })) throw new WalletRefundRejected("Package purchases must be refunded in full to all original payment sources.");
+        const packages = await tx.customerPackage.findMany({
+          where: { id: { in: packageIds }, businessId: ctx.businessId, customerId: invoice.customerId!, branchId: invoice.branchId },
+          include: { serviceBalances: true },
+        });
+        if (packages.length !== packageIds.length || packages.some(pkg =>
+          pkg.status !== "ACTIVE" || pkg.remainingUses !== pkg.totalUses
+          || pkg.serviceBalances.some(balance => balance.remainingUses !== balance.totalUses)
+        )) throw new WalletRefundRejected("All packages in this invoice must be unused before they can be refunded.");
+      }
       const op=await tx.financialOperation.findUniqueOrThrow({where:{businessId_operationType_operationKey:{businessId:ctx.businessId,operationType:"PAYMENT_REFUND",operationKey}}});
       const legs=input.legs.map(leg=>{
         const payment=invoice.payments.find(p=>p.id===leg.paymentId && p.businessId===ctx.businessId && p.status==="ACTIVE" && p.branchId===invoice.branchId);
@@ -100,6 +122,15 @@ export async function refundWalletSale(ctx:WalletContext, raw:WalletRefundInput,
         await capturePerformanceRefund(tx,refund.id,{businessId:ctx.businessId,actorUserId:ctx.user.userId});
         const after=before?await tx.walletAccount.findUniqueOrThrow({where:{id:before.account.id}}):null;
         await writeAuditLog({businessId:ctx.businessId,branchId:invoice.branchId,actor,action:"PAYMENT_REFUNDED",entityType:"PaymentRefund",entityId:refund.id,summary:`Refunded RM${fromCents(leg.amountCents)} from ${invoice.invoiceNumber}`,before:before?.account,after,metadata:{operationId:op.id,paymentId:payment.id,originalTransactionId:before?.id??null,shiftId:null,sourceShiftId:payment.shiftId,method:leg.method,reason:input.reason,reference:leg.reference??null}},tx);
+      }
+      // Only revoke the purchase after every source has been refunded; any later failure
+      // also rolls back every refund, wallet restoration and entitlement change.
+      if (packageIds.length) {
+        await tx.customerPackage.updateMany({
+          where: { businessId: ctx.businessId, id: { in: packageIds } },
+          data: { status: "CANCELLED", remainingUses: 0 },
+        });
+        await clearCustomerPackageServiceBalances(tx, packageIds);
       }
       // One balance adjustment for this entire operation, after every refund leg exists.
       await refundWalletInvoiceLoyalty(tx,{businessId:ctx.businessId,invoiceId:invoice.id,refundId:refundIds[0],actorUserId:ctx.user.userId});

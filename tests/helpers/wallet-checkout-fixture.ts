@@ -12,7 +12,8 @@ import type * as Actions from "../../src/app/(business)/cashier/actions";
 export async function checkoutHarness(database?: PrismaClient) {
   const directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/wallet-checkout-"));
   const state = globalThis as typeof globalThis & { walletCheckoutCookie?: string; walletCheckoutDb?: PrismaClient };
-  let failure: { model: string; method: string } | null = null;
+  let failure: { model: string; method: string; call: number } | null = null;
+  let matchingCalls = 0;
   let injected = 0;
   let beforeTransaction: (() => Promise<void>) | null = null;
   if (database) state.walletCheckoutDb = new Proxy(database, { get(target, key) {
@@ -24,7 +25,7 @@ export async function checkoutHarness(database?: PrismaClient) {
       return new Proxy(value, { get(delegate, method) {
         const original = Reflect.get(delegate, method);
         if (method !== failure?.method) return original;
-        return async (...args: unknown[]) => { await original.apply(delegate, args); injected++; throw new Error(`P1C_INJECTED_${String(model)}`); };
+        return async (...args: unknown[]) => { const result = await original.apply(delegate, args); if (++matchingCalls !== failure?.call) return result; injected++; throw new Error(`P1C_INJECTED_${String(model)}`); };
       } });
     } })), options as never);
     };
@@ -44,7 +45,7 @@ export async function checkoutHarness(database?: PrismaClient) {
   } }] });
   const load = createRequire(import.meta.url);
   const action = load(join(directory, "cashier.cjs")) as typeof Actions;
-  return { action, beforeTransaction(hook: () => Promise<void>) { beforeTransaction = hook; }, failAfter(model: string, method: string) { failure = { model, method }; }, injections: () => injected,
+  return { action, beforeTransaction(hook: () => Promise<void>) { beforeTransaction = hook; }, failAfter(model: string, method: string, call = 1) { failure = { model, method, call }; matchingCalls = 0; }, injections: () => injected,
     wallet: load(join(directory, "wallet.cjs")) as typeof import("../../src/app/(business)/crm/wallet/actions"),
     pos: load(join(directory, "pos.cjs")) as typeof import("../../src/app/(business)/pos/actions"),
     appointments: load(join(directory, "appointments.cjs")) as typeof import("../../src/app/(business)/appointments/actions"),

@@ -6,6 +6,7 @@ import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { formatCents, parseMoneyToCents } from "@/lib/commercial/money";
 import { updatePackageAction } from "../actions";
 
 type PackageDetailsPageProps = {
@@ -69,32 +70,22 @@ export default async function PackageDetailsPage({
 
   return (
     <>
-      <section className="content">
+      <section className="content package-edit-page">
         <div className="page-header">
           <div>
             <h1>{packagePlan.name}</h1>
-            <p>RM{Number(packagePlan.price).toFixed(2)}</p>
           </div>
           <BackButton fallbackHref="/packages" />
         </div>
 
-        <div className="grid">
+        <div className="grid package-edit-summary">
           <Info
             label="Category"
             value={packagePlan.packageCategory?.name ?? "-"}
           />
           <Info label="Status" value={packagePlan.status} />
+          <Info label="Package price" value={formatCents(parseMoneyToCents(packagePlan.price.toString()) ?? 0)} />
           <Info label={isSalonBusiness ? "Total uses" : "Total washes"} value={packagePlan.totalUses} />
-          <Info
-            label={isSalonBusiness ? "Included services" : "Linked service"}
-            value={
-              isSalonBusiness
-                ? packagePlan.serviceBenefits
-                    .map((benefit) => `${benefit.service.name} × ${benefit.totalUses}`)
-                    .join(", ") || "-"
-                : packagePlan.service?.name ?? "Any wash service"
-            }
-          />
           <Info label="Sold" value={packagePlan._count.customerPackages} />
         </div>
 
@@ -115,14 +106,15 @@ export default async function PackageDetailsPage({
               totalUses: benefit.totalUses,
             }))}
           />
-          <div className="form-actions service-action-row">
-            <button type="submit" form={formId}>
-              Save
-            </button>
+          <div className="form-actions package-edit-actions">
             <DeletePackageForm
               packageId={packagePlan.id}
               packageName={packagePlan.name}
+              label="Delete package"
             />
+            <button type="submit" form={formId}>
+              Save changes
+            </button>
           </div>
         </div>
       </section>

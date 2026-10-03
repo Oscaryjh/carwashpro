@@ -1,0 +1,205 @@
+/* Calendar-only presentation. One scroll surface keeps staff headings and slots aligned. */
+.appointment-calendar .appointment-calendar-header-grid {
+  grid-template-columns: 64px repeat(7, minmax(0, 1fr));
+}
+.appointment-calendar .appointment-calendar-day-head {
+  min-height: 64px;
+  padding: 6px 4px;
+  gap: 2px;
+}
+.appointment-calendar .appointment-calendar-time-head { min-height: 64px; }
+.appointment-calendar .appointment-calendar-day-head small { margin-top: 0; padding: 2px 5px; }
+.appointment-calendar .appointment-calendar-week-nav { top: 15px; }
+.appointment-calendar .appointment-calendar-week-nav.previous { left: 68px; }
+.appointment-calendar-timeline {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  max-height: 68dvh;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.appointment-calendar-timeline-surface {
+  width: 100%;
+  min-width: var(--appointment-timeline-min-width);
+}
+.appointment-calendar-timeline .appointment-calendar-staff-grid,
+.appointment-calendar-timeline .appointment-calendar-body-grid {
+  display: grid;
+  grid-template-columns: 64px repeat(var(--appointment-staff-count), minmax(190px, 1fr));
+  gap: 3px;
+  padding: 3px;
+  width: auto;
+  max-width: none;
+  overflow: visible;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-grid {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-row {
+  display: contents;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 10px;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-card > span { flex: 0 0 30px; width: 30px; height: 30px; }
+.appointment-calendar-timeline .appointment-calendar-staff-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-head,
+.appointment-calendar-timeline .appointment-calendar-time {
+  position: sticky;
+  left: 3px;
+  z-index: 5;
+  min-height: 0;
+}
+.appointment-calendar-timeline .appointment-calendar-staff-head { top: 0; }
+.appointment-calendar-timeline .appointment-calendar-time { grid-column: 1; }
+.appointment-calendar-timeline .appointment-calendar-time,
+.appointment-calendar-timeline .appointment-calendar-slot {
+  box-sizing: border-box;
+  height: var(--appointment-slot-height);
+  min-height: 0;
+}
+.appointment-calendar-timeline .appointment-calendar-slot { position: relative; padding: 0; }
+.appointment-calendar-timeline .appointment-calendar-slot-create { height: 100%; }
+.appointment-calendar-timeline .appointment-calendar-card {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 0;
+  margin: 0;
+  padding: 5px 7px;
+  align-content: start;
+  gap: 1px;
+  overflow: hidden;
+}
+.appointment-calendar-timeline .appointment-calendar-card > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 15px;
+}
+.appointment-calendar-timeline .appointment-calendar-card:focus-visible { outline: 2px solid #128174; outline-offset: -2px; }
+.appointment-calendar-timeline .appointment-calendar-earlier-toggle {
+  grid-column: 1 / -1;
+  justify-self: end;
+  width: auto;
+  min-height: 28px;
+  padding: 3px 8px;
+  margin: 0;
+  background: transparent;
+  font-size: 12px;
+}
+@media (max-width: 767px) {
+  .appointment-calendar .appointment-calendar-header-grid { grid-template-columns: 64px repeat(7, 126px); overflow-x: auto; }
+  .appointment-calendar-timeline { max-height: none; }
+}
+
+/* Only the existing Business Hours dialog; storage and time semantics stay unchanged. */
+.appointment-time-modal.appointment-time-tablet {
+  box-sizing: border-box;
+  width: calc(100vw - 28px);
+  max-width: 720px;
+  max-height: calc(100dvh - 28px);
+  padding: 18px;
+  zoom: 1;
+  overflow-y: auto;
+}
+.appointment-time-tablet .appointment-time-modal-header { grid-template-columns: 48px minmax(0, 1fr) 48px; margin-bottom: 12px; }
+.appointment-time-tablet .appointment-time-modal-header h2 { font-size: 20px; }
+.appointment-time-tablet .appointment-time-close,
+.appointment-time-tablet .appointment-time-calendar { width: 48px; height: 48px; }
+.appointment-time-tablet .appointment-time-days { grid-template-columns: 44px repeat(7, minmax(44px, 1fr)) 44px; gap: 6px; }
+.appointment-time-tablet .appointment-time-days button { min-width: 44px; min-height: 76px; border-radius: 10px; }
+.appointment-time-tablet .appointment-time-days .appointment-time-week-nav { min-height: 44px; width: 44px; }
+.appointment-time-tablet .appointment-time-days strong { font-size: 16px; }
+.appointment-time-tablet .appointment-time-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding-right: 0; }
+.appointment-time-tablet .appointment-time-grid button { min-width: 0; min-height: 56px; padding: 10px 8px; font-size: 16px; line-height: 1.3; }
+.appointment-time-tablet .appointment-time-grid button:disabled { color: #64748b; background: #e9edf2; opacity: 1; }
+.appointment-time-tablet button:focus-visible { outline: 2px solid #128174; outline-offset: 2px; }
+@media (max-width: 767px) {
+  .appointment-time-modal.appointment-time-tablet { padding: 12px; }
+  .appointment-time-tablet .appointment-time-days { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+  .appointment-time-tablet .appointment-time-days button { min-width: 0; grid-row: 2; }
+  .appointment-time-tablet .appointment-time-days .appointment-time-week-nav { grid-row: 1; }
+  .appointment-time-tablet .appointment-time-week-nav:first-child { grid-column: 1; }
+  .appointment-time-tablet .appointment-time-week-nav:last-child { grid-column: 7; justify-self: end; }
+  .appointment-time-tablet .appointment-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.business-hour-modal.business-hours-compact {
+  box-sizing: border-box;
+  width: min(600px, calc(100vw - 28px));
+  min-height: 0;
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
+  padding: 16px;
+}
+.business-hours-compact .business-hour-modal-header {
+  grid-template-columns: minmax(0, 1fr) 76px 46px;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.business-hours-compact .business-hour-modal-header h2 { grid-column: 1; grid-row: 1; text-align: left; }
+.business-hours-compact .business-hour-save { grid-column: 2; grid-row: 1; }
+.business-hours-compact .business-hour-close {
+  grid-column: 3;
+  grid-row: 1;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  text-align: center;
+}
+.business-hours-compact .business-hour-toggle-row { min-height: 48px; gap: 12px; padding: 6px 12px; }
+.business-hours-compact .business-hour-toggle { flex-shrink: 0; }
+.business-hours-compact .business-hour-help { margin: 6px 12px 12px; }
+.business-hours-compact .business-hour-card { padding: 12px; }
+.business-hours-compact .business-hour-on { color: #128174; }
+.business-hours-compact .business-hour-time-row {
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.business-hours-compact .business-hour-time-row label {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  gap: 8px;
+}
+.business-hours-compact .business-hour-time-row input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+.business-hours-compact button:focus-visible,
+.business-hours-compact input:focus-visible { outline: 2px solid #128174; outline-offset: 2px; }
+@media (max-width: 479px) {
+  .business-hours-compact .business-hour-time-row { grid-template-columns: minmax(0, 1fr); }
+  .business-hours-compact .business-hour-time-row > strong { display: none; }
+  .business-hours-compact .business-hour-time-row label { grid-template-columns: 40px minmax(0, 1fr); }
+}

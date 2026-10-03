@@ -9,7 +9,7 @@ type PackageCreateModalProps = {
   categories: Pick<PackageCategory, "id" | "name" | "status">[];
   isSalonBusiness: boolean;
   services: Array<
-    Pick<Service, "id" | "name" | "category"> & {
+    Pick<Service, "id" | "name" | "category" | "price"> & {
       serviceCategory?: Pick<ServiceCategory, "name"> | null;
     }
   >;

@@ -6,7 +6,8 @@ import { DeletePackageForm } from "@/components/delete-package-form";
 import { PackageCreateModal } from "@/components/package-create-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
-import { getActiveBranches } from "@/lib/branches";
+import { authorizedCustomerPackageBranchWhere, canAccessOperationalBranch, getActiveBranches } from "@/lib/branches";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 import { createPackageAction } from "./actions";
 import {
@@ -48,10 +49,21 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   const categoryId = isUuid(params.categoryId) ? (params.categoryId ?? "") : "";
   const status =
     params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
-  const branchId =
-    params.branchId === ALL_BRANCHES_ONLY || isUuid(params.branchId)
-      ? (params.branchId ?? "")
-      : "";
+  const branchId = params.branchId ?? "";
+  // Group grants are already resolved for this Business and capability at admission.
+  const groupBusinessRead = access.granted && access.source === "GROUP_ACCESS" &&
+    access.businessId === businessId && hasBusinessCapability(access, "VIEW_CATALOG");
+  const packageBranchScope = groupBusinessRead ? {} : authorizedCustomerPackageBranchWhere(user);
+  if (branchId && branchId !== ALL_BRANCHES_ONLY) {
+    if (!isUuid(branchId)) throw new Error("Package branch access denied.");
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, businessId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!branch || (!groupBusinessRead && !canAccessOperationalBranch(user, branch.id))) {
+      throw new Error("Package branch access denied.");
+    }
+  }
   const currentPage = Math.max(1, Number(params.page) || 1);
   const pageSkip = (currentPage - 1) * CATALOG_PAGE_SIZE;
 
@@ -89,6 +101,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
 
   const packageWhere: Prisma.PackageWhereInput = {
     businessId,
+    ...packageBranchScope,
     ...(filters.length ? { AND: filters } : {}),
   };
 
@@ -130,7 +143,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
 
   return (
     <>
-      <section className="content">
+      <section className="content packages-list-page">
         <div className="page-header">
           <div>
             <h1>Packages</h1>
@@ -175,16 +188,8 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
             </select>
-            <select name="branchId" defaultValue={branchId} aria-label="Branch">
-              <option value="">All branches</option>
-              <option value={ALL_BRANCHES_ONLY}>All branches only</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit">Filter</button>
+            {branchId ? <input type="hidden" name="branchId" value={branchId} /> : null}
+            <button className="button-secondary" type="submit">Filter</button>
             {hasFilters ? (
               <Link className="secondary-link-button" href="/packages">
                 Clear
@@ -200,11 +205,11 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                   <th>No.</th>
                   <th>Category</th>
                   <th>Package</th>
-                  <th>Price</th>
-                  <th>{isSalonBusiness ? "Uses" : "Washes"}</th>
+                  <th className="packages-numeric">Price</th>
+                  <th className="packages-numeric">{isSalonBusiness ? "Uses" : "Washes"}</th>
                     <th>{isSalonBusiness ? "Included services" : "Service"}</th>
                   <th>Status</th>
-                  <th>Sold</th>
+                  <th className="packages-numeric">Sold</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -213,27 +218,33 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                   <tr key={packagePlan.id}>
                     <td className="table-number">{pageSkip + index + 1}</td>
                     <td>{packagePlan.packageCategory?.name ?? "-"}</td>
-                    <td>
+                    <td className="packages-name">
                       <Link href={`/packages/${packagePlan.id}`}>
                         <strong>{packagePlan.name}</strong>
                       </Link>
                     </td>
-                    <td>RM{Number(packagePlan.price).toFixed(2)}</td>
-                    <td>{packagePlan.totalUses}</td>
+                    <td className="packages-numeric">RM{Number(packagePlan.price).toFixed(2)}</td>
+                    <td className="packages-numeric">{packagePlan.totalUses}</td>
                       <td>
+                        <div className="packages-services">
+                        <span className="packages-services-text">
                         {packagePlan.serviceBenefits.length
                           ? packagePlan.serviceBenefits
+                              .slice(0, 2)
                               .map((benefit) => `${benefit.service.name} × ${benefit.totalUses}`)
                               .join(", ")
                           : packagePlan.service?.name ??
                             (isSalonBusiness ? "No services configured" : "Any wash service")}
+                        </span>
+                        {packagePlan.serviceBenefits.length > 2 ? <span className="packages-services-more">+{packagePlan.serviceBenefits.length - 2} more</span> : null}
+                        </div>
                       </td>
                     <td>
                       <span className={`status ${packagePlan.status.toLowerCase()}`}>
                         {packagePlan.status}
                       </span>
                     </td>
-                    <td>{packagePlan._count.customerPackages}</td>
+                    <td className="packages-numeric">{packagePlan._count.customerPackages}</td>
                     <td>
                       <div className="catalog-table-actions">
                         <Link href={`/packages/${packagePlan.id}`}>View</Link>
@@ -249,14 +260,14 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
               </tbody>
             </table>
             </div>
-            <CatalogPagination
+            {totalPages === 1 ? <div className="packages-list-footer">{matchingCount} result{matchingCount === 1 ? "" : "s"}</div> : <CatalogPagination
               basePath="/packages"
               currentPage={currentPage}
               pageSize={CATALOG_PAGE_SIZE}
               query={{ q: query, categoryId, status, branchId }}
               total={matchingCount}
               totalPages={totalPages}
-            />
+            />}
             </>
           ) : (
             <p className="empty-state">No packages yet.</p>

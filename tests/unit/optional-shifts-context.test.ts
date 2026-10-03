@@ -22,3 +22,20 @@ test("activity context fresh DB mode, cutoff and multiple OPEN rejection",async(
   shifts.push({id:'other',branchId:'branch',startedAt:input.activityAt});await assert.rejects(resolveCashierActivityContext(tx,input),/open shift/);
   assert.equal(locks,7);
 });
+
+test("hidden collection branch is still validated by the real server activity resolver", async () => {
+  let settingsReads = 0;
+  const tx = {
+    user: {findUnique: async () => ({id:'user',businessId:'business',branchId:'branch',role:'BUSINESS_OWNER',permissions:[],status:'active',loginEnabled:true,business:{id:'business',status:'active',industryType:'SALON_BEAUTY'},branch:{id:'branch',businessId:'business',status:'ACTIVE'}})},
+    branch: {findFirst: async ({where}: {where: {id: string; businessId: string; status: string}}) => {
+      assert.equal(where.businessId, 'business');
+      assert.equal(where.status, 'ACTIVE');
+      return where.id === 'branch' ? {id:'branch'} : null;
+    }},
+    business: {findUniqueOrThrow: async () => { settingsReads++; throw Error('must not read settings for denied branch'); }},
+  } as unknown as Prisma.TransactionClient;
+  for (const branchId of ['foreign-branch', 'nonexistent-branch']) {
+    await assert.rejects(resolveCashierActivityContext(tx, {businessId:'business',branchId,actor:{userId:'user'}}), /Cashier activity branch denied/);
+  }
+  assert.equal(settingsReads, 0);
+});

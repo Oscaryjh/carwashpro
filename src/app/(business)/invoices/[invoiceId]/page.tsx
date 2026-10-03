@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
-import { RefundPaymentForm } from "@/components/refund-payment-form";
+import { InvoiceRefundPaymentForm as RefundPaymentForm } from "@/components/invoice-refund-payment-form";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { authorizedOperationalBranchWhere } from "@/lib/branches";

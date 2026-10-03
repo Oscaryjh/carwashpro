@@ -335,7 +335,6 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           {!isEmptyDirectory ? <p>{customerCount} customers</p> : null}
         </div>
         <div className="crm-header-actions">
-        {walletEnabled && context.user.role === "BUSINESS_OWNER" ? <Link className="button-link crm-wallet-offers-link" href="/crm/wallet/offers">Wallet offers</Link> : null}
         {!isEmptyDirectory ? (
           <CrmNewCustomerModal
             action={createCustomerAction}

@@ -35,9 +35,12 @@ test("the full wallet card appears only in Overview", async () => {
     assert.match(html, new RegExp(`tab=${tab}`));
   }
 });
-test("Wallet offers is an Owner header action beside New customer, respecting module OFF", async () => {
-  const html = (await render()).html;
-  assert.match(html, /class="crm-header-actions"[\s\S]*href="\/crm\/wallet\/offers"[\s\S]*Wallet offers[\s\S]*New customer/);
+test("CRM keeps New customer but no longer exposes the catalog offer-management link", async () => {
+  for (const enabled of [true, false]) {
+    const html = (await render({}, enabled)).html;
+    assert.match(html, /class="crm-header-actions"[\s\S]*New customer/);
+    assert.doesNotMatch(html, /href="\/crm\/wallet\/offers"|Wallet offers/);
+  }
   assert.doesNotMatch((await render({}, true, "STAFF")).html, /href="\/crm\/wallet\/offers"/);
 });
 test("customer selection and all tabs preserve selected customer and existing saved data", async () => {

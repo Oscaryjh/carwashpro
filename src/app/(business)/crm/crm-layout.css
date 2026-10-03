@@ -6,14 +6,6 @@
   gap: 8px;
 }
 
-.crm-workspace-page .crm-wallet-offers-link {
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--text);
-  border-radius: 6px;
-  white-space: nowrap;
-}
-
 .crm-workspace-page .crm-rail-tabs {
   align-items: center;
   gap: 3px;

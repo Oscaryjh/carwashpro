@@ -2,6 +2,9 @@
 
 import { BranchSelect } from "@/components/branch-select";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
+import { walletPanelAction } from "@/app/(business)/crm/wallet/actions";
+import { parseMoneyToCents } from "@/lib/commercial/money";
+import { walletMoney } from "@/components/wallet/wallet-views";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -216,6 +219,84 @@ export function CashierUnifiedSaleForm({
   const [operationId, setOperationId] = useState("");
   const [reviewedActivity,setReviewedActivity]=useState<{modeAtConfirmation:"ON"|"OFF";branchId:string;shiftId:string|null}|null>(null);
   const regularConfirmation=useRef<{modeAtConfirmation:string;shiftId:string}|null>(null);
+  const [regularPaymentSubmitted, setRegularPaymentSubmitted] = useState(false);
+  const [paymentWallet, setPaymentWallet] = useState<{ scope: string; customerId: string; cents: number | null; error: boolean } | null>(null);
+  const [walletReadRevision, setWalletReadRevision] = useState(0);
+  const [walletExpanded, setWalletExpanded] = useState(false);
+  const [customCashExpanded, setCustomCashExpanded] = useState(false);
+  const [walletDraft, setWalletDraft] = useState("");
+  const [walletDraftError, setWalletDraftError] = useState("");
+  const [walletCardPosition, setWalletCardPosition] = useState<{left:number;top:number;width:number;maxHeight:number} | null>(null);
+  const walletEntryRef = useRef<HTMLButtonElement>(null);
+  const walletDraftRef = useRef<HTMLInputElement>(null);
+  const walletCardRef = useRef<HTMLElement>(null);
+  function closeWalletCard() {
+    setWalletExpanded(false);
+    setWalletDraft("");
+    setWalletDraftError("");
+    walletEntryRef.current?.focus();
+  }
+  useEffect(() => {
+    if (!walletExpanded) return;
+    const position = () => {
+      const anchor=walletEntryRef.current?.getBoundingClientRect();
+      const card=walletCardRef.current;
+      if (!anchor || !card) return;
+      const parent=walletEntryRef.current?.closest('[aria-label="Payment"]');
+      const header=parent?.querySelector('header')?.getBoundingClientRect();
+      const footer=parent?.querySelector('footer')?.getBoundingClientRect();
+      const width=Math.min(460,window.innerWidth-24);
+      const minTop=Math.max(12,(header?.bottom??0)+8);
+      const bottom=Math.min(window.innerHeight-12,footer && footer.top>minTop ? footer.top-8 : window.innerHeight-12);
+      const maxHeight=Math.max(1,bottom-minTop);
+      const height=Math.min(card.getBoundingClientRect().height,maxHeight);
+      setWalletCardPosition({width,maxHeight,left:Math.max(12,Math.min(anchor.right-width,window.innerWidth-width-12)),top:Math.max(minTop,Math.min(anchor.bottom+8,bottom-height))});
+    };
+    const outside = (event:MouseEvent) => {
+      if (event.target instanceof Node && !walletCardRef.current?.contains(event.target) && !walletEntryRef.current?.contains(event.target)) {
+        event.preventDefault();event.stopPropagation();closeWalletCard();
+      }
+    };
+    // Parent backdrop closes on mousedown; an outside gesture cancels only this popover.
+    const outsidePress = (event:MouseEvent) => {
+      if (event.target instanceof Node && !walletCardRef.current?.contains(event.target) && !walletEntryRef.current?.contains(event.target)) {
+        event.preventDefault();event.stopPropagation();
+      }
+    };
+    position();
+    const observer=typeof ResizeObserver!=="undefined" ? new ResizeObserver(position) : null;
+    if(walletCardRef.current)observer?.observe(walletCardRef.current);
+    window.addEventListener('resize',position);window.addEventListener('scroll',position,true);document.addEventListener('mousedown',outsidePress,true);document.addEventListener('click',outside,true);
+    return()=>{observer?.disconnect();window.removeEventListener('resize',position);window.removeEventListener('scroll',position,true);document.removeEventListener('mousedown',outsidePress,true);document.removeEventListener('click',outside,true);};
+  }, [walletExpanded]);
+  const walletCardPositioned = walletCardPosition !== null;
+  useEffect(() => {
+    if (walletExpanded && walletCardPositioned) { walletDraftRef.current?.focus(); walletDraftRef.current?.select(); }
+  }, [walletExpanded, walletCardPositioned]);
+  useEffect(() => {
+    setWalletExpanded(false);
+    setWalletDraft("");
+  }, [paymentOpen, customer?.id, walletScope, walletPending, walletRecoveryBlocked]);
+  const paymentCustomerId = customer?.id;
+  useEffect(() => {
+    let current = true;
+    setPaymentWallet(null);
+    if (!paymentOpen || !walletCheckoutEnabled || !walletScope || !paymentCustomerId) return;
+    const unavailable = () => {
+      if (current) setPaymentWallet({ scope: walletScope, customerId: paymentCustomerId, cents: null, error: true });
+    };
+    void walletPanelAction(paymentCustomerId).then(result => {
+      if (!current) return;
+      if (!result.ok) { unavailable(); return; }
+      // Read-model returns decimal text. The existing cents parser avoids float arithmetic.
+      const cents = parseMoneyToCents(result.data.totalBalance);
+      if (cents === null) { unavailable(); return; }
+      setPaymentWallet({ scope: walletScope, customerId: paymentCustomerId, cents, error: false });
+    }).catch(unavailable);
+    return () => { current = false; };
+  }, [paymentOpen, walletCheckoutEnabled, walletScope, paymentCustomerId, walletReadRevision]);
+  const currentPaymentWallet = paymentOpen && paymentWallet?.scope === walletScope && paymentWallet.customerId === paymentCustomerId ? paymentWallet : null;
+  const availableWalletCents = currentPaymentWallet?.cents ?? null;
 
   useEffect(() => {
     const stored = window.sessionStorage.getItem(operationStorageKey);
@@ -392,8 +473,8 @@ export function CashierUnifiedSaleForm({
           ? subtotal * Math.min(100, numericDiscountValue) / 100
           : numericDiscountValue,
       );
-  const discountReferenceError = (selectedCatalogDiscount || manualDiscount > 0) && !discountReference.trim()
-    ? "Enter a reference for the discount."
+  const discountReferenceError = discountReference.trim().length > 160
+    ? "Discount reference is too long."
     : "";
   const redemption = useMemo(() => {
     const requestedPoints = Math.max(0, Math.floor(Number(loyaltyPoints) || 0));
@@ -447,8 +528,8 @@ export function CashierUnifiedSaleForm({
           ? subtotal * Math.min(100, draftNumericDiscountValue) / 100
           : draftNumericDiscountValue,
       );
-  const draftDiscountReferenceError = (draftCatalogDiscount || draftManualDiscount > 0) && !draftDiscountReference.trim()
-    ? "Enter a reference for the discount."
+  const draftDiscountReferenceError = draftDiscountReference.trim().length > 160
+    ? "Discount reference is too long."
     : "";
   const draftRedemption = useMemo(() => {
     const requestedPoints = Math.max(0, Math.floor(Number(draftLoyaltyPoints) || 0));
@@ -549,9 +630,33 @@ export function CashierUnifiedSaleForm({
   const walletAmountValid = /^\d+(?:\.\d{1,2})?$/.test(walletAmount);
   const walletCents = walletAmountValid ? Math.round(Number(walletAmount) * 100) : 0;
   const fullWallet = walletCents > 0 && walletCents === totalCents;
+  const maxWalletCents = availableWalletCents === null ? null : Math.min(availableWalletCents, totalCents);
+  let draftCents:number|null=null;
+  let draftAmountError="";
+  if(walletDraft!=="") {
+    if (/^-\d+(?:\.\d{1,2})?$/.test(walletDraft)) draftAmountError="Enter an amount of RM0.00 or more.";
+    else {
+      try { draftCents=/^\d+(?:\.\d{1,2})?$/.test(walletDraft) ? parseMoneyToCents(walletDraft) : null; } catch { /* Invalid raw draft stays editable. */ }
+      if(draftCents===null) draftAmountError="Enter a valid amount.";
+      else if(draftCents>totalCents) draftAmountError=`Maximum wallet amount is ${formatMoney(totalCents/100)}.`;
+      else if(draftCents>0 && availableWalletCents===null) draftAmountError="Wallet balance unavailable. Retry to use wallet funds.";
+      else if(availableWalletCents!==null && draftCents>availableWalletCents) draftAmountError=`Available wallet balance is ${formatMoney(availableWalletCents/100)}.`;
+    }
+  }
+  const draftEligibilityError=draftCents!==null && draftCents>0 && (isTrainingComplimentary || (isConvertedTender && draftCents!==totalCents) || selectedCustomerPackageIds.length>0)
+    ? "Wallet requires a MYR sale without package redemption or Training / Complimentary." : "";
+  const draftError=draftAmountError || draftEligibilityError || walletDraftError;
+  const draftValid=draftCents!==null && !draftAmountError && !draftEligibilityError;
+  const draftRemainingCents=Math.max(0,totalCents-(draftValid ? draftCents! : 0));
+  function applyWalletDraft() {
+    if(walletPending || walletRecoveryBlocked) return;
+    if(!draftValid) { if(walletDraft==="")setWalletDraftError("Enter a valid amount.");return; }
+    setWalletAmount(walletDraft);closeWalletCard();
+  }
   const externalDue = Math.max(0, totalCents - walletCents) / 100;
   const walletReady = !walletAmount || (walletAmountValid && walletCents === 0) || (walletCheckoutEnabled && !!walletScope && !!customer && walletCents > 0 && walletCents <= totalCents
-    && !isTrainingComplimentary && (fullWallet || !isConvertedTender) && !selectedCustomerPackageIds.length && lines.every(line => line.type !== "package"));
+    && availableWalletCents !== null && walletCents <= availableWalletCents
+    && !isTrainingComplimentary && (fullWallet || !isConvertedTender) && !selectedCustomerPackageIds.length);
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
   const cashPaymentReady = fullWallet || paymentMethod !== "CASH" || totalCents === 0 || cashReceivedCents >= totalCents - walletCents;
   const cashChange = Math.max(0, cashReceivedCents - (totalCents - walletCents)) / 100;
@@ -617,6 +722,21 @@ export function CashierUnifiedSaleForm({
     setAdjustmentsOpen(false);
   }
 
+  const discountRemovalLocked = regularPaymentSubmitted || !!walletPending || walletRecoveryBlocked || walletSending;
+  function removeDiscount() {
+    // Never edit a confirmed request, including the interval before React rerenders.
+    if (discountRemovalLocked || regularConfirmation.current || walletSendLock.current) return;
+    setCatalogDiscountId("");
+    setDiscountType("AMOUNT");
+    setDiscountValue("0");
+    setDiscountReference("");
+    setDraftCatalogDiscountId("");
+    setDraftDiscountType("AMOUNT");
+    setDraftDiscountValue("0");
+    setDraftDiscountReference("");
+    setAdjustmentsOpen(false);
+  }
+
   function openPayment() {
     if (!canPay) return;
     if (cashierShiftsEnabled && !hasOpenShift) {
@@ -624,6 +744,9 @@ export function CashierUnifiedSaleForm({
       return;
     }
     setSaleError("");
+    setPaymentWallet(null);
+    setWalletExpanded(false);
+    setCustomCashExpanded(false);
     setPaymentOpen(true);
   }
 
@@ -707,6 +830,7 @@ export function CashierUnifiedSaleForm({
     }
     try {
       regularConfirmation.current ??= { modeAtConfirmation: String(formData.get("modeAtConfirmation") ?? ""), shiftId: String(formData.get("shiftId") ?? "") };
+      setRegularPaymentSubmitted(true);
       formData.set("modeAtConfirmation", regularConfirmation.current.modeAtConfirmation);
       formData.set("shiftId", regularConfirmation.current.shiftId);
       result = await action(formData);
@@ -722,6 +846,7 @@ export function CashierUnifiedSaleForm({
 
     setCompletedInvoice(result.invoice);
     regularConfirmation.current=null;
+    setRegularPaymentSubmitted(false);
     window.sessionStorage.removeItem(operationStorageKey);
     setOperationId(`checkout:${crypto.randomUUID()}`);
     if (!appointmentSale) {
@@ -997,6 +1122,7 @@ export function CashierUnifiedSaleForm({
             initialCustomer={appointmentSale?.customer}
             key={customerPickerKey}
             onSelectionChange={(nextCustomer) => {
+              if (nextCustomer?.id !== customer?.id) { setPaymentWallet(null); setWalletAmount(""); }
               setCustomer(nextCustomer);
               if (!nextCustomer) setLoyaltyPoints("0");
             }}
@@ -1266,18 +1392,35 @@ export function CashierUnifiedSaleForm({
                       <small>
                         {totalDiscount > 0
                           ? `${formatMoney(totalDiscount)} applied`
-                          : "Manual discount or TETAMU Points"}
+                          : "None"}
                       </small>
                     </span>
                     <b>{totalDiscount > 0 ? "Edit" : "+"}</b>
                   </button>
                 </section> : null}
 
-                {walletCheckoutEnabled && walletScope && customer ? <section className={styles.paymentSection}>
+                {walletCheckoutEnabled && walletScope && customer ? <section className={`${styles.paymentSection} ${styles.paymentWallet}`}>
+                  <div className={styles.paymentWalletHeading}><h3>Wallet</h3><span aria-live="polite">{walletCents > 0 ? `Using ${formatMoney(walletCents / 100)} · ` : ""}{availableWalletCents !== null ? `${walletCents > 0 ? "of" : "Available"} ${walletMoney((availableWalletCents / 100).toFixed(2)).replace("RM ", "RM")}` : currentPaymentWallet?.error ? "Wallet balance unavailable" : "Loading wallet balance…"}</span></div>
+                  <button ref={walletEntryRef} type="button" aria-expanded={walletExpanded} aria-controls="payment-wallet-allocation" disabled={walletPending !== null || walletRecoveryBlocked || (!currentPaymentWallet?.error && availableWalletCents === null)} onClick={() => { if(walletExpanded){closeWalletCard();return;} setWalletDraft(walletCents > 0 ? walletAmount : ""); setWalletDraftError(""); setWalletCardPosition(null); setWalletExpanded(true); }}>{walletCents > 0 ? "Edit" : "Use wallet"}</button>
+                  {currentPaymentWallet?.error ? <button type="button" onClick={() => { setPaymentWallet(null); setWalletReadRevision(value => value + 1); }}>Retry wallet balance</button> : null}
+                  {walletCents > 0 ? <p>Remaining payment: {formatMoney(externalDue)}</p> : null}
+                  {walletExpanded && !walletPending && !walletRecoveryBlocked ? <section ref={walletCardRef} style={walletCardPosition ?? {visibility:"hidden"}} id="payment-wallet-allocation" role="region" aria-label="Wallet allocation" className={styles.walletAllocationCard} onKeyDown={event => {
+                    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeWalletCard(); }
+                    if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
+                  }}>
                   <h3>Use wallet</h3>
-                  <label>Wallet amount (RM)<input type="number" min="0" step="0.01" value={walletAmount} onChange={event => setWalletAmount(event.target.value)} /></label>
-                  <p>Remaining external payment: {formatMoney(externalDue)}</p>
-                  {!walletReady ? <p role="alert">Use a valid wallet amount with ordinary services/products and a MYR payment method.</p> : null}
+                  <p>{availableWalletCents !== null ? `Available balance ${formatMoney(availableWalletCents / 100)}` : currentPaymentWallet?.error ? "Wallet balance unavailable" : "Loading wallet balance…"}</p>
+                  {currentPaymentWallet?.error ? <button type="button" onClick={() => { setPaymentWallet(null); setWalletReadRevision(value => value + 1); }}>Retry wallet balance</button> : null}
+                  <div className={styles.paymentWalletInput}>
+                    <label>Amount to use<input ref={walletDraftRef} aria-label="Wallet amount (RM)" type="text" inputMode="decimal" placeholder="0.00" value={walletDraft} onFocus={event=>event.currentTarget.select()} onBlur={()=>{if(walletDraft==="")setWalletDraftError("Enter a valid amount.");}} onChange={event => {setWalletDraft(event.target.value);setWalletDraftError("");}} aria-invalid={Boolean(draftError)} /></label>
+                    <button type="button" disabled={maxWalletCents === null || maxWalletCents <= 0 || isTrainingComplimentary || (isConvertedTender && maxWalletCents !== totalCents) || !!selectedCustomerPackageIds.length} onClick={() => { if (maxWalletCents !== null) {setWalletDraft((maxWalletCents / 100).toFixed(2));setWalletDraftError("");} }}>{maxWalletCents === null ? "Use max" : `Use max ${formatMoney(maxWalletCents / 100)}`}</button>
+                  </div>
+                  <p>Remaining payment: {formatMoney(draftRemainingCents/100)}</p>
+                  {draftError ? <p role="alert">{draftError}</p> : null}
+                  <div className={styles.walletAllocationActions}><button type="button" onClick={closeWalletCard}>Cancel</button><button type="button" disabled={!draftValid || Boolean(walletPending) || walletRecoveryBlocked} onClick={applyWalletDraft}>Apply wallet</button></div>
+                  </section> : null}
+                  {walletCents > 0 && availableWalletCents === null ? <p role="alert">Wallet balance must be available before using wallet funds. Clear the wallet amount to pay another way.</p> : availableWalletCents !== null && walletCents > availableWalletCents ? <p role="alert">Wallet amount exceeds available wallet balance.</p> : null}
+                  {!walletReady ? <p role="alert">Wallet requires a MYR sale without package redemption or Training / Complimentary.</p> : null}
                 </section> : null}
                 {!fullWallet ? <section className={styles.paymentSection}>
                   <h3>Payment method</h3>
@@ -1321,21 +1464,24 @@ export function CashierUnifiedSaleForm({
                     </label>
                   </section>
                 ) : paymentMethod === "CASH" ? (
-                  <section className={styles.paymentSection}>
+                  <section className={`${styles.paymentSection} ${styles.paymentCashCompact}`}>
                     <h3>Cash received</h3>
                     <div className={styles.cashSuggestions}>
                       {cashSuggestions.map((amount, index) => (
                         <button
                           className={cashReceived === amount ? styles.activeCashSuggestion : ""}
                           key={amount}
-                          onClick={() => setCashReceived(amount)}
+                          onClick={() => { setCashReceived(amount); setCustomCashExpanded(false); }}
                           type="button"
                         >
                           {index === 0 ? "Exact " : ""}{formatMoney(Number(amount))}
                         </button>
                       ))}
-                      <button onClick={() => cashReceivedRef.current?.click()} type="button">Custom</button>
+                      <button aria-expanded={customCashExpanded} onClick={() => { setCustomCashExpanded(true); cashReceivedRef.current?.click(); }} type="button">Custom</button>
                     </div>
+                    <div className={styles.paymentCashReceived}><span>Received</span><strong>{formatMoney(Number(cashReceived) || 0)}</strong></div>
+                    <div className={styles.cashChange}><span>Change</span><strong>{formatMoney(cashChange)}</strong></div>
+                    <div className={styles.paymentCashCustom} hidden={!customCashExpanded}>
                     <div className={styles.cashTender}>
                       <label>
                         <span>Amount received</span>
@@ -1348,10 +1494,7 @@ export function CashierUnifiedSaleForm({
                           value={cashReceived}
                         />
                       </label>
-                      <div className={styles.cashChange}>
-                        <span>Change</span>
-                        <strong>{formatMoney(cashChange)}</strong>
-                      </div>
+                    </div>
                     </div>
                   </section>
                 ) : isConvertedTender ? (
@@ -1557,7 +1700,7 @@ export function CashierUnifiedSaleForm({
                   role="tab"
                   type="button"
                 >
-                  TETAMU Points
+                  Points
                 </button>
               </div>
 
@@ -1588,7 +1731,7 @@ export function CashierUnifiedSaleForm({
                         </select>
                       </label>
                     ) : null}
-                    <div aria-label="Discount type" className={styles.adjustmentMode}>
+                    {!draftCatalogDiscountId ? <><div aria-label="Discount type" className={styles.adjustmentMode}>
                       <button
                         className={draftDiscountType === "AMOUNT" ? styles.activeAdjustmentMode : ""}
                         disabled={Boolean(draftCatalogDiscountId)}
@@ -1625,12 +1768,13 @@ export function CashierUnifiedSaleForm({
                       />
                     </label>
 
+                    </> : null}
                     <label className={styles.adjustmentField}>
-                      <span>Reference</span>
+                      <span>Reference (optional)</span>
                       <input
                         maxLength={160}
                         onChange={(event) => setDraftDiscountReference(event.target.value)}
-                        placeholder="e.g. Promotion code or manager approval"
+                        placeholder="Promotion code or note"
                         value={draftDiscountReference}
                       />
                     </label>
@@ -1724,7 +1868,9 @@ export function CashierUnifiedSaleForm({
               </div>
 
               <footer className={styles.adjustmentDialogActions}>
-                <button onClick={() => setAdjustmentsOpen(false)} type="button">Cancel</button>
+                {catalogDiscountId || numericDiscountValue > 0 ? (
+                  <button className={styles.removeDiscountButton} disabled={discountRemovalLocked || !!regularConfirmation.current} onClick={removeDiscount} type="button">Remove discount</button>
+                ) : <button onClick={() => setAdjustmentsOpen(false)} type="button">Cancel</button>}
                 <button
                   disabled={Boolean(draftDiscountReferenceError || draftRedemption.error)}
                   onClick={applyAdjustments}

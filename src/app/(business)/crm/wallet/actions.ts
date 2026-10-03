@@ -13,6 +13,8 @@ import { readWalletRefundOwner } from "@/lib/wallet/refund-authorization";
 import { assertWalletAccessAllowed, isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { toCents } from "@/lib/validation/pos";
 import { WalletTopUpAlreadyConsumedError } from "@/lib/wallet/refund-errors";
+import { packageRefundPresentation } from "@/lib/refunds/package-presentation";
+import { getRefundableCents } from "@/lib/refunds/rules";
 
 async function context() {
   const { user, businessId } = await requireBusinessContext();
@@ -61,15 +63,17 @@ export async function walletRefundOptionsAction(sourceId:string,kind:"invoice"|"
       const top=await prisma.walletTopUp.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{account:true,payment:true,reversals:true}});
       await readWalletRefundOwner(prisma,ctx,top.account.customerId,top.branchId);
       return {kind,releaseEnabled:await isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:top-up:${sourceId}`,sourceId,canVoid:false,
-        paidAmount:top.paidAmount.toFixed(2),bonusAmount:top.bonusAmount.toFixed(2),method:top.payment.method,reversed:top.reversals.length>0,legs:[],stockLines:[]};
+        paidAmount:top.paidAmount.toFixed(2),bonusAmount:top.bonusAmount.toFixed(2),method:top.payment.method,reversed:top.reversals.length>0,legs:[],stockLines:[],packagePurchaseRefund:null};
     }
     if(kind!=="invoice")throw new Error("Invalid source type.");
-    const invoice=await prisma.invoice.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{payments:{include:{refunds:true}},items:{include:{inventoryRefundLines:true}}}});
+    const invoice=await prisma.invoice.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{payments:{include:{refunds:true}},customerPackage:{include:{serviceBalances:true}},items:{include:{inventoryRefundLines:true,customerPackage:{include:{serviceBalances:true}}}}}});
     if(!invoice.branchId||!invoice.customerId||!invoice.payments.some(p=>p.method==="MEMBER_WALLET"))throw new Error("Wallet invoice unavailable.");
     await readWalletRefundOwner(prisma,ctx,invoice.customerId,invoice.branchId);
+    const packagePurchaseRefund=packageRefundPresentation(invoice,invoice.payments.filter(p=>p.status==="ACTIVE").reduce((sum,p)=>sum+getRefundableCents(toCents(p.amount),p.refunds.map(r=>toCents(r.amount))),0));
+    if(packagePurchaseRefund&&invoice.payments.some(p=>p.status==="ACTIVE"&&p.refunds.length>0))packagePurchaseRefund.unavailableReason="This package purchase has prior refunds. Ask the owner to review it; do not refund an individual payment source.";
     return {kind,releaseEnabled:await isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:invoice:${sourceId}`,sourceId,
       canVoid:!!(invoice.appointmentId||invoice.workOrderId)&&!invoice.customerPackageId&&!invoice.items.some(i=>i.productId||i.customerPackageId)&&!invoice.payments.some(p=>p.refunds.length)&&!["VOID","REFUNDED"].includes(invoice.status),
-      paidAmount:"",bonusAmount:"",method:"",reversed:invoice.status==="VOID",
+      paidAmount:"",bonusAmount:"",method:"",reversed:invoice.status==="VOID",packagePurchaseRefund,
       legs:invoice.payments.filter(p=>p.status==="ACTIVE").map(p=>({paymentId:p.id,method:p.method,availableCents:toCents(p.amount)-p.refunds.reduce((n,r)=>n+toCents(r.amount),0)})),
       stockLines:invoice.items.filter(i=>i.inventoryTracked&&i.productId).map(i=>({id:i.id,name:i.name,remainingQuantity:i.quantity-i.inventoryRefundLines.reduce((n,l)=>n+l.quantity,0)})).filter(i=>i.remainingQuantity>0)};
   });

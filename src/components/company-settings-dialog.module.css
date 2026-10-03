@@ -60,6 +60,26 @@
   font-weight: 700;
 }
 
+:global(.company-settings-tabs) .trigger {
+  min-width: 0;
+  min-height: 72px;
+}
+
+:global(.company-settings-tabs) .triggerIcon {
+  width: 32px;
+  height: 32px;
+}
+
+:global(.company-settings-tabs) .triggerCopy strong,
+:global(.company-settings-tabs) .triggerCopy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 18px;
+}
+
+:global(.company-settings-tabs) .triggerArrow { justify-self: end; }
+
 .dialog {
   width: min(820px, calc(100vw - 32px));
   max-width: none;
@@ -157,6 +177,93 @@
   border-top: 1px solid #d8e1e6;
   padding-top: 16px;
 }
+
+/* Only the Cashier operations modal uses this compact layout. */
+.dialog:global(#cashier-operations-dialog) .header {
+  min-height: 0;
+  padding-block: 14px;
+}
+
+.dialog:global(#cashier-operations-dialog) .body {
+  padding: 16px 24px;
+}
+
+.dialog :global(.cashier-operations-form) {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dialog :global(.cashier-operations-control) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.dialog :global(.cashier-shifts-switch) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 76px;
+  min-height: 36px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border: 1px solid #8799a7;
+  border-radius: 24px;
+  background: #e4eaf0;
+  color: #314255;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.dialog :global(.cashier-shifts-switch[aria-checked="true"]) {
+  background: #087f79;
+  border-color: #087f79;
+  color: white;
+}
+
+.dialog :global(.cashier-shifts-thumb) {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px #17253730;
+  order: -1;
+}
+
+.dialog :global(.cashier-shifts-switch[aria-checked="true"] .cashier-shifts-thumb) { order: 1; }
+.dialog :global(.cashier-shifts-switch:focus-visible),
+.dialog :global(.cashier-operations-actions button:focus-visible) {
+  outline: 2px solid #087f79;
+  outline-offset: 3px;
+}
+
+.dialog :global(.cashier-operations-description) { font-size: 13px; line-height: 1.5; }
+.dialog :global(.cashier-operations-description p) { margin: 3px 0 0; color: #526578; }
+.dialog :global(.cashier-operations-feedback) { margin: 0; font-size: 13px; line-height: 1.5; }
+.dialog :global(.cashier-operations-feedback[role="alert"]) { color: #b42318; }
+.dialog :global(.cashier-operations-feedback[role="status"]) { color: #08756c; }
+.dialog :global(.cashier-operations-actions) {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #d8e1e6;
+  padding-top: 12px;
+}
+.dialog :global(.cashier-operations-actions button) { width: auto; min-height: 38px; padding: 8px 14px; }
+.dialog :global(.cashier-operations-actions .secondary-button) {
+  background: #ffffff;
+  color: #314255;
+  border: 1px solid #c6d2dc;
+}
+.dialog :global(.cashier-operations-actions button:disabled),
+.dialog :global(.cashier-shifts-switch:disabled) { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 720px) {
   .trigger {

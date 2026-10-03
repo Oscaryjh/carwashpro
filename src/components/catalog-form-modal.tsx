@@ -22,7 +22,7 @@ export function CatalogFormModal({
   closePath,
   eyebrow,
   modalClassName,
-  showMark = true,
+  showMark = false,
   title,
   wide = false,
 }: CatalogFormModalProps) {

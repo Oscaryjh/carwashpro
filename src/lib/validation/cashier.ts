@@ -59,8 +59,8 @@ export const cashierSaleSchema = z
     if (input.method === "MEMBER_WALLET" && (!walletCents || input.paymentMethodCode !== "MEMBER_WALLET" || input.paymentMethodId || input.reference || input.tenderAmount || input.exchangeRateToMyr)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Full wallet payment must not contain external tender details.", path: ["method"] });
     }
-    if (walletCents && (!input.customerId || input.packageIds.length || input.customerPackageIds.length || ["FOREIGN_CURRENCY", "CRYPTO"].includes(input.method))) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Wallet requires a customer and ordinary service/product checkout with MYR payment.", path: ["walletAmount"] });
+    if (walletCents && (!input.customerId || input.customerPackageIds.length || ["FOREIGN_CURRENCY", "CRYPTO"].includes(input.method))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Wallet requires a customer, MYR payment and no package redemption.", path: ["walletAmount"] });
     }
     if (!input.packageIds.length && !input.productIds.length && !input.serviceIds.length) {
       context.addIssue({
@@ -147,14 +147,6 @@ export const cashierSaleSchema = z
         code: z.ZodIssueCode.custom,
         message: "Percentage discount cannot exceed 100%.",
         path: ["discountValue"],
-      });
-    }
-
-    if ((input.discountValue > 0 || input.catalogDiscountId) && !input.discountReference) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Enter a reference for the discount.",
-        path: ["discountReference"],
       });
     }
 

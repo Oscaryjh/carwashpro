@@ -78,7 +78,7 @@ export default async function BusinessSettingsPage({
           id="cashier-operations-dialog"
           eyebrow="Company settings"
           title="Cashier operations"
-          description="Choose whether your team tracks cashier shifts."
+          description="Choose how your business uses Cashier."
           initiallyOpen={params.panel === "cashier-operations"}
         >
           <CashierOperationsSettings enabled={business.cashierShiftsEnabled} />
@@ -98,23 +98,31 @@ export default async function BusinessSettingsPage({
         </CompanySettingsDialog>
         <div className="company-settings-sheet company-settings-secondary-section" id="modules">
           <div className="company-settings-section-heading">
-            <div><span className="company-settings-eyebrow">Product access</span><h2>Modules</h2></div>
-            <p>Module entitlement is separate from user permission. Only an authorized platform administrator can change it.</p>
+            <div><span className="company-settings-eyebrow">Product access</span><h2>Modules</h2><p>Manage which products are available for this business.</p></div>
+            <p>Only Platform Admins can change module access.</p>
           </div>
-          <div className="grid">
+          <div className="company-modules-grid">
             {moduleKeys.filter((key) => MODULE_REGISTRY[key].operational).map((key) => (
-              <div className="panel metric" key={key}>
-                <span>{MODULE_REGISTRY[key].label}</span>
-                <strong>{moduleContext.enabledModules.has(key) ? "Enabled" : "Not enabled"}</strong>
+              <div className="company-module-card" key={key}>
+                <strong>{MODULE_REGISTRY[key].label}</strong>
+                <span className="company-module-status" data-enabled={moduleContext.enabledModules.has(key)}>{moduleContext.enabledModules.has(key) ? "Enabled" : "Disabled"}</span>
                 {MODULE_REGISTRY[key].dependencies.length ? <small>Requires {MODULE_REGISTRY[key].dependencies.join(", ")}</small> : null}
               </div>
             ))}
           </div>
         </div>
         <div className="company-settings-sheet company-settings-secondary-section" id="subscription">
-          <div className="company-settings-section-heading"><div><span className="company-settings-eyebrow">Commercial</span><h2>Current plan</h2></div><p>Read-only. Product entitlement and user permissions remain separate.</p></div>
-          {commercial.subscription && commercial.allowances ? <div className="grid"><div className="panel metric"><span>Plan</span><strong>{commercial.subscription.items.filter(item => item.status === "ACTIVE").map(item => item.planVersion.plan.displayName).join(" + ")}</strong></div><div className="panel metric"><span>Recurring price</span><strong>{formatCents(commercial.price?.effectiveRecurringPriceCents ?? null)}</strong></div><div className="panel metric"><span>Allowances</span><strong>{commercial.allowances.branches} branches · {commercial.allowances.employees} employees</strong></div><div className="panel metric"><span>Ask Tetamu</span><strong>{commercial.allowances.businessAi} / month</strong></div><div className="panel metric"><span>Next renewal</span><strong>{commercial.subscription.renewalDate.toLocaleDateString("en-MY")}</strong></div></div> : <div className="panel"><strong>Legacy / commercial review required</strong><p>Existing product access is preserved. Missing historical price is not treated as RM0 or a free plan.</p></div>}
-          <h3>Billing history</h3><p>Read-only. Subscription price is not proof of payment.</p>{subscriptionInvoices.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Invoice</th><th>Period</th><th>Status</th><th>Total</th><th>Outstanding</th></tr></thead><tbody>{subscriptionInvoices.map(invoice => <tr key={invoice.id}><td>{invoice.invoiceNumber}</td><td>{invoice.billingPeriodStart.toLocaleDateString("en-MY")}–{invoice.billingPeriodEnd.toLocaleDateString("en-MY")}</td><td>{invoice.status === "ISSUED" ? invoice.canonicalPaymentStatus : invoice.status}</td><td>{formatCents(invoice.totalAmountCents)}</td><td>{formatCents(invoice.canonicalOutstandingCents)}</td></tr>)}</tbody></table></div> : <p className="empty-state">No subscription invoices.</p>}
+          <div className="company-settings-section-heading"><div><span className="company-settings-eyebrow">Commercial</span><h2>Current plan</h2></div><p>Plan details are read-only.</p></div>
+          {commercial.subscription && commercial.allowances ? <div className="grid"><div className="panel metric"><span>Plan</span><strong>{commercial.subscription.items.filter(item => item.status === "ACTIVE").map(item => item.planVersion.plan.displayName).join(" + ")}</strong></div><div className="panel metric"><span>Recurring price</span><strong>{formatCents(commercial.price?.effectiveRecurringPriceCents ?? null)}</strong></div><div className="panel metric"><span>Allowances</span><strong>{commercial.allowances.branches} branches · {commercial.allowances.employees} employees</strong></div><div className="panel metric"><span>Ask Tetamu</span><strong>{commercial.allowances.businessAi} / month</strong></div><div className="panel metric"><span>Next renewal</span><strong>{commercial.subscription.renewalDate.toLocaleDateString("en-MY")}</strong></div></div> : (
+            <div className="commercial-plan-card">
+              <div className="commercial-plan-title"><strong>Existing plan</strong><span className="commercial-legacy-badge">Legacy</span></div>
+              <p>Product access is preserved. Pricing details are not available for this legacy subscription.</p>
+            </div>
+          )}
+          <div className="commercial-billing-heading"><h3>Billing history</h3><p>Subscription invoices are read-only.</p></div>
+          {subscriptionInvoices.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Invoice</th><th>Period</th><th>Status</th><th>Total</th><th>Outstanding</th></tr></thead><tbody>{subscriptionInvoices.map(invoice => <tr key={invoice.id}><td>{invoice.invoiceNumber}</td><td>{invoice.billingPeriodStart.toLocaleDateString("en-MY")}–{invoice.billingPeriodEnd.toLocaleDateString("en-MY")}</td><td>{invoice.status === "ISSUED" ? invoice.canonicalPaymentStatus : invoice.status}</td><td>{formatCents(invoice.totalAmountCents)}</td><td>{formatCents(invoice.canonicalOutstandingCents)}</td></tr>)}</tbody></table></div> : (
+            <div className="commercial-billing-empty"><strong>No billing records yet</strong><p>Subscription invoices will appear here when available.</p></div>
+          )}
         </div>
         {business.industryType === "AUTO_DETAILING" ? (
           <div className="company-settings-sheet company-settings-secondary-section" id="vehicle-rules">
