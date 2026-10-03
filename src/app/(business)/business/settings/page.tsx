@@ -15,6 +15,7 @@ import { listSubscriptionInvoices } from "@/lib/commercial/billing-service";
 import { getEffectiveBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { CompanySettingsDialog } from "@/components/company-settings-dialog";
 import { PaymentMethodsSettings } from "./payment-methods/payment-methods-settings";
+import { CashierOperationsSettings } from "@/components/cashier-operations-settings";
 
 type BusinessSettingsPageProps = {
   searchParams: Promise<{
@@ -73,6 +74,15 @@ export default async function BusinessSettingsPage({
           attendanceLocations={<CompanyClockInLocation view={locationView} businessName={business.name} />}
         />
         </CompanyLocationSaveProvider>
+        <CompanySettingsDialog
+          id="cashier-operations-dialog"
+          eyebrow="Company settings"
+          title="Cashier operations"
+          description="Choose whether your team tracks cashier shifts."
+          initiallyOpen={params.panel === "cashier-operations"}
+        >
+          <CashierOperationsSettings enabled={business.cashierShiftsEnabled} />
+        </CompanySettingsDialog>
         <CompanySettingsDialog
           id="payment-methods-dialog"
           eyebrow="Company settings"

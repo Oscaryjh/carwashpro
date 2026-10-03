@@ -25,7 +25,7 @@ import {
   financialOperationKeySchema,
   runFinancialOperation,
 } from "@/lib/financial-idempotency";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 import { prisma } from "@/lib/prisma";
 import { requireWalletRefundOwner } from "@/lib/wallet/refund-authorization";
 import { reverseWalletPaymentForVoid } from "@/lib/wallet/reversals";
@@ -61,6 +61,22 @@ const refundPaymentSchema = z.object({
   reason: z.string().trim().min(3, "Please enter a clear refund reason."),
   reference: z.string().trim().optional(),
 });
+
+/** Presentation only: every refund still resolves this afresh inside execute. */
+export async function refundCashierActivityAction(paymentId: string) {
+  const {businessId,user}=await requireBusinessUser("PROCESS_REFUND");
+  try {
+    if(user.role!=="BUSINESS_OWNER") throw new Error("Only the business owner can process refunds.");
+    const payment=await prisma.payment.findFirst({
+      where:{id:z.string().uuid().parse(paymentId),businessId,invoice:{is:{businessId,...authorizedOperationalBranchWhere(user)}}},
+      select:{branchId:true,invoice:{select:{branchId:true}}},
+    });
+    const branchId=payment?.branchId??payment?.invoice?.branchId;
+    if(!branchId)throw new Error("Refund payment is unavailable in this branch.");
+    const activity=await prisma.$transaction(tx=>resolveCashierActivityContext(tx,{businessId,branchId,actor:user,capability:"PROCESS_REFUND"}));
+    return {ok:true as const,activity:{modeAtConfirmation:activity.cashierShiftsEnabled?"ON" as const:"OFF" as const,branchId:activity.branchId,shiftId:activity.shiftId}};
+  } catch(error) { return {ok:false as const,message:error instanceof Error?error.message:"Refund cashier settings could not be loaded."}; }
+}
 
 export async function refundPaymentAction(
   _previousState: RefundPaymentState,
@@ -143,23 +159,6 @@ export async function refundPaymentAction(
       operationType: FinancialOperationType.PAYMENT_REFUND,
       payload: { ...financialPayload, refundStockLines },
       execute: async (tx) => {
-        const shift = await tx.cashierShift.findFirst({
-          where: {
-            businessId,
-            cashierId: user.userId,
-            status: "OPEN",
-          },
-          orderBy: { startedAt: "desc" },
-        });
-
-        if (!shift) {
-          throw new Error("Start a cashier shift before processing a refund.");
-        }
-        const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
-          businessId,
-          shift,
-        });
-
         const invoice = await tx.invoice.findFirst({
           where: {
             id: input.invoiceId,
@@ -238,13 +237,12 @@ export async function refundPaymentAction(
           });
         }
 
-        if (
-          shift.branchId &&
-          payment.branchId &&
-          shift.branchId !== payment.branchId
-        ) {
-          throw new Error("This refund belongs to a different branch shift.");
-        }
+        const refundBranchId = payment.branchId ?? invoice.branchId;
+        if (!refundBranchId) throw new Error("Refund branch is required.");
+        const shiftActivity = await resolveCashierActivityContext(tx, {
+          businessId, branchId: refundBranchId, actor: user, capability: "PROCESS_REFUND",
+          confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
+        });
 
         const refundableCents = getRefundableCents(
           toCents(payment.amount),
@@ -333,13 +331,13 @@ export async function refundPaymentAction(
         const refund = await tx.paymentRefund.create({
           data: {
             businessId,
-            branchId: payment.branchId,
+            branchId: refundBranchId,
             paymentId: payment.id,
             workOrderId: invoice.workOrderId,
             invoiceId: invoice.id,
             processedById: user.userId,
             refundedAt: shiftActivity.activityAt,
-            shiftId: shift.id,
+            shiftId: shiftActivity.shiftId,
             amount: fromCents(amountCents),
             method: input.method,
             tenderCurrency: input.method === payment.method ? payment.tenderCurrency : "MYR",

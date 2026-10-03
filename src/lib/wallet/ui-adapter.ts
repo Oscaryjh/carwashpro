@@ -8,6 +8,8 @@ import { getWalletSummary } from "./read-model";
 import { parseWalletAmount } from "./rules";
 import { postWalletTopUp, type WalletTopUpInput } from "./top-up";
 import { assertWalletAccessAllowed, isWalletAccessAllowed } from "./release-policy";
+import { canAccessOperationalBranch } from "@/lib/branches";
+import { CashierShiftModeChangedError } from "@/lib/cashier/activity-context";
 
 // Internal adapter context: public actions must derive business/user from the session.
 async function accessFor(ctx: WalletContext, db: Prisma.TransactionClient) {
@@ -56,21 +58,32 @@ export async function getWalletPanel(ctx: WalletContext, customerId: string, db:
 async function collectionContext(ctx: WalletContext, customerId: string, db: PrismaClient) {
   if (!(await accessFor(ctx, db)).canTopUp) throw new WalletServiceError("WALLET_ACCESS_DENIED", "You do not have permission to top up wallets.");
   await authorizeWallet(db, ctx, customerId, "READ");
+  const access = await resolveBusinessAccess({ userId: ctx.user.userId, requestedBusinessId: ctx.businessId }, db);
+  if (!access.granted) throw new WalletServiceError("WALLET_ACCESS_DENIED", "Wallet access denied.");
+  const branches = (await db.branch.findMany({ where: { businessId: ctx.businessId, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }))
+    .filter(branch => canAccessOperationalBranch({ role: access.identityRole, branchId: access.branchId }, branch.id));
+  const settings = await db.business.findUniqueOrThrow({ where: { id: ctx.businessId }, select: { cashierShiftsEnabled: true } });
+  if (!settings.cashierShiftsEnabled) {
+    const branchId = ctx.branchId ?? (branches.length === 1 ? branches[0].id : null);
+    if (branchId && !branches.some(branch => branch.id === branchId)) throw new WalletServiceError("WALLET_ACCESS_DENIED", "Wallet branch denied.");
+    return { branches, activity: branchId ? { modeAtConfirmation: "OFF" as const, branchId, shiftId: null } : null };
+  }
   // Never choose an arbitrary shift if inconsistent data contains multiple open shifts.
   const shifts = await db.cashierShift.findMany({ where: { businessId: ctx.businessId, cashierId: ctx.user.userId, status: "OPEN" }, take: 2 });
   if (shifts.length !== 1) throw new WalletServiceError("WALLET_ACTIVE_SHIFT_REQUIRED", "Open a cashier shift before topping up a wallet.");
   const verified = { ...ctx, branchId: shifts[0].branchId, shiftId: shifts[0].id };
   await authorizeWallet(db, verified, customerId, "TOP_UP");
-  return verified;
+  return { branches, activity: { modeAtConfirmation: "ON" as const, branchId: verified.branchId!, shiftId: verified.shiftId } };
 }
 export async function getWalletTopUpOptions(ctx: WalletContext, customerId: string, db: PrismaClient = prisma) {
   await assertWalletAccessAllowed(ctx, { database: db });
-  await collectionContext(ctx, customerId, db);
+  const collection = await collectionContext(ctx, customerId, db);
   const configured = await db.businessPaymentMethod.findMany({ where: { businessId: ctx.businessId } });
   const byCode = new Map(configured.map(row => [row.code, row]));
   // Match P1B's exact persisted-code precedence, including disabled overrides.
   const methods = [...defaultBusinessPaymentMethods.map(row => byCode.get(row.code) ?? row), ...configured.filter(row => !defaultBusinessPaymentMethods.some(builtin => builtin.code === row.code))];
   return {
+    ...collection,
     offers: (await db.walletTopUpOffer.findMany({ where: { businessId: ctx.businessId, active: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })).map(offerView),
     paymentMethods: methods.filter(row => row.active && row.settlementCurrency === "MYR" && row.paymentKind === "LOCAL_TENDER" && row.behavior === "STANDARD_TENDER" && ["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"].includes(row.canonicalMethod)).map(row => ({ code: row.code, label: row.label })),
   };
@@ -80,9 +93,12 @@ export async function submitWalletTopUp(ctx: WalletContext, input: WalletTopUpIn
   if (!(await accessFor(ctx, db)).canTopUp) throw new WalletServiceError("WALLET_ACCESS_DENIED", "You do not have permission to top up wallets.");
   await authorizeWallet(db, ctx, input.customerId, "READ");
   // A completed intent keeps its original fingerprint even after a shift closes.
-  // No request-provided branch/shift or receipt is trusted. P1B rechecks auth + payload.
+  // Confirmation fields retain the original intent; execution rechecks actual DB scope/mode/shift.
   const prior = await db.walletTopUp.findFirst({ where: { businessId: ctx.businessId, actorUserId: ctx.user.userId, operation: { operationKey: input.operationKey, operationType: "WALLET_TOP_UP" } }, select: { branchId: true, shiftId: true } });
-  const verified = prior ? { ...ctx, ...prior } : await collectionContext(ctx, input.customerId, db);
+  // Legacy saved requests have no activity hints. Never infer a new branch or
+  // shift for them; completed records above retain their original replay scope.
+  if (!prior && (!input.branchId || !input.modeAtConfirmation || input.shiftId === undefined)) throw new CashierShiftModeChangedError();
+  const verified = prior ? { ...ctx, ...prior } : { ...ctx, branchId: input.branchId ?? null, shiftId: input.shiftId ?? null };
   return postWalletTopUp(verified, input, db);
 }
 export async function getWalletHistory(ctx: WalletContext, customerId: string, page = 0, db: PrismaClient = prisma) {

@@ -31,13 +31,14 @@ import { parseCheckoutTipCents, parsePerformanceInput, performanceFingerprint } 
 import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 import { assertWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { parseWalletAmount } from "@/lib/wallet/rules";
 import { postWalletRedemption } from "@/lib/wallet/redemption";
 import { resolveBusinessAccess, hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { requireBusinessModules } from "@/lib/modules/entitlements";
 import { modulesForCapability } from "@/lib/modules/registry";
+import { prisma } from "@/lib/prisma";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -85,6 +86,15 @@ function mergeQuantities(ids: string[], quantities: number[]) {
   });
 
   return merged;
+}
+
+/** UI-only refresh. A collection still repeats the canonical read in execute. */
+export async function cashierActivityOptionsAction(branchId:string) {
+  const {businessId,user}=await requireBusinessUser("PROCESS_CASHIER_PAYMENT");
+  try {
+    const activity=await prisma.$transaction(tx=>resolveCashierActivityContext(tx,{businessId,branchId,actor:user}));
+    return {ok:true as const,activity:{modeAtConfirmation:activity.cashierShiftsEnabled?"ON" as const:"OFF" as const,branchId:activity.branchId,shiftId:activity.shiftId}};
+  }catch(error){return {ok:false as const,message:error instanceof Error?error.message:"Cashier settings could not be loaded."};}
 }
 
 export async function completeCashierSaleAction(formData: FormData): Promise<CashierSaleState> {
@@ -166,21 +176,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           throw new Error("An active branch is required for wallet checkout.");
         }
       }
-      const shift = await tx.cashierShift.findFirst({
-        where: { businessId, cashierId: user.userId, status: "OPEN" },
-        select: { id: true, branchId: true, startedAt: true },
-      });
-
-      if (!shift) {
-        throw new Error("Start a cashier shift before completing a sale.");
-      }
-
-      if (shift.branchId !== branchId) {
-        throw new Error("This sale does not belong to the current shift branch.");
-      }
-      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
-        businessId,
-        shift,
+      const shiftActivity = await resolveCashierActivityContext(tx, {
+        businessId, branchId, actor: user,
+        confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
       });
 
       const persistedPaymentMethod = await tx.businessPaymentMethod.findFirst({
@@ -865,7 +863,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             branchId,
             cashierId: user.userId,
             paidAt: shiftActivity.activityAt,
-            shiftId: shift.id,
+            shiftId: shiftActivity.shiftId,
             appointmentId: effectiveAppointmentId,
             invoiceId: invoice.id,
             customerPackageId: balance.customerPackageId,
@@ -889,7 +887,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       });
 
       const walletPayment = walletCents ? await tx.payment.create({ data: {
-        businessId, branchId, cashierId: user.userId, shiftId: shift.id, paidAt: shiftActivity.activityAt,
+        businessId, branchId, cashierId: user.userId, shiftId: shiftActivity.shiftId, paidAt: shiftActivity.activityAt,
         invoiceId: invoice.id, appointmentId: effectiveAppointmentId, method: "MEMBER_WALLET", purpose: "SALE",
         amount: fromCents(walletCents), tenderCurrency: "MYR", tenderAmount: fromCents(walletCents), exchangeRateToMyr: 1,
         paymentMethodLabel: "Member wallet",
@@ -907,7 +905,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               branchId,
               cashierId: user.userId,
               paidAt: shiftActivity.activityAt,
-              shiftId: shift.id,
+              shiftId: shiftActivity.shiftId,
               appointmentId: effectiveAppointmentId,
               invoiceId: invoice.id,
               customerPackageId: primaryCustomerPackage?.id ?? null,

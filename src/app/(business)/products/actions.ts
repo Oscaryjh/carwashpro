@@ -21,7 +21,7 @@ import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance
 import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { applyInventoryMovement, recordSaleInventory, runInventorySerializable } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { CashierShiftModeChangedError, resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 
 export type DeleteProductState = {
   status: "idle" | "success" | "error";
@@ -353,19 +353,10 @@ export async function sellProductAction(formData: FormData) {
       operationType: FinancialOperationType.CASHIER_CHECKOUT,
       payload: { ...financialPayload, branchId, ...performanceFingerprint(formData) },
       execute: async (tx) => {
-      const shift = await tx.cashierShift.findFirst({
-        where: { businessId, cashierId: user.userId, status: "OPEN" },
-        select: { id: true, branchId: true, startedAt: true },
+      const shiftActivity = await resolveCashierActivityContext(tx, {
+        businessId, branchId, actor: user,
+        confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
       });
-
-      if (!shift) {
-        throw new Error("Start a cashier shift before selling a product.");
-      }
-
-      if (shift.branchId !== branchId) {
-        throw new Error("This product sale does not belong to the current shift branch.");
-      }
-      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, { businessId, shift });
 
       const customer = input.customerId
         ? await tx.customer.findFirst({
@@ -443,7 +434,7 @@ export async function sellProductAction(formData: FormData) {
           branchId,
           cashierId: user.userId,
           paidAt: shiftActivity.activityAt,
-          shiftId: shift.id,
+          shiftId: shiftActivity.shiftId,
           invoiceId: invoice.id,
           amount: fromCents(Math.round(tax.total * 100)),
           method: input.method,
@@ -504,6 +495,7 @@ export async function sellProductAction(formData: FormData) {
     revalidatePath("/dashboard");
     revalidatePath("/closing");
   } catch (error) {
+    if (error instanceof CashierShiftModeChangedError) return { code: error.code, message: error.message } as const;
     if (formData.get("preservePaymentForm") === "1") throw error;
     redirectProductFormMessage(returnPath, "error", error instanceof Error ? error.message : "Unable to complete product sale.");
   }

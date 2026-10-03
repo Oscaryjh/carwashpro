@@ -10,7 +10,7 @@ export function walletTestDatabase() {
 }
 
 export async function walletFixture(db: PrismaClient, paid = "1000", bonus = "100") {
-  const business = await db.business.create({ data: { name: "WALLET_P1B_SYNTHETIC", slug: `wallet-p1b-${randomUUID()}`, industryType: "SALON_BEAUTY" } });
+  const business = await db.business.create({ data: { name: "WALLET_P1B_SYNTHETIC", slug: `wallet-p1b-${randomUUID()}`, industryType: "SALON_BEAUTY", cashierShiftsEnabled: true } });
   await db.businessModuleEntitlement.create({ data: { businessId: business.id, moduleKey: "POS", status: "ENABLED", source: "MANUAL", enabledFrom: new Date(0) } });
   await db.businessModuleEntitlement.create({ data: { businessId: business.id, moduleKey: "WALLET", status: "ENABLED", source: "MANUAL", enabledFrom: new Date(0) } });
   const branch = await db.branch.create({ data: { businessId: business.id, name: "Synthetic branch" } });
@@ -21,7 +21,7 @@ export async function walletFixture(db: PrismaClient, paid = "1000", bonus = "10
   return {
     business, branch, actor, shift, customer, offer,
     ctx: { businessId: business.id, user: { userId: actor.id }, branchId: branch.id, shiftId: shift.id },
-    input: { customerId: customer.id, offerId: offer.id, expectedOfferVersion: 0, paymentMethodCode: "BUILTIN_CASH", operationKey: randomUUID() },
+    input: { customerId: customer.id, offerId: offer.id, expectedOfferVersion: 0, paymentMethodCode: "BUILTIN_CASH", operationKey: randomUUID(), modeAtConfirmation: "ON" as "ON" | "OFF", branchId: branch.id, shiftId: shift.id as string | null },
   };
 }
 

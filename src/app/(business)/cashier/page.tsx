@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { BranchSelect } from "@/components/branch-select";
+import { selectedOrOnlyBranch } from "@/lib/branch-selection";
 import { CashierSalesPanel } from "@/components/cashier-sales-panel";
 import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { getCashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
@@ -32,6 +34,7 @@ type CashierPageProps = {
     message?: string;
     type?: string;
     appointmentId?: string;
+    branchId?: string;
   }>;
 };
 
@@ -72,12 +75,13 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     getOperationalBranches(businessId, user),
     prisma.cashierShift.findFirst({
       where: { businessId, cashierId: user.userId, status: "OPEN" },
-      select: { branchId: true, startedAt: true },
+      select: { id: true, branchId: true, startedAt: true },
     }),
     prisma.business.findUniqueOrThrow({
       where: { id: businessId },
       select: {
         businessDayCutoffTime: true,
+        cashierShiftsEnabled: true,
         sstEnabled: true,
         sstLabel: true,
         sstRate: true,
@@ -150,7 +154,10 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     branches.some((branch) => branch.id === requestedAppointment.branchId)
     ? requestedAppointment.branchId
     : null;
-  const cashierBranchId = operationalAppointmentBranchId ?? openShift?.branchId ?? user.branchId ?? (branches.length === 1 ? branches[0].id : "");
+  const requestedCollectionBranch = selectedOrOnlyBranch(branches, params.branchId);
+  const cashierBranchId = operationalAppointmentBranchId ?? (business.cashierShiftsEnabled
+    ? openShift?.branchId ?? user.branchId ?? (branches.length === 1 ? branches[0].id : "")
+    : requestedCollectionBranch?.id ?? "");
   const now = new Date();
   const serviceIds = requestedAppointment
     ? [
@@ -339,7 +346,13 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
-        {shiftCrossedCutoff ? (
+        {!business.cashierShiftsEnabled && branches.length > 1 && !requestedAppointment ? (
+          <form action="/cashier" method="get" className="form">
+            <BranchSelect branches={branches} selectedBranchId={cashierBranchId} />
+            <button type="submit">Use branch</button>
+          </form>
+        ) : null}
+        {business.cashierShiftsEnabled && shiftCrossedCutoff ? (
           <div className="error" role="alert">
             <strong>Previous business-day shift still open</strong>
             <p>{CASHIER_SHIFT_CUTOFF_MESSAGE}</p>
@@ -366,6 +379,8 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           }))}
           hasCatalogItems={catalogAvailability.hasItems}
           hasOpenShift={Boolean(openShift) && !shiftCrossedCutoff}
+          cashierShiftsEnabled={business.cashierShiftsEnabled}
+          shiftId={openShift?.id ?? null}
           initialCatalog={initialCatalog}
           initialCatalogType={catalogAvailability.initialType}
           initialSale={initialSale}

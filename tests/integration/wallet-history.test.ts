@@ -21,7 +21,7 @@ test("ledger history groups all seven UAT activities with signed deltas and orig
     for (const [price, wallet, method] of [[180, "180", "MEMBER_WALLET"], [300, "200", "CARD"]] as const) {
       await db.product.update({ where: { id: product.id }, data: { price } });
       const form = new FormData();
-      for (const [key, value] of Object.entries({ operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : "BUILTIN_CARD", ...(method === "CARD" ? { reference: "Synthetic" } : {}) })) form.set(key, value);
+      for (const [key, value] of Object.entries({ modeAtConfirmation: "ON", shiftId: f.shift.id, operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : "BUILTIN_CARD", ...(method === "CARD" ? { reference: "Synthetic" } : {}) })) form.set(key, value);
       const result = await h.action.completeCashierSaleAction(form);
       assert.equal(result.status, "success", result.message);
     }
@@ -63,7 +63,7 @@ test("invoice void restoration is a positive Refund, never a top-up reversal com
     const service = await db.service.create({ data: { businessId: f.business.id, name: "History void synthetic", price: 40, taxable: false } });
     const visit = await db.appointment.create({ data: { businessId: f.business.id, branchId: f.branch.id, customerId: f.customer.id, assignedStaffId: f.actor.id, serviceId: service.id, serviceIds: [service.id], scheduledAt: new Date(), status: "COMPLETED" } });
     const form = new FormData();
-    for (const [key, value] of Object.entries({ operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, serviceId: service.id, serviceQuantity: "1", appointmentId: visit.id, assignedStaffId: f.actor.id, method: "MEMBER_WALLET", paymentMethodCode: "MEMBER_WALLET", walletAmount: "40" })) form.set(key, value);
+    for (const [key, value] of Object.entries({ modeAtConfirmation: "ON", shiftId: f.shift.id, operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, serviceId: service.id, serviceQuantity: "1", appointmentId: visit.id, assignedStaffId: f.actor.id, method: "MEMBER_WALLET", paymentMethodCode: "MEMBER_WALLET", walletAmount: "40" })) form.set(key, value);
     const sale = await h.action.completeCashierSaleAction(form); assert.equal(sale.status, "success", sale.message);
     const voidForm = new FormData(); voidForm.set("invoiceId", sale.invoice!.id); voidForm.set("operationId", randomUUID()); voidForm.set("voidReason", "History synthetic correction");
     const result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, voidForm); assert.equal(result.status, "success", result.message);

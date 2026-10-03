@@ -41,6 +41,7 @@ const RETRY_DELAYS_MS = [
 ] as const;
 
 export async function enqueue(input: EnqueueNotificationInput) {
+  if (isClosingWhatsAppMessageType(input.messageType)) throw new Error("DAILY_CLOSING_RETIRED");
   let queueItem;
   try {
     queueItem = await prisma.notificationQueue.create({
@@ -96,6 +97,7 @@ export async function findQueued(input: FindQueuedNotificationsInput = {}) {
     where: {
       businessId: input.businessId,
       status: "QUEUED",
+      messageType: { notIn: [CLOSING_REPORT_MESSAGE_TYPE, UNCLOSED_REMINDER_MESSAGE_TYPE] },
       ...(input.queuedAfter
         ? { queuedAt: { gte: input.queuedAfter } }
         : {}),
@@ -122,6 +124,7 @@ export async function markSending(id: string) {
       where: {
         id,
         status: "QUEUED",
+        messageType: { notIn: [CLOSING_REPORT_MESSAGE_TYPE, UNCLOSED_REMINDER_MESSAGE_TYPE] },
         attemptCount: { lt: WHATSAPP_MAX_SEND_ATTEMPTS },
         OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
       },
@@ -164,6 +167,7 @@ export async function recoverExpiredSending(now = new Date()) {
     const expired = await tx.notificationQueue.findMany({
       where: {
         status: "SENDING",
+        messageType: { notIn: [CLOSING_REPORT_MESSAGE_TYPE, UNCLOSED_REMINDER_MESSAGE_TYPE] },
         leaseExpiresAt: { lte: now },
       },
       select: {

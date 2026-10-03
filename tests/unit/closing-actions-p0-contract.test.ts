@@ -13,29 +13,21 @@ test("startShiftAction and endShiftAction use the serialized closing boundary", 
 
   assert.match(startAction, /runClosingSerializableTransaction/);
   assert.match(startAction, /acquireDailyClosingScopeLock/);
-  assert.match(startAction, /dailyClosingSnapshot\.findUnique/);
+  assert.doesNotMatch(startAction, /dailyClosingSnapshot\.findUnique/);
   assert.match(startAction, /status: "OPEN"/);
 
   assert.match(endAction, /runClosingSerializableTransaction/);
   assert.match(endAction, /getCashierShiftBusinessDate/);
   assert.match(endAction, /acquireDailyClosingScopeLock/);
-  assert.match(endAction, /assertNoCrossBusinessDayShiftActivity/);
+  assert.match(endAction, /acquireCashierOpenShiftLock/);
+  assert.doesNotMatch(endAction, /createDailyClosingSnapshotInTransaction|enqueueClosingReportForSnapshot|DAILY_CLOSING_CONFIRMED/);
 });
 
-test("closeDailySnapshotAction checks open and unsafe shifts before snapshot creation", () => {
-  const manualClose = actionBody(
-    "closeDailySnapshotAction",
-    "class DailyClosingAlreadyExistsError",
-    false,
-  );
-  const openShiftGate = manualClose.indexOf("assertNoOpenShiftsForBusinessDate");
-  const crossDayGate = manualClose.indexOf("assertNoCrossBusinessDayShiftActivity");
-  const snapshotCreate = manualClose.indexOf("createDailyClosingSnapshotInTransaction");
-
-  assert.ok(openShiftGate >= 0);
-  assert.ok(crossDayGate > openShiftGate);
-  assert.ok(snapshotCreate > crossDayGate);
-  assert.match(manualClose, /acquireDailyClosingScopeLock/);
+test("retired confirm retains its permission boundary and has no financial writer", () => {
+  const manualClose = actionBody("closeDailySnapshotAction", "resolveStaleShiftAction");
+  assert.match(manualClose, /CONFIRM_DAILY_CLOSING/);
+  assert.match(manualClose, /status: "error"/);
+  assert.doesNotMatch(manualClose, /runFinancialOperation|dailyClosingSnapshot|writeAuditLog|enqueue/);
 });
 
 test("every drawer financial path applies the canonical shift activity guard", () => {
@@ -52,10 +44,14 @@ test("every drawer financial path applies the canonical shift activity guard", (
   for (const path of guardedPaths) {
     assert.match(
       readFileSync(path, "utf8"),
-      /assertCashierShiftAcceptsActivity/,
+      path.endsWith("expense/service.ts") ? /assertCashierShiftAcceptsActivity/ : /resolveCashierActivityContext\(tx,/,
       `${path} must guard activity against the shift business date`,
     );
   }
+  const context = readFileSync("src/lib/cashier/activity-context.ts", "utf8");
+  assert.match(context,/readCashierShiftSettings\(tx,input.businessId\)/);
+  assert.match(context,/assertCashierShiftAcceptsActivity\(tx,/);
+  assert.match(context,/cashierId:input.actor.userId,status:"OPEN"/);
 });
 
 function actionBody(startName: string, endName: string, exportedFunction = true) {

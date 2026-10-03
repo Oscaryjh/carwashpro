@@ -111,6 +111,12 @@ export function BusinessForm({
             label="Payment methods"
             description="Checkout buttons and reporting"
           />
+          <CompanySettingsDialogTrigger
+            dialogId="cashier-operations-dialog"
+            index="05"
+            label="Cashier operations"
+            description="Cashier shift tracking"
+          />
         </nav>
 
         <CompanySettingsDialog

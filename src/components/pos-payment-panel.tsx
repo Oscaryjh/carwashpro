@@ -6,14 +6,17 @@ import type { PackagePaymentOption } from "@/components/package-payment-form";
 import { PaymentForm } from "@/components/payment-form";
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 import { FinancialSubmitButton } from "@/components/financial-submit-button";
+import { SafePaymentForm, type PaymentFormAction } from "@/components/performance/safe-payment-form";
 import {
   PACKAGE_PAYMENT_PREVIEW_EVENT,
   PosAmountDuePreview,
 } from "@/components/pos-payment-preview";
 
 type PosPaymentPanelProps = {
-  recordPaymentAction: (formData: FormData) => Promise<void>;
-  usePackagePaymentAction: (formData: FormData) => Promise<void>;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
+  recordPaymentAction: PaymentFormAction;
+  usePackagePaymentAction: PaymentFormAction;
   workOrderId: string;
   balance: number;
   canPay: boolean;
@@ -25,6 +28,8 @@ type PosPaymentPanelProps = {
 };
 
 export function PosPaymentPanel({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   recordPaymentAction,
   usePackagePaymentAction,
   workOrderId,
@@ -70,9 +75,11 @@ export function PosPaymentPanel({
         <section className="pos-payment-section">
           <h2>Package</h2>
           {hasPackages ? (
-            <form action={usePackagePaymentAction} className="form pos-package-form">
+            <SafePaymentForm action={usePackagePaymentAction} cashierActivity={{modeAtConfirmation:cashierShiftsEnabled?"ON":"OFF",shiftId:cashierShiftsEnabled?shiftId:null}} className="form pos-package-form">
               <input type="hidden" name="workOrderId" value={workOrderId} />
               <input type="hidden" name="operationId" value={packageOperationId} />
+              <input type="hidden" name="modeAtConfirmation" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+              <input type="hidden" name="shiftId" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
               <input
                 type="hidden"
                 name="customerPackageId"
@@ -108,7 +115,7 @@ export function PosPaymentPanel({
                   </FinancialSubmitButton>
                 </div>
               ) : null}
-            </form>
+            </SafePaymentForm>
           ) : (
             <p className="empty-state">
               This customer has no active prepaid wash package with remaining uses.
@@ -130,6 +137,8 @@ export function PosPaymentPanel({
         <section className="pos-payment-section">
           <h2>Payment</h2>
           <PaymentForm
+            cashierShiftsEnabled={cashierShiftsEnabled}
+            shiftId={shiftId}
             action={recordPaymentAction}
             workOrderId={workOrderId}
             balance={balance}

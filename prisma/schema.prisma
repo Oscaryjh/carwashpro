@@ -8,6 +8,7 @@ datasource db {
 }
 
 model Business {
+  cashierShiftsEnabled Boolean @default(false) @map("cashier_shifts_enabled")
   walletAccounts WalletAccount[]
   walletOffers WalletTopUpOffer[]
   performanceAttributions PerformanceAttribution[]
@@ -9179,7 +9180,7 @@ model WalletTopUp {
   externalPaymentId String @unique @map("external_payment_id") @db.Uuid
   financialOperationId String @unique @map("financial_operation_id") @db.Uuid
   branchId String @map("branch_id") @db.Uuid
-  shiftId String @map("shift_id") @db.Uuid
+  shiftId String? @map("shift_id") @db.Uuid
   actorUserId String @map("actor_user_id") @db.Uuid
   postedAt DateTime @default(now()) @map("posted_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -9188,7 +9189,7 @@ model WalletTopUp {
   payment Payment @relation(fields: [businessId, externalPaymentId], references: [businessId, id], onDelete: Restrict)
   operation FinancialOperation @relation(fields: [businessId, financialOperationId], references: [businessId, id], onDelete: Restrict)
   branch Branch @relation(fields: [businessId, branchId], references: [businessId, id], onDelete: Restrict)
-  shift CashierShift @relation(fields: [businessId, shiftId], references: [businessId, id], onDelete: Restrict)
+  shift CashierShift? @relation(fields: [businessId, shiftId], references: [businessId, id], onDelete: Restrict)
   actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
   reversals WalletTopUpReversal[]
   transactions WalletTransaction[]

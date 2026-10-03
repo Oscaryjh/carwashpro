@@ -9,6 +9,7 @@ export class WalletTopUpIntent {
   private pending = false;
   private hadUnknownOutcome = false;
   private display: WalletIntentDisplay | null = null;
+  private needsActivityConfirmation = false;
   constructor(private readonly storage?: { read: () => string | null; write: (value: string) => void; remove: () => void }) {
     const saved = storage?.read();
     if (saved) {
@@ -41,6 +42,17 @@ export class WalletTopUpIntent {
     return { ...this.request };
   }
   uncertain() { this.pending = false; this.hadUnknownOutcome = true; }
+  // Only the authoritative execute-time rejection permits changing these hints.
+  // A timeout/auth failure never grants this; completed requests replay first.
+  modeChanged() { this.pending = false; this.needsActivityConfirmation = true; }
+  reconfirmActivity(activity: {modeAtConfirmation:"ON"|"OFF";branchId:string;shiftId:string|null}) {
+    if (!this.request || !this.needsActivityConfirmation || this.pending) throw new Error("Explicit cashier activity reconfirmation is unavailable.");
+    if (this.request.branchId && activity.branchId !== this.request.branchId) throw new Error("Keep the original collection branch.");
+    const request = {...this.request,...activity};
+    this.storage?.write(JSON.stringify({request,display:this.display}));
+    this.request=request;
+    this.needsActivityConfirmation=false;
+  }
   rejected(authoritativeStaleVersion = false) {
     this.pending = false;
     if (this.hadUnknownOutcome && !authoritativeStaleVersion) return false;
@@ -48,7 +60,8 @@ export class WalletTopUpIntent {
     this.request = null;
     this.display = null;
     this.hadUnknownOutcome = false;
+    this.needsActivityConfirmation = false;
     return true;
   }
-  completed() { this.storage?.remove(); this.hadUnknownOutcome = false; this.request = null; this.display = null; this.pending = false; }
+  completed() { this.storage?.remove(); this.hadUnknownOutcome = false; this.request = null; this.display = null; this.pending = false; this.needsActivityConfirmation = false; }
 }

@@ -1,5 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+test("explicit activity reconfirmation changes only mode/shift, never checkout money/key or branch",async()=>{
+ const module=await import("../../src/lib/wallet/checkout-intent");
+ const form=new FormData();
+ for(const [key,value] of [["operationId","checkout:original-key"],["branchId","branch"],["modeAtConfirmation","ON"],["shiftId","old"],["productId","one"],["productId","two"],["walletAmount","20"]])form.append(key,value);
+ const original=module.createWalletCheckoutIntent(form,"business:actor:branch",[{label:"Total",value:"40"}]);
+ const next=module.reconfirmWalletCheckoutActivity(original,{modeAtConfirmation:"OFF",branchId:"branch",shiftId:null});
+ assert.equal(next.operationId,original.operationId);assert.deepEqual(next.summary,original.summary);
+ const financial=(entries:[string,string][])=>entries.filter(([key])=>!["modeAtConfirmation","shiftId"].includes(key));
+ assert.deepEqual(financial(next.entries),financial(original.entries));
+ assert.equal(module.toWalletCheckoutFormData(next).get("shiftId"),"");
+ assert.equal(module.toWalletCheckoutFormData(original).get("shiftId"),"old");
+ assert.throws(()=>module.reconfirmWalletCheckoutActivity(original,{modeAtConfirmation:"OFF",branchId:"another",shiftId:null}),/branch/i);
+});
 test("pending checkout restores the original key and all repeated request fields, never current UI defaults", async () => {
   const module = await import("../../src/lib/wallet/checkout-intent").catch(() => null);
   assert.ok(module?.createWalletCheckoutIntent, "Wallet checkout needs frozen request recovery");

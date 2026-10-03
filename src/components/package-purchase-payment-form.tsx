@@ -1,18 +1,22 @@
 "use client";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
-import { SafePaymentForm } from "@/components/performance/safe-payment-form";
+import { SafePaymentForm, type PaymentFormAction } from "@/components/performance/safe-payment-form";
 
 import { useState } from "react";
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 type PackagePurchasePaymentFormProps = {
-  action: (formData: FormData) => Promise<void>;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
+  action: PaymentFormAction;
   customerPackageId: string;
   balance: number;
 };
 
 export function PackagePurchasePaymentForm({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   action,
   customerPackageId,
   balance,
@@ -22,9 +26,11 @@ export function PackagePurchasePaymentForm({
   const { operationId } = useFinancialOperationId("package-purchase");
 
   return (
-    <SafePaymentForm action={action} className="form">
+    <SafePaymentForm cashierActivity={{ modeAtConfirmation: cashierShiftsEnabled ? "ON" : "OFF", shiftId: cashierShiftsEnabled ? shiftId : null }} action={action} className="form">
       <input type="hidden" name="customerPackageId" value={customerPackageId} />
       <input type="hidden" name="operationId" value={operationId} />
+      <input type="hidden" name="modeAtConfirmation" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+      <input type="hidden" name="shiftId" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
       <div className="field-grid">
         <label>
           <span>Payment amount</span>

@@ -85,6 +85,22 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
       },
     });
 
+    // Closed cashier shifts are not a daily closing fact. All shifts may be
+    // ended while the authorized manual daily confirmation is still missing.
+    await prisma.cashierShift.create({
+      data: {
+        businessId: salon.id, branchId: salonBranch.id, cashierId: directOwner.id,
+        status: "CLOSED", startedAt: new Date("2026-07-01T01:00:00Z"),
+        endedAt: new Date("2026-07-01T09:00:00Z"), closingCash: 0,
+      },
+    });
+    const missingReport = await getGroupClosingReport({
+      userId: owner.id, groupId: group.id, activeBusinessId: salon.id,
+      range: "custom", from: "2026-07-01", to: "2026-07-01",
+    });
+    assert.equal(missingReport?.summary.snapshotCount, 0);
+    assert.equal(missingReport?.audit.rows.find(row => row.businessId === salon.id)?.status, "MISSING");
+
     const salonSnapshot = await createSnapshot({
       businessId: salon.id,
       branchId: salonBranch.id,
@@ -212,6 +228,7 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
     );
   } finally {
     if (businessIds.length) {
+      await prisma.cashierShift.deleteMany({ where: { businessId: { in: businessIds } } });
       await prisma.closingWhatsAppSendAttempt.deleteMany({
         where: { businessId: { in: businessIds } },
       });

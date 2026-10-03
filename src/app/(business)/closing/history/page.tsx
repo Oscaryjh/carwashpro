@@ -88,8 +88,8 @@ export default async function ClosingHistoryPage({
     <section className="content closing-history-content">
       <div className="page-header closing-history-header">
         <div>
-          <span className="daily-closing-eyebrow">FORMAL DAILY CLOSING</span>
-          <h1>Closing history</h1>
+          <span className="daily-closing-eyebrow">HISTORICAL RECORDS</span>
+          <h1>Historical closing records</h1>
           <p>Frozen, read-only reports for each branch and business date.</p>
         </div>
         <Link href="/closing" className="button secondary">
@@ -214,7 +214,7 @@ export default async function ClosingHistoryPage({
         ) : (
           <div className="empty-state closing-history-empty">
             <strong>No formal closings found</strong>
-            <span>Confirm a daily closing to create the first frozen report.</span>
+            <span>No historical closing records are available.</span>
           </div>
         )}
       </section>

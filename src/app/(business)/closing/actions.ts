@@ -1,10 +1,5 @@
 "use server";
 
-import {
-  ClosingWhatsAppSendTrigger,
-  FinancialOperationType,
-  Prisma,
-} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -12,46 +7,21 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission, hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveOperationalBranchId } from "@/lib/branches";
+import { readCashierShiftSettings } from "@/lib/cashier/shift-settings";
+import { CashierShiftsDisabledError } from "@/lib/cashier/activity-context";
 import { getCurrentBusinessDateValue } from "@/lib/business-day";
-import {
-  isValidDateValue,
-} from "@/lib/business-time";
-import { getDailyClosingReport } from "@/lib/daily-closing/query";
-import { getDailyClosingRange } from "@/lib/daily-closing/range";
-import {
-  buildDailyClosingSnapshotPayload,
-  buildFrozenDailyClosingWhatsAppText,
-  getExpectedCashCents,
-  normalizeBusinessDate,
-} from "@/lib/daily-closing/snapshot";
-import {
-  enqueueClosingReportForSnapshot,
-  enqueueManualClosingWhatsAppSend,
-} from "@/lib/closing-whatsapp/queue";
 import { prisma } from "@/lib/prisma";
 import { fromCents, toCents } from "@/lib/validation/pos";
 import {
-  financialOperationKeySchema,
-  runFinancialOperation,
-} from "@/lib/financial-idempotency";
-import {
   acquireDailyClosingScopeLock,
   acquireCashierOpenShiftLock,
-  assertNoCrossBusinessDayShiftActivity,
-  assertNoOpenShiftsForBusinessDate,
   assertShiftActivityWithinBusinessDate,
   calculateShiftExpectedCashCents,
   CrossBusinessDayShiftReviewRequiredError,
-  DAILY_CLOSING_OPEN_SHIFT_MESSAGE,
-  DailyClosingOpenShiftError,
   getCashierShiftBusinessDate,
   runClosingSerializableTransaction,
 } from "@/lib/closing/shift-control";
-import {
-  closingMoneySchema,
-  DailyClosingDifferenceReasonError,
-  requireDailyClosingDifferenceReason,
-} from "@/lib/closing/money-validation";
+import { closingMoneySchema } from "@/lib/closing/money-validation";
 
 const startShiftSchema = z.object({
   branchId: z.string().optional(),
@@ -65,29 +35,10 @@ const endShiftSchema = z.object({
   shiftId: z.string().uuid("Shift is required."),
 });
 
-const closeDailySnapshotSchema = z.object({
-  operationId: financialOperationKeySchema,
-  actualCash: closingMoneySchema,
-  branchId: z.string().uuid("Branch is required."),
-  businessDate: z
-    .string()
-    .refine(isValidDateValue, "Business date is invalid."),
-  closingNote: z.string().trim().max(1000, "Closing note is too long.").optional(),
-});
-
 const resolveStaleShiftSchema = z.object({
   countedCash: closingMoneySchema,
   reason: z.string().trim().min(1, "Reason is required.").max(1000, "Reason is too long."),
   shiftId: z.string().uuid("Shift is required."),
-});
-
-const manualClosingWhatsAppSendSchema = z.object({
-  attemptId: z.string().uuid("Send record is required."),
-  reason: z.string().trim().max(500, "Reason is too long.").optional(),
-  trigger: z.nativeEnum(ClosingWhatsAppSendTrigger).refine(
-    (value) => value === "MANUAL_RETRY" || value === "MANUAL_RESEND",
-    "Manual send action is invalid.",
-  ),
 });
 
 export type CloseDailySnapshotState = {
@@ -114,6 +65,8 @@ export async function startShiftAction(formData: FormData) {
 
   try {
     await runClosingSerializableTransaction(prisma, async (tx) => {
+      const shiftSettings = await readCashierShiftSettings(tx, businessId);
+      if (!shiftSettings.cashierShiftsEnabled) throw new CashierShiftsDisabledError();
       await acquireCashierOpenShiftLock(tx, {
         businessId,
         cashierId: user.userId,
@@ -131,17 +84,6 @@ export async function startShiftAction(formData: FormData) {
 
       if (branchId) {
         await acquireDailyClosingScopeLock(tx, { branchId, businessDate, businessId });
-        const completedDailyClosing = await tx.dailyClosingSnapshot.findUnique({
-          where: {
-            businessId_branchId_businessDate: {
-              businessDate: normalizeBusinessDate(businessDate),
-              branchId,
-              businessId,
-            },
-          },
-          select: { id: true },
-        });
-        if (completedDailyClosing) throw new DailyClosingAlreadyCompletedForShiftError();
       }
 
       const existingOpenShift = await tx.cashierShift.findFirst({
@@ -173,8 +115,8 @@ export async function startShiftAction(formData: FormData) {
       }, tx);
     });
   } catch (error) {
-    const message = error instanceof DailyClosingAlreadyCompletedForShiftError
-      ? "Daily closing is already completed for this branch today. A new shift cannot be started."
+    const message = error instanceof CashierShiftsDisabledError
+      ? error.message
       : error instanceof CashierAlreadyHasOpenShiftError
         ? "You already have an open shift."
         : null;
@@ -252,11 +194,8 @@ export async function endShiftAction(formData: FormData) {
   const closingCashCents = Math.round(input.closingCash * 100);
   const notes = input.notes?.trim() || null;
 
-  let dailyClosingCompleted = false;
-  let dailyClosingReviewRequired = false;
-
   try {
-    const result = await runClosingSerializableTransaction(
+    await runClosingSerializableTransaction(
       prisma,
       async (tx) => {
         const canonicalShift = await tx.cashierShift.findFirst({
@@ -272,6 +211,7 @@ export async function endShiftAction(formData: FormData) {
           canonicalShift.startedAt,
           businessTimeSettings,
         );
+        await acquireCashierOpenShiftLock(tx, { businessId, cashierId: user.userId });
         if (canonicalShift.branchId) {
           await acquireDailyClosingScopeLock(tx, {
             branchId: canonicalShift.branchId,
@@ -348,99 +288,8 @@ export async function endShiftAction(formData: FormData) {
           tx,
         );
 
-        if (!updated.branchId) {
-          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
-        }
-
-        const otherOpenShift = await tx.cashierShift.findFirst({
-          where: {
-            branchId: updated.branchId,
-            businessId,
-            status: "OPEN",
-          },
-          select: { id: true },
-        });
-
-        if (otherOpenShift) {
-          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
-        }
-        const normalizedBusinessDate = normalizeBusinessDate(businessDate);
-        const existingSnapshot = await tx.dailyClosingSnapshot.findUnique({
-          where: {
-            businessId_branchId_businessDate: {
-              branchId: updated.branchId,
-              businessDate: normalizedBusinessDate,
-              businessId,
-            },
-          },
-          select: { id: true },
-        });
-
-        if (existingSnapshot) {
-          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
-        }
-
-        const { fromDate, toDateExclusive } = getDailyClosingRange(
-          undefined,
-          businessDate,
-          businessTimeSettings,
-        );
-        const closedShifts = await tx.cashierShift.findMany({
-          where: {
-            branchId: updated.branchId,
-            businessId,
-            closingCash: { not: null },
-            startedAt: { gte: fromDate, lt: toDateExclusive },
-            status: "CLOSED",
-          },
-          select: {
-            closingCash: true,
-            endedAt: true,
-            id: true,
-            openingFloat: true,
-          },
-        });
-        try {
-          await assertNoCrossBusinessDayShiftActivity(tx, {
-            branchId: updated.branchId,
-            businessDate,
-            businessId,
-            settings: businessTimeSettings,
-          });
-        } catch (error) {
-          if (!(error instanceof CrossBusinessDayShiftReviewRequiredError)) throw error;
-          console.error(`[${error.code}] Daily closing snapshot blocked`, {
-            branchId: updated.branchId,
-            businessDate,
-            businessId,
-            shiftIds: error.shiftIds,
-          });
-          return { dailyClosingCompleted: false, dailyClosingReviewRequired: true };
-        }
-        const actualCashCents = closedShifts.reduce(
-          (total, closedShift) =>
-            total +
-            toCents(closedShift.closingCash ?? 0) -
-            toCents(closedShift.openingFloat),
-          0,
-        );
-
-        await createDailyClosingSnapshotInTransaction({
-          actualCashCents,
-          auditRequest,
-          branchId: updated.branchId,
-          businessDate,
-          businessId,
-          closingNote: notes,
-          tx,
-          user,
-        });
-
-        return { dailyClosingCompleted: true, dailyClosingReviewRequired: false };
       },
     );
-    dailyClosingCompleted = result.dailyClosingCompleted;
-    dailyClosingReviewRequired = result.dailyClosingReviewRequired;
   } catch (error) {
     if (error instanceof ShiftAlreadyClosedError) {
       redirect(
@@ -466,11 +315,7 @@ export async function endShiftAction(formData: FormData) {
   revalidatePath("/closing/history");
   redirect(
     `/closing?type=success&message=${encodeURIComponent(
-      dailyClosingCompleted
-        ? "Shift ended and daily closing completed."
-        : dailyClosingReviewRequired
-          ? "Shift ended. Daily closing is blocked because this shift crossed the business-day cutoff and requires review."
-        : "Shift ended. Daily closing will complete after the final open shift ends.",
+      "Shift ended.",
     )}`,
   );
 }
@@ -479,7 +324,7 @@ export async function closeDailySnapshotAction(
   _previousState: CloseDailySnapshotState,
   formData: FormData,
 ): Promise<CloseDailySnapshotState> {
-  const { businessId, industryType, user } = await requireBusinessUser("RUN_CLOSING");
+  const { user } = await requireBusinessUser("RUN_CLOSING");
   if (!hasStaffPermission(user, "CONFIRM_DAILY_CLOSING")) {
     return {
       message: "You do not have permission to confirm branch Daily Closing.",
@@ -487,178 +332,10 @@ export async function closeDailySnapshotAction(
     };
   }
 
-  const parsed = closeDailySnapshotSchema.safeParse({
-    operationId: formData.get("operationId"),
-    actualCash: formData.get("actualCash"),
-    branchId: formData.get("branchId"),
-    businessDate: formData.get("businessDate"),
-    closingNote: formData.get("closingNote"),
-  });
-
-  if (!parsed.success) {
-    return {
-      message: parsed.error.issues[0]?.message ?? "Unable to close this business day.",
-      status: "error",
-    };
-  }
-
-  if (!["AUTO_DETAILING", "SALON_BEAUTY"].includes(industryType ?? "")) {
-    return {
-      message: "Daily closing is not available for this industry.",
-      status: "error",
-    };
-  }
-
-  const businessTimeSettings = await prisma.business.findUniqueOrThrow({
-    where: { id: businessId },
-    select: {
-      businessDayCutoffTime: true,
-      timezone: true,
-    },
-  });
-  const currentBusinessDate = getCurrentBusinessDateValue(
-    new Date(),
-    businessTimeSettings.timezone,
-    businessTimeSettings.businessDayCutoffTime,
-  );
-
-  if (parsed.data.businessDate > currentBusinessDate) {
-    return {
-      message: "A future business date cannot be closed.",
-      status: "error",
-    };
-  }
-
-  const branchId = await resolveOperationalBranchId(
-    businessId,
-    user,
-    parsed.data.branchId,
-  );
-  if (!branchId) {
-    return {
-      message: "Select an active branch before confirming daily closing.",
-      status: "error",
-    };
-  }
-  const auditRequest = await getAuditRequestContext();
-
-  try {
-    const { operationId, ...financialPayload } = parsed.data;
-    const { result } = await runFinancialOperation({
-      actorUserId: user.userId,
-      branchId,
-      businessId,
-      operationKey: operationId,
-      operationType: FinancialOperationType.DAILY_CLOSING,
-      payload: { ...financialPayload, branchId },
-      execute: async (tx) => {
-        await acquireDailyClosingScopeLock(tx, {
-          branchId,
-          businessDate: parsed.data.businessDate,
-          businessId,
-        });
-        const existing = await tx.dailyClosingSnapshot.findUnique({
-          where: {
-            businessId_branchId_businessDate: {
-              branchId,
-              businessDate: normalizeBusinessDate(parsed.data.businessDate),
-              businessId,
-            },
-          },
-          select: { id: true },
-        });
-
-        if (existing) {
-          throw new DailyClosingAlreadyExistsError(existing.id);
-        }
-
-        await assertNoOpenShiftsForBusinessDate(tx, {
-          branchId,
-          businessDate: parsed.data.businessDate,
-          businessId,
-          settings: businessTimeSettings,
-        });
-        await assertNoCrossBusinessDayShiftActivity(tx, {
-          branchId,
-          businessDate: parsed.data.businessDate,
-          businessId,
-          settings: businessTimeSettings,
-        });
-
-        const closingReport = await getDailyClosingReport(
-          {
-            branchId,
-            businessId,
-            dateValue: parsed.data.businessDate,
-            industryType,
-          },
-          tx,
-        );
-        const actualCashCents = Math.round(parsed.data.actualCash * 100);
-        const closingNote = requireDailyClosingDifferenceReason({
-          actualCashCents,
-          expectedCashCents: getExpectedCashCents(closingReport.report),
-          reason: parsed.data.closingNote,
-        });
-
-        const snapshot = await createDailyClosingSnapshotInTransaction({
-          actualCashCents,
-          auditRequest,
-          branchId,
-          businessDate: parsed.data.businessDate,
-          businessId,
-          closingNote,
-          tx,
-          user,
-        });
-        return { snapshotId: snapshot.id };
-      },
-    });
-
-    revalidatePath("/closing");
-    revalidatePath("/closing/history");
-
-    return {
-      message: "Daily closing confirmed and frozen.",
-      snapshotId: result.snapshotId,
-      status: "success",
-    };
-  } catch (error) {
-    if (
-      error instanceof DailyClosingAlreadyExistsError ||
-      (error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002")
-    ) {
-      return {
-        message: "This branch and business date have already been closed.",
-        status: "error",
-      };
-    }
-    if (error instanceof DailyClosingOpenShiftError) {
-      return { message: DAILY_CLOSING_OPEN_SHIFT_MESSAGE, status: "error" };
-    }
-    if (error instanceof CrossBusinessDayShiftReviewRequiredError) {
-      console.error(`[${error.code}] Manual daily closing blocked`, {
-        branchId,
-        businessDate: parsed.data.businessDate,
-        businessId,
-        shiftIds: error.shiftIds,
-      });
-      return {
-        message: "Daily closing is blocked because a cashier shift crosses the business-day boundary and requires review.",
-        status: "error",
-      };
-    }
-    if (error instanceof DailyClosingDifferenceReasonError) {
-      return { message: error.message, status: "error" };
-    }
-
-    console.error("[daily-closing] Unable to create snapshot", error);
-    return {
-      message: "Unable to confirm daily closing. No snapshot was created.",
-      status: "error",
-    };
-  }
+  return {
+    message: "Daily closing has been retired. View historical closing records.",
+    status: "error",
+  };
 }
 
 export async function resolveStaleShiftAction(formData: FormData) {
@@ -774,91 +451,21 @@ export async function resolveStaleShiftAction(formData: FormData) {
   }
 
   revalidatePath("/closing");
-  redirect(`/closing?type=success&message=${encodeURIComponent("Stale shift resolved. Daily Closing can now be reviewed.")}`);
+  redirect(`/closing?type=success&message=${encodeURIComponent("Stale shift resolved.")}`);
 }
 
 export async function manualClosingWhatsAppSendAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CONFIRM_DAILY_CLOSING");
 
-  const input = manualClosingWhatsAppSendSchema.parse({
-    attemptId: formData.get("attemptId"),
-    reason: formData.get("reason"),
-    trigger: formData.get("trigger"),
-  });
-  const source = await prisma.closingWhatsAppSendAttempt.findFirst({
-    where: { businessId, id: input.attemptId },
-    select: {
-      branchId: true,
-      id: true,
-      sendType: true,
-      status: true,
-    },
-  });
-
-  if (!source) {
-    throw new Error("Closing WhatsApp send record not found.");
-  }
-
-  if (source.branchId) {
-    await resolveOperationalBranchId(businessId, user, source.branchId);
-  }
-
-  const auditRequest = await getAuditRequestContext();
-  await prisma.$transaction(async (tx) => {
-    await enqueueManualClosingWhatsAppSend(
-      {
-        attemptId: source.id,
-        businessId,
-        reason:
-          input.reason ||
-          (input.trigger === "MANUAL_RETRY" ? "Manual retry" : "Manual resend"),
-        requestedByUserId: user.userId,
-        trigger: input.trigger,
-      },
-      tx,
-    );
-
-    await writeAuditLog(
-      {
-        action:
-          input.trigger === "MANUAL_RETRY"
-            ? "CLOSING_WHATSAPP_MANUAL_RETRY"
-            : "CLOSING_WHATSAPP_MANUAL_RESEND",
-        actor: user,
-        after: {
-          reason: input.reason ?? null,
-          sendType: source.sendType,
-          sourceStatus: source.status,
-          trigger: input.trigger,
-        },
-        branchId: source.branchId,
-        businessId,
-        entityId: source.id,
-        entityType: "ClosingWhatsAppSendAttempt",
-        request: auditRequest,
-        summary:
-          input.trigger === "MANUAL_RETRY"
-            ? "Queued manual retry for closing WhatsApp"
-            : "Queued manual resend for closing WhatsApp",
-      },
-      tx,
-    );
-  });
-
-  revalidatePath("/closing");
-  revalidatePath("/closing/history");
+  throw new Error("Daily closing has been retired. View historical closing records.");
 }
-
-class DailyClosingAlreadyExistsError extends Error {
-  constructor(readonly snapshotId: string) {
-    super("Daily closing snapshot already exists.");
-  }
-}
-
-class DailyClosingAlreadyCompletedForShiftError extends Error {}
 
 class CashierAlreadyHasOpenShiftError extends Error {}
+
+function moneyFromCents(cents: number) {
+  return `RM${fromCents(cents)}`;
+}
 
 class ShiftAlreadyClosedError extends Error {
   constructor() {
@@ -870,119 +477,4 @@ class ShiftCashNoteRequiredError extends Error {
   constructor(readonly differenceCents: number) {
     super("A cash difference note is required.");
   }
-}
-
-type BusinessUserContext = Awaited<ReturnType<typeof requireBusinessUser>>;
-type AuditRequestContext = Awaited<ReturnType<typeof getAuditRequestContext>>;
-
-async function createDailyClosingSnapshotInTransaction({
-  actualCashCents,
-  auditRequest,
-  branchId,
-  businessDate,
-  businessId,
-  closingNote,
-  tx,
-  user,
-}: {
-  actualCashCents: number;
-  auditRequest: AuditRequestContext;
-  branchId: string;
-  businessDate: string;
-  businessId: string;
-  closingNote: string | null;
-  tx: Prisma.TransactionClient;
-  user: BusinessUserContext["user"];
-}) {
-  const [branch, business] = await Promise.all([
-    tx.branch.findFirstOrThrow({
-      where: { businessId, id: branchId },
-      select: { id: true, name: true },
-    }),
-    tx.business.findUniqueOrThrow({
-      where: { id: businessId },
-      select: { id: true, industryType: true, name: true },
-    }),
-  ]);
-  const generatedAt = new Date();
-  const closingReport = await getDailyClosingReport(
-    {
-      branchId,
-      businessId,
-      dateValue: businessDate,
-      industryType: business.industryType,
-      now: generatedAt,
-    },
-    tx,
-  );
-  const expectedCashCents = getExpectedCashCents(closingReport.report);
-  const closedAt = new Date();
-  const payload = buildDailyClosingSnapshotPayload({
-    actualCashCents,
-    branch,
-    business,
-    businessDate,
-    businessDayCutoffTime: closingReport.businessDayCutoffTime,
-    businessType: business.industryType,
-    closedAt,
-    closedBy: { id: user.userId, name: user.name },
-    closingNote,
-    expectedCashCents,
-    generatedAt,
-    report: closingReport.report,
-    timezone: closingReport.timeZone,
-  });
-  const whatsappText = buildFrozenDailyClosingWhatsAppText({
-    baseText: closingReport.preview,
-    payload,
-  });
-
-  const created = await tx.dailyClosingSnapshot.create({
-    data: {
-      actualCashCents,
-      branchId,
-      businessDate: normalizeBusinessDate(businessDate),
-      businessId,
-      businessType: business.industryType,
-      cashDifferenceCents: payload.cash.differenceCents,
-      closedAt,
-      closedByUserId: user.userId,
-      closingNote,
-      expectedCashCents,
-      reportDataJson: payload as unknown as Prisma.InputJsonValue,
-      reportVersion: payload.version,
-      timezone: payload.timezone,
-      whatsappText,
-    },
-  });
-
-  await writeAuditLog(
-    {
-      action: "DAILY_CLOSING_CONFIRMED",
-      actor: user,
-      after: {
-        actualCashCents,
-        businessDate,
-        cashDifferenceCents: payload.cash.differenceCents,
-        expectedCashCents,
-        reportVersion: payload.version,
-        status: created.status,
-      },
-      branchId,
-      businessId,
-      entityId: created.id,
-      entityType: "DailyClosingSnapshot",
-      request: auditRequest,
-      summary: `Closed ${businessDate} for ${branch.name}`,
-    },
-    tx,
-  );
-
-  await enqueueClosingReportForSnapshot(created.id, tx);
-
-  return created;
-}
-
-function moneyFromCents(cents: number) {
-  return `RM${fromCents(cents)}`;
 }

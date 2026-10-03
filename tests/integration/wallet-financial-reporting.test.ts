@@ -31,7 +31,7 @@ test("real top-up and mixed sales reconcile canonical facts with daily sales and
     async function sell(price: number, wallet: string, method: string) {
       await db.product.update({ where: { id: product.id }, data: { price } });
       const form = new FormData();
-      for (const [key, value] of Object.entries({ operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : `BUILTIN_${method}`, ...(method !== "MEMBER_WALLET" ? { reference: "P1F synthetic" } : {}) })) form.set(key, value);
+      for (const [key, value] of Object.entries({ modeAtConfirmation: "ON", shiftId: f.shift.id, operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : `BUILTIN_${method}`, ...(method !== "MEMBER_WALLET" ? { reference: "P1F synthetic" } : {}) })) form.set(key, value);
       const result = await h.action.completeCashierSaleAction(form);
       assert.equal(result.status, "success", result.message);
     }

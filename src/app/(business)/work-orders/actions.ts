@@ -42,7 +42,7 @@ import {
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
 import { capturePerformanceCheckout } from "@/lib/performance/service";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { CashierShiftModeChangedError, resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -570,23 +570,11 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
       operationType: FinancialOperationType.PACKAGE_PURCHASE,
       payload: { ...financialPayload, branchId, ...performanceFingerprint(formData) },
       execute: async (tx) => {
-      const shift = await tx.cashierShift.findFirst({
-        where: {
-          businessId,
-          cashierId: user.userId,
-          status: "OPEN",
-        },
-        select: { id: true, branchId: true, startedAt: true },
+      if (!branchId) throw new Error("Select a branch before checkout.");
+      const shiftActivity = await resolveCashierActivityContext(tx, {
+        businessId, branchId, actor: user, capability: "MODIFY_WORK_ORDERS",
+        confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
       });
-
-      if (!shift) {
-        throw new Error("Start a cashier shift before selling a package.");
-      }
-
-      if (shift.branchId !== branchId) {
-        throw new Error("This package sale does not belong to the current shift branch.");
-      }
-      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, { businessId, shift });
 
       const customer = await tx.customer.findFirst({
         where: {
@@ -735,7 +723,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
           paidAt: shiftActivity.activityAt,
           invoiceId: invoice.id,
           customerPackageId: primaryCustomerPackage.id,
-          shiftId: shift.id,
+          shiftId: shiftActivity.shiftId,
           amount: fromCents(amountCents),
           method: input.method,
           reference:
@@ -831,6 +819,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
     revalidatePath(`/invoices/${result.invoiceId}`);
     revalidatePath(returnPath);
   } catch (error) {
+    if (error instanceof CashierShiftModeChangedError) return { code: error.code, message: error.message } as const;
     if (formData.get("preservePaymentForm") === "1") throw error;
     redirectToPackagePurchaseMessage(
       returnPath,

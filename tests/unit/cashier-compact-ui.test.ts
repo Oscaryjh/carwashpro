@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { buildCashierUi, cashierCustomer, cashierItem, cashierProps } from "../helpers/cashier-ui-fixture";
+import { createWalletCheckoutIntent } from "../../src/lib/wallet/checkout-intent";
 
 const require = createRequire(import.meta.url);
 let directory: string;
@@ -17,7 +18,7 @@ function nodes(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const element = node as ReactElement<Record<string, unknown>>;
   return [element, ...nodes(element.props.children as ReactNode)];
 }
-async function fixture(overrides: Record<number, unknown> = {}, wallet: "on" | "off" | "error" = "on") {
+async function fixture(overrides: Record<number, unknown> = {}, wallet: "on" | "off" | "error" = "on", props: Record<string, unknown> = {}) {
   if (!ui) { directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/cashier-ui-")); const file = join(directory, "ui.cjs"); await buildCashierUi(file); ui = require(file); }
   // Root hooks: customer=8, cart=9, staff=10, catalog type=6, category=7,
   // search=21, page=23, payment modal=19. No effects/network execute here.
@@ -27,12 +28,37 @@ async function fixture(overrides: Record<number, unknown> = {}, wallet: "on" | "
     state(initial: unknown) { const current = index++; const value = current in state ? state[current] : typeof initial === "function" ? (initial as () => unknown)() : initial; return [value, (next: unknown) => { state[current] = typeof next === "function" ? (next as (old: unknown) => unknown)(value) : next; }]; },
     picker(initial: unknown) { return [pickerIndex++ === 3 ? state[8] : initial, () => {}]; },
   }, __crmFixture: { actions: new Proxy({}, { get: () => () => { throw Error("Unexpected authenticated I/O"); } }) } });
-  const tree = ui.CashierUnifiedSaleForm({ ...cashierProps, walletCheckoutEnabled: wallet !== "off" });
+  const tree = ui.CashierUnifiedSaleForm({ ...cashierProps, walletCheckoutEnabled: wallet !== "off", ...props });
   const shared = { customerId: (state[8] as typeof cashierCustomer | null)?.id, enabled: wallet !== "off", panel: wallet === "error" ? null : { totalBalance: "1100.00", canTopUp: true, ownerDetails: null, intentScope: "scope" }, pending: false, error: wallet === "error" ? "Wallet balance is unavailable. Try again." : "", refresh() {} };
   const html = renderToStaticMarkup(createElement(ui.WalletPanelContext.Provider, { value: shared }, tree));
   return { tree, html, state };
 }
 function find(tree: ReactElement, type: string, predicate: (props: Record<string, unknown>) => boolean) { const result = nodes(tree).find(node => node.type === type && predicate(node.props)); assert.ok(result); return result.props; }
+
+test("shifts OFF opens payment without a Start shift modal and submits the confirmation mode", async () => {
+  const { tree, html, state } = await fixture({}, "on", { hasOpenShift: false, cashierShiftsEnabled: false, shiftId: null });
+  assert.doesNotMatch(html, /Start a cashier shift|>Start shift</);
+  const pay = find(tree, "button", p => p.children === "Pay RM300.00");
+  (pay.onClick as () => void)();
+  assert.equal(state[19], true);
+  assert.equal(find(tree, "input", p => p.name === "modeAtConfirmation").value, "OFF");
+  assert.equal(find(tree, "input", p => p.name === "shiftId").value, "");
+});
+
+test("pending wallet mode change requires explicit reconfirmation, retaining key and full request",async()=>{
+ const form=new FormData();for(const [key,value] of [["operationId","checkout:original-key"],["branchId","branch"],["modeAtConfirmation","ON"],["shiftId","old"],["walletAmount","20"],["productId","first"],["productId","second"]])form.append(key,value);
+ const intent=createWalletCheckoutIntent(form,"business:actor:branch",[{label:"Original total",value:"40"}]);
+ let sent:FormData|undefined;
+ const stored=new Map<string,string>();
+ Object.assign(globalThis,{sessionStorage:{setItem:(key:string,value:string)=>stored.set(key,value)}});
+ const {tree,html}=await fixture({1:intent,39:"CASHIER_SHIFT_MODE_CHANGED: review",47:{modeAtConfirmation:"OFF",branchId:"branch",shiftId:null}},"on",{cashierShiftsEnabled:false,walletCheckoutScope:"business:actor",action:async(data:FormData)=>{sent=data;return {status:"error",message:"Retained test request"};}});
+ assert.match(html,/Cashier shifts: OFF/);
+ const button=find(tree,"button",props=>props.children==="Confirm settings and retry original checkout");
+ await (button.onClick as ()=>Promise<void>)();
+ assert.equal(sent?.get("operationId"),"checkout:original-key");assert.deepEqual(sent?.getAll("productId"),["first","second"]);
+ assert.equal(sent?.get("modeAtConfirmation"),"OFF");assert.equal(sent?.get("shiftId"),"");
+ assert.equal(form.get("shiftId"),"old");
+});
 
 test("cashier customer summary has readable identity, inline wallet and a compact Top up action", async () => {
   const { html } = await fixture();
@@ -40,6 +66,13 @@ test("cashier customer summary has readable identity, inline wallet and a compac
   assert.match(html, /90 pts/); assert.match(html, /2 packages/);
   assert.match(html, /Wallet RM 1,100\.00/); assert.match(html, />Top up<\/button>/);
   assert.doesNotMatch(html, /<h3>Member wallet|Top up wallet/);
+});
+
+test("ordinary checkout mode rejection exposes explicit settings review without creating a new checkout",async()=>{
+ const {tree,html}=await fixture({39:"CASHIER_SHIFT_MODE_CHANGED: review",47:{modeAtConfirmation:"OFF",branchId:"branch",shiftId:null}},"off");
+ assert.match(html,/Cashier shifts: OFF/);
+ assert.ok(find(tree,"button",p=>p.children==="Use reviewed cashier settings"));
+ assert.ok(find(tree,"button",p=>p.children==="Review current cashier settings"));
 });
 test("Wallet OFF hides wallet and Top up without hiding customer facts", async () => {
   const { html } = await fixture({}, "off");

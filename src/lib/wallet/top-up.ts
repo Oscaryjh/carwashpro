@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 import { financialOperationKeySchema, runFinancialOperation } from "@/lib/financial-idempotency";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { authorizeWallet, WalletServiceError, type WalletContext } from "./authorization";
@@ -14,6 +14,8 @@ const requestSchema = z.object({
   customerId: z.string().uuid(), offerId: z.string().uuid(), expectedOfferVersion: z.number().int().nonnegative(),
   paymentMethodCode: z.string().trim().min(1).max(128),
   reference: z.string().trim().max(500).optional(), operationKey: financialOperationKeySchema,
+  modeAtConfirmation: z.enum(["ON", "OFF"]).optional(),
+  branchId: z.string().uuid().optional(), shiftId: z.string().uuid().nullable().optional(),
 }).strict();
 export type WalletTopUpInput = z.input<typeof requestSchema>;
 
@@ -37,11 +39,10 @@ export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInpu
     execute: async (tx) => {
       const actor = await authorizeWallet(tx, ctx, request.customerId, "TOP_UP");
       const branchId = ctx.branchId!; // checked by centralized authorization
-      const shift = ctx.shiftId ? await tx.cashierShift.findFirst({ where: {
-        id: ctx.shiftId, businessId: ctx.businessId, branchId, cashierId: actor.userId, status: "OPEN",
-      } }) : null;
-      if (!shift) throw new WalletServiceError("WALLET_ACTIVE_SHIFT_REQUIRED", "An active cashier shift in this branch is required.");
-      const activity = await assertCashierShiftAcceptsActivity(tx, { businessId: ctx.businessId, shift });
+      const activity = await resolveCashierActivityContext(tx, {
+        businessId: ctx.businessId, branchId, actor,
+        confirmation: { modeAtConfirmation: request.modeAtConfirmation, shiftId: ctx.shiftId },
+      });
       const offer = await tx.walletTopUpOffer.findFirst({ where: { id: request.offerId, businessId: ctx.businessId } });
       if (!offer || !offer.active) throw new WalletServiceError("WALLET_OFFER_UNAVAILABLE", "Top-up offer is unavailable.");
       if (offer.version !== request.expectedOfferVersion) throw new WalletServiceError("OFFER_CHANGED_RECONFIRM", "This offer changed. Review it and confirm again.");
@@ -59,7 +60,7 @@ export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInpu
       let account = await tx.walletAccount.findUnique({ where: { businessId_customerId: { businessId: ctx.businessId, customerId: request.customerId } } });
       if (!account) account = await tx.walletAccount.create({ data: { businessId: ctx.businessId, customerId: request.customerId } });
       const payment = await tx.payment.create({ data: {
-        businessId: ctx.businessId, branchId, shiftId: shift.id, cashierId: actor.userId,
+        businessId: ctx.businessId, branchId, shiftId: activity.shiftId, cashierId: actor.userId,
         purpose: "WALLET_TOP_UP", invoiceId: null, amount: offer.paidAmount,
         method: method.canonicalMethod, businessPaymentMethodId: method.id,
         paymentMethodLabel: method.label, tenderCurrency: "MYR", tenderAmount: offer.paidAmount,
@@ -69,7 +70,7 @@ export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInpu
         businessId: ctx.businessId, walletAccountId: account.id, offerId: offer.id,
         offerVersion: offer.version, offerNameSnapshot: offer.name,
         paidAmount: offer.paidAmount, bonusAmount: offer.bonusAmount, totalCredited: offer.paidAmount.plus(offer.bonusAmount),
-        externalPaymentId: payment.id, financialOperationId: operation.id, branchId, shiftId: shift.id, actorUserId: actor.userId,
+        externalPaymentId: payment.id, financialOperationId: operation.id, branchId, shiftId: activity.shiftId, actorUserId: actor.userId,
         postedAt: activity.activityAt,
       } });
       const source = { topUpId: topUp.id, financialOperationId: operation.id, branchId, actorUserId: actor.userId };
@@ -81,7 +82,7 @@ export async function postWalletTopUp(ctx: WalletContext, input: WalletTopUpInpu
         paidAmount: offer.paidAmount.toFixed(2), bonusAmount: offer.bonusAmount.toFixed(2), totalCredited: topUp.totalCredited.toFixed(2),
         paidBalance: account.paidBalance.toFixed(2), bonusBalance: account.bonusBalance.toFixed(2), totalBalance: account.paidBalance.plus(account.bonusBalance).toFixed(2),
         paymentMethodCode: method.code, paymentMethod: method.canonicalMethod, paymentMethodLabel: method.label,
-        reference, branchId, shiftId: shift.id, actorUserId: actor.userId, postedAt: topUp.postedAt.toISOString(),
+        reference, branchId, shiftId: activity.shiftId, actorUserId: actor.userId, postedAt: topUp.postedAt.toISOString(),
       };
       await writeAuditLog({ businessId: ctx.businessId, branchId, actor, action: "WALLET_TOP_UP", entityType: "WalletTopUp", entityId: topUp.id,
         summary: "Member wallet top-up recorded.", metadata: { ...receipt, operationKey: request.operationKey, financialOperationId: operation.id },

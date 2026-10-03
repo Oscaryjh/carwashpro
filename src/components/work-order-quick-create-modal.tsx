@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { PaymentFormAction } from "@/components/performance/safe-payment-form";
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { BranchSelect } from "@/components/branch-select";
 import { ProductSaleForm, type ProductSaleOption } from "@/components/product-sale-form";
@@ -19,17 +20,21 @@ type ServiceOption = {
 };
 
 type WorkOrderQuickCreateModalProps = {
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   action: (formData: FormData) => Promise<void>;
   branches: BranchOption[];
-  packageAction: (formData: FormData) => Promise<void>;
+  packageAction: PaymentFormAction;
   packages: WorkOrderPackageOption[];
-  productAction: (formData: FormData) => Promise<void>;
+  productAction: PaymentFormAction;
   products: ProductSaleOption[];
   services: ServiceOption[];
   taxSettings: TaxDisplaySettings;
 };
 
 export function WorkOrderQuickCreateModal({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   action,
   branches,
   packageAction,
@@ -257,6 +262,8 @@ export function WorkOrderQuickCreateModal({
               </form>
             ) : mode === "package" ? (
               <WorkOrderPackagePurchase
+                cashierShiftsEnabled={cashierShiftsEnabled}
+                shiftId={shiftId}
                 action={packageAction}
                 branches={branches}
                 packages={packages}
@@ -264,6 +271,8 @@ export function WorkOrderQuickCreateModal({
               />
             ) : (
               <ProductSaleForm
+                cashierShiftsEnabled={cashierShiftsEnabled}
+                shiftId={shiftId}
                 action={productAction}
                 branches={branches}
                 products={products}

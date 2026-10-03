@@ -25,9 +25,10 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
   const [locked, setLocked] = useState(false);
   const [confirmation, setConfirmation] = useState<WalletIntentConfirmation | null>(null);
   const [storageFailed, setStorageFailed] = useState(false);
+  const [modeChanged, setModeChanged] = useState(false);
   const offer = options?.offers.find(row => row.id === offerId);
-  async function load() {
-    const result = await walletTopUpOptionsAction(customerId);
+  async function load(branchId?: string) {
+    const result = await walletTopUpOptionsAction(customerId, branchId);
     if (!result.ok) { setOptions(null); setError(result.message); return; }
     setOptions(result.data);
     setOfferId(current => result.data.offers.some(row => row.id === current) ? current : "");
@@ -51,19 +52,24 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
     return () => window.removeEventListener("beforeunload", warn);
   }, [locked]);
   function confirm() {
-    if (!intent.current || storageFailed || (!intent.current.locked && (!offer || !method))) return;
+    if (!intent.current || storageFailed || (!intent.current.locked && (!offer || !method || !options?.activity))) return;
     let request;
-    try { request = intent.current.confirm(intent.current.existing ?? { customerId, offerId: offer!.id, expectedOfferVersion: offer!.version, paymentMethodCode: method, reference }, !intent.current.locked && offer ? { offerName: offer.name, paymentMethodLabel: options!.paymentMethods.find(row => row.code === method)!.label, paidAmount: offer.paidAmount, bonusAmount: offer.bonusAmount, totalCredited: offer.totalCredited } : undefined); }
+    try { request = intent.current.confirm(intent.current.existing ?? { customerId, offerId: offer!.id, expectedOfferVersion: offer!.version, paymentMethodCode: method, reference, ...options!.activity! }, !intent.current.locked && offer ? { offerName: offer.name, paymentMethodLabel: options!.paymentMethods.find(row => row.code === method)!.label, paidAmount: offer.paidAmount, bonusAmount: offer.bonusAmount, totalCredited: offer.totalCredited } : undefined); }
     catch { setStorageFailed(true); setError("The confirmation could not be safely retained. No request was sent. Check browser storage before continuing."); return; }
     if (!request) return;
     setLocked(true); setConfirmation(intent.current.confirmation); setError("");
     startTransition(async () => {
       try {
         const form = new FormData();
-        Object.entries(request).forEach(([key, value]) => form.set(key, String(value)));
+        Object.entries(request).forEach(([key, value]) => form.set(key, value == null ? "" : String(value)));
         const result = await walletTopUpAction(form);
         if (result.ok) { intent.current!.completed(); setLocked(false); setReceipt(result.data); onSuccess(); return; }
         setError(result.message);
+        if (result.code === "CASHIER_SHIFT_MODE_CHANGED") {
+          intent.current!.modeChanged(); setModeChanged(true);
+          await load(request.branchId);
+          return;
+        }
         if (result.uncertain) { intent.current!.uncertain(); return; }
         // P1B checks version inside the idempotent transaction. A completed
         // original would replay instead; an old version cannot later become current.
@@ -84,7 +90,25 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
     {receipt ? <WalletConfirmation receipt={receipt} customerName={customerName} staffName={receipt.staffName} onDone={onClose} /> : <div className="wallet-top-up-modal">
       <dl className="wallet-amounts wallet-top-up-customer"><dt>Customer</dt><dd>{customerName}</dd><dt>Current wallet balance</dt><dd>{walletMoney(balance)}</dd></dl>
       {error ? <p role="alert" className="wallet-error">{error}</p> : null}
-      {locked && confirmation ? <><WalletPendingConfirmation confirmation={confirmation} /><p className="wallet-note">Retry checks this same confirmation. Do not collect payment again.</p><footer><button type="button" disabled={pending || storageFailed} onClick={confirm}>{pending ? "Confirming…" : "Retry same confirmation"}</button></footer></> : options ? <div className="wallet-top-up-fields">
+      {locked && confirmation ? <><WalletPendingConfirmation confirmation={confirmation} /><p className="wallet-note">Retry checks this same confirmation. Do not collect payment again.</p>
+        {modeChanged ? <>
+          {!confirmation.request.branchId && options && options.activity?.modeAtConfirmation !== "ON" ? <label>Collection branch<select aria-label="Review collection branch" value={options.activity?.branchId??""} disabled={pending} onChange={event=>{
+            const branchId=event.target.value;setOptions(current=>current?{...current,activity:null}:null);
+            if(branchId)startTransition(async()=>{try{await load(branchId);}catch{setError("Current branch settings could not be loaded.");}});
+          }}><option value="">Select collection branch</option>{options.branches.map(branch=><option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
+          {options?.activity ? <p>Collection branch: {options.branches.find(branch => branch.id === options.activity?.branchId)?.name}. Cashier shifts: {options.activity.modeAtConfirmation}</p> : null}
+          <footer><button type="button" disabled={pending || storageFailed} onClick={() => startTransition(async () => { try { await load(confirmation.request.branchId); } catch { setError("Current cashier settings could not be loaded."); } })}>Reload current cashier settings</button>
+          <button type="button" disabled={pending || storageFailed || !options?.activity || Boolean(confirmation.request.branchId && options.activity.branchId !== confirmation.request.branchId)} onClick={() => {
+            try { intent.current!.reconfirmActivity(options!.activity!); setModeChanged(false); setConfirmation(intent.current!.confirmation); confirm(); }
+            catch { setError("Could not safely reconfirm cashier settings. No new request was sent."); }
+          }}>Confirm with current cashier settings</button></footer>
+        </> : <footer><button type="button" disabled={pending || storageFailed} onClick={confirm}>{pending ? "Confirming…" : "Retry same confirmation"}</button></footer>}
+      </> : options ? <div className="wallet-top-up-fields">
+        <label>Collection branch<select aria-label="Collection branch" value={options.activity?.branchId ?? ""} disabled={locked || pending || options.activity?.modeAtConfirmation === "ON"} onChange={event => {
+          const branchId = event.target.value;
+          setOptions(current => current ? {...current,activity:null} : null);
+          if (branchId) startTransition(async () => { try { await load(branchId); } catch { setError("Branch options could not be loaded. Try again."); } });
+        }}><option value="">Select collection branch</option>{options.branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
         <label>Top-up offer<select value={offerId} disabled={locked || pending} onChange={e => setOfferId(e.target.value)}><option value="">Select a top-up offer</option>{options.offers.map(row => <option key={row.id} value={row.id}>{row.name} · {compactOfferAmount(row.paidAmount)} + {compactOfferAmount(row.bonusAmount)} bonus</option>)}</select></label>
         {!options.offers.length ? <p className="wallet-note">No active top-up offers. Ask the business owner to create an offer.</p> : null}
         <div className="wallet-form-grid"><label>Payment method<select value={method} disabled={locked || pending} onChange={e => setMethod(e.target.value)}>{options.paymentMethods.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}</select></label>
@@ -96,7 +120,7 @@ export function WalletTopUpModal({ intentScope, customerId, customerName, balanc
           <dt className="wallet-top-up-result">Balance after top-up</dt><dd className="wallet-top-up-result"><strong>{walletMoney(walletAmountPreview(balance, offer?.totalCredited ?? "0.00") ?? balance)}</strong></dd>
         </dl>
         <p className="wallet-note">Confirm after receiving payment.<br />Tetamu POS records the top-up only; it does not charge the customer.</p>
-        <footer><button type="button" className="secondary" disabled={locked || pending} onClick={onClose}>Cancel</button><button type="button" disabled={storageFailed || pending || (!locked && (!offer || !method))} onClick={confirm}>{pending ? "Confirming…" : locked ? "Retry same confirmation" : "Confirm top-up"}</button></footer>
+        <footer><button type="button" className="secondary" disabled={locked || pending} onClick={onClose}>Cancel</button><button type="button" disabled={storageFailed || pending || (!locked && (!offer || !method || !options.activity))} onClick={confirm}>{pending ? "Confirming…" : locked ? "Retry same confirmation" : "Confirm top-up"}</button></footer>
       </div> : <footer>{locked ? <button type="button" disabled={pending || storageFailed} onClick={confirm}>Retry same confirmation</button> : <button type="button" disabled={pending} onClick={() => startTransition(async () => { try { await load(); } catch { setError("Wallet options could not be loaded. Try again."); } })}>{pending ? "Loading…" : "Try again"}</button>}</footer>}
     </div>}
   </WalletDialog>;

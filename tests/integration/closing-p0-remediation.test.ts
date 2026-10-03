@@ -1,3 +1,5 @@
+import { walletFixture } from "../helpers/wallet-fixture";
+import { createClosingActionsFixture, closingForm, actionRedirect } from "../helpers/closing-actions-fixture";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test, { after } from "node:test";
@@ -162,53 +164,28 @@ test("manual daily close rejects an open shift before snapshot, audit, or notifi
   assert.deepEqual(await sideEffectCounts(fixture.business.id), before);
 });
 
-test("concurrent shift start and manual close resolve to snapshot XOR open shift", async () => {
+test("authenticated Start wins against retired Confirm without a new snapshot", async () => {
   assertLocalDatabase();
-  const fixture = await createFixture("RACE");
-  const start = runClosingSerializableTransaction(prisma, async (tx) => {
-    await acquireDailyClosingScopeLock(tx, {
-      branchId: fixture.branch.id,
-      businessDate,
-      businessId: fixture.business.id,
-    });
-    const snapshot = await tx.dailyClosingSnapshot.findFirst({
-      where: { branchId: fixture.branch.id, businessId: fixture.business.id },
-    });
-    if (snapshot) throw new Error("DAILY_CLOSING_ALREADY_COMPLETED");
-    return tx.cashierShift.create({
-      data: {
-        branchId: fixture.branch.id,
-        businessId: fixture.business.id,
-        cashierId: fixture.user.id,
-        startedAt: new Date("2026-08-27T10:00:00.000Z"),
-      },
-    });
-  });
-  const close = runClosingSerializableTransaction(prisma, async (tx) => {
-    await acquireDailyClosingScopeLock(tx, {
-      branchId: fixture.branch.id,
-      businessDate,
-      businessId: fixture.business.id,
-    });
-    await assertNoOpenShiftsForBusinessDate(tx, {
-      branchId: fixture.branch.id,
-      businessDate,
-      businessId: fixture.business.id,
-      settings: fixture.settings,
-    });
-    return createSnapshot(tx, fixture);
-  });
-
-  await Promise.allSettled([start, close]);
-  const [openShifts, snapshots] = await Promise.all([
-    prisma.cashierShift.count({ where: { businessId: fixture.business.id, status: "OPEN" } }),
-    prisma.dailyClosingSnapshot.count({ where: { businessId: fixture.business.id } }),
-  ]);
-  assert.equal(openShifts + snapshots, 1);
-  assert.ok((openShifts === 1 && snapshots === 0) || (openShifts === 0 && snapshots === 1));
+  const fixture = await walletFixture(prisma);
+  await prisma.user.update({where:{id:fixture.actor.id},data:{email:`${randomUUID()}@example.test`}});
+  const harness = await createClosingActionsFixture(prisma);
+  try {
+    await harness.login(fixture.actor.id);
+    await actionRedirect(harness.actions.endShiftAction(closingForm({shiftId:fixture.shift.id,closingCash:"0"})));
+    const [started, denied] = await Promise.all([
+      actionRedirect(harness.actions.startShiftAction(closingForm({branchId:fixture.branch.id,openingFloat:"0"}))),
+      harness.actions.closeDailySnapshotAction({status:"idle",message:""},closingForm({branchId:fixture.branch.id,operationId:randomUUID(),actualCash:"0"})),
+    ]);
+    assert.match(started,/success/);
+    assert.equal(denied.status,"error");
+    assert.match(denied.message,/Daily closing has been retired/);
+    assert.equal(await prisma.cashierShift.count({where:{businessId:fixture.business.id,status:"OPEN"}}),1);
+    assert.equal(await prisma.dailyClosingSnapshot.count({where:{businessId:fixture.business.id}}),0);
+    assert.equal(await prisma.financialOperation.count({where:{businessId:fixture.business.id,operationType:"DAILY_CLOSING"}}),0);
+  } finally { await harness.close(); }
 });
 
-test("only the final one of two shifts creates one daily snapshot", async () => {
+test("first and final shift end never create a daily snapshot", async () => {
   assertLocalDatabase();
   const fixture = await createFixture("FINAL");
   const shifts = await Promise.all(["A", "B"].map((label) =>
@@ -232,19 +209,15 @@ test("only the final one of two shifts creates one daily snapshot", async () => 
       where: { id },
       data: { closingCash: 0, endedAt: new Date("2026-08-27T11:00:00.000Z"), status: "CLOSED" },
     });
-    const open = await tx.cashierShift.count({
-      where: { branchId: fixture.branch.id, businessId: fixture.business.id, status: "OPEN" },
-    });
-    if (open === 0) await createSnapshot(tx, fixture);
   });
 
   await closeShift(shifts[0].id);
   assert.equal(await prisma.dailyClosingSnapshot.count({ where: { businessId: fixture.business.id } }), 0);
   await closeShift(shifts[1].id);
-  assert.equal(await prisma.dailyClosingSnapshot.count({ where: { businessId: fixture.business.id } }), 1);
+  assert.equal(await prisma.dailyClosingSnapshot.count({ where: { businessId: fixture.business.id } }), 0);
 });
 
-test("final shift end and manual close cannot create duplicate snapshots", async () => {
+test("only manual close creates the snapshot when racing with final shift end", async () => {
   assertLocalDatabase();
   const fixture = await createFixture("END-CLOSE-RACE");
   const shift = await prisma.cashierShift.create({
@@ -270,14 +243,6 @@ test("final shift end and manual close cannot create duplicate snapshots", async
         status: "CLOSED",
       },
     });
-    const open = await tx.cashierShift.count({
-      where: {
-        branchId: fixture.branch.id,
-        businessId: fixture.business.id,
-        status: "OPEN",
-      },
-    });
-    if (open === 0) await createSnapshotIfMissing(tx, fixture);
   });
   const manualClose = runClosingSerializableTransaction(prisma, async (tx) => {
     await acquireDailyClosingScopeLock(tx, {
@@ -295,6 +260,13 @@ test("final shift end and manual close cannot create duplicate snapshots", async
   });
 
   await Promise.allSettled([endShift, manualClose]);
+  // Manual may have acquired the lock before End and observed OPEN. Confirm again
+  // after End; only this manual path can create the frozen record.
+  await runClosingSerializableTransaction(prisma, async tx => {
+    await acquireDailyClosingScopeLock(tx, { branchId: fixture.branch.id, businessId: fixture.business.id, businessDate });
+    await assertNoOpenShiftsForBusinessDate(tx, { branchId: fixture.branch.id, businessId: fixture.business.id, businessDate, settings: fixture.settings });
+    await createSnapshotIfMissing(tx, fixture);
+  });
   assert.equal(await prisma.dailyClosingSnapshot.count({
     where: { businessId: fixture.business.id },
   }), 1);

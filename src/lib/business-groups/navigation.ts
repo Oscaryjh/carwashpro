@@ -16,8 +16,8 @@ export function getBusinessGroupNavItems(groupId: string): NavItem[] {
     },
     {
       href: `/groups/${groupId}/closing?range=today`,
-      label: "Daily Closing",
-      shortLabel: "Closing",
+      label: "Historical closings",
+      shortLabel: "History",
       icon: "reports",
     },
     {

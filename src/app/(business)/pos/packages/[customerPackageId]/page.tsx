@@ -50,6 +50,7 @@ export default async function PackageCheckoutPage({
     where: { id: businessId },
     select: {
       sstEnabled: true,
+      cashierShiftsEnabled: true,
       sstLabel: true,
       sstRate: true,
     },
@@ -75,7 +76,7 @@ export default async function PackageCheckoutPage({
   });
   const shiftMatchesPackage =
     Boolean(openShift) && openShift?.branchId === customerPackage.branchId;
-  const canPay = customerPackage.status === "PENDING_PAYMENT" && shiftMatchesPackage;
+  const canPay = customerPackage.status === "PENDING_PAYMENT" && (!business.cashierShiftsEnabled || shiftMatchesPackage);
 
   return (
     <>
@@ -108,11 +109,13 @@ export default async function PackageCheckoutPage({
           <h2>Payment</h2>
           {canPay ? (
             <PackagePurchasePaymentForm
+              cashierShiftsEnabled={business.cashierShiftsEnabled}
+              shiftId={openShift?.id ?? null}
               action={recordPackagePurchasePaymentAction}
               customerPackageId={customerPackage.id}
               balance={balance}
             />
-          ) : !openShift ? (
+          ) : business.cashierShiftsEnabled && !openShift ? (
             <div className="warning-panel">
               <h2>Shift required</h2>
               <p className="muted">
@@ -122,7 +125,7 @@ export default async function PackageCheckoutPage({
                 Start shift
               </Link>
             </div>
-          ) : !shiftMatchesPackage ? (
+          ) : business.cashierShiftsEnabled && !shiftMatchesPackage ? (
             <div className="warning-panel">
               <h2>Wrong shift branch</h2>
               <p className="muted">

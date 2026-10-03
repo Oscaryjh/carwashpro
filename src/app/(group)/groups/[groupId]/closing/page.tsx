@@ -17,7 +17,6 @@ import {
   type GroupClosingReport,
 } from "@/lib/business-groups/group-closing-report";
 import {
-  buildGroupClosingAuditPageHref,
   buildGroupClosingExportHref,
   buildGroupClosingRecordsPageHref,
   type GroupClosingSearchQuery,
@@ -126,7 +125,7 @@ export default async function GroupClosingPage({
             "Frozen snapshots",
             "Audit-ready",
           ]}
-          title="Daily Closing"
+          title="Historical closing records"
           variant="closing"
         />
 
@@ -150,134 +149,6 @@ export default async function GroupClosingPage({
         ) : report ? (
           <>
             <section
-              aria-labelledby="group-closing-audit"
-              className="group-command-section group-closing-audit-panel"
-            >
-              <div className="section-header">
-                <div>
-                  <h2 id="group-closing-audit">Closing audit</h2>
-                  <p>
-                    Required branch closings are calculated only after each
-                    store&apos;s business day has ended.
-                  </p>
-                </div>
-                <ExportLinks groupId={groupId} query={query} />
-              </div>
-              {report.audit.missingCount ? (
-                <p className="group-closing-warning" role="alert">
-                  {report.audit.missingCount} required closing
-                  {report.audit.missingCount === 1 ? " is" : "s are"} missing.
-                  Open the affected store below to complete the audit trail.
-                </p>
-              ) : null}
-              <ClosingAuditSummary report={report} />
-              {report.audit.notApplicableCount ||
-              report.audit.unexpectedSnapshotCount ? (
-                <p className="group-closing-audit-note">
-                  {report.audit.notDueCount} not due ·{" "}
-                  {report.audit.notApplicableCount} excluded because the
-                  branch, industry, or full-day Group scope could not be
-                  verified · {report.audit.unexpectedSnapshotCount} snapshot
-                  {report.audit.unexpectedSnapshotCount === 1 ? "" : "s"}{" "}
-                  outside the required set.
-                </p>
-              ) : null}
-            </section>
-
-            <section
-              aria-labelledby="group-closing-audit-records"
-              className="group-command-section"
-            >
-              <div className="section-header">
-                <div>
-                  <h2 id="group-closing-audit-records">
-                    Required closing checklist
-                  </h2>
-                  <p>
-                    {report.audit.totalRows}{" "}
-                    {report.filters.auditStatus
-                      ? report.filters.auditStatus.toLowerCase()
-                      : "required"}{" "}
-                    branch closing
-                    {report.audit.totalRows === 1 ? "" : "s"}.
-                  </p>
-                </div>
-              </div>
-              {report.audit.rows.length ? (
-                <>
-                  <div
-                    className="group-closing-table-wrap"
-                    role="region"
-                    aria-label="Required closing audit checklist"
-                    tabIndex={0}
-                  >
-                    <table className="group-closing-audit-table">
-                      <thead>
-                        <tr>
-                          <th>Business date</th>
-                          <th>Store</th>
-                          <th>Branch</th>
-                          <th>Due at</th>
-                          <th>Status</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {report.audit.rows.map((row) => (
-                          <tr
-                            className={
-                              row.status === "MISSING" ? "is-missing" : undefined
-                            }
-                            key={`${row.businessId}:${row.branchId}:${row.businessDate}`}
-                          >
-                            <td>{formatDate(row.businessDate)}</td>
-                            <td>{row.businessName}</td>
-                            <td>{row.branchName}</td>
-                            <td>{formatTimestamp(row.dueAt, row.timezone)}</td>
-                            <td>
-                              <span
-                                className={`group-closing-audit-status ${row.status.toLowerCase()}`}
-                              >
-                                {formatEnum(row.status)}
-                              </span>
-                            </td>
-                            <td>
-                              <BusinessContextDrilldownButton
-                                businessId={row.businessId}
-                                contextToken={contextToken}
-                                label={
-                                  row.status === "MISSING"
-                                    ? "Open closing"
-                                    : "View"
-                                }
-                                returnTo={`/closing?branchId=${row.branchId}&date=${row.businessDate}`}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <ClosingPagination
-                    ariaLabel="Closing audit pages"
-                    currentPage={report.audit.page}
-                    nextHref={(page) =>
-                      buildGroupClosingAuditPageHref(groupId, query, page)
-                    }
-                    totalPages={report.audit.totalPages}
-                  />
-                </>
-              ) : (
-                <div className="group-report-state">
-                  <h3>No audit rows</h3>
-                  <p>
-                    No ended business days match this audit status and filter.
-                  </p>
-                </div>
-              )}
-            </section>
-
-            <section
               aria-labelledby="group-closing-summary"
               className="group-command-section"
             >
@@ -289,7 +160,7 @@ export default async function GroupClosingPage({
                     cutoff.
                   </p>
                 </div>
-                <span className="group-report-currency">Frozen snapshots</span>
+                <ExportLinks groupId={groupId} query={query} />
               </div>
               {report.summary.invalidReportCount ? (
                 <p className="group-closing-warning" role="alert">
@@ -422,7 +293,7 @@ function ClosingFilters({
     <section className="group-report-filter-panel" aria-labelledby="filters-heading">
       <div>
         <h2 id="filters-heading">Closing filters</h2>
-        <p>Filters apply to the required audit checklist and frozen snapshots.</p>
+        <p>Saved historical records; not a complete sales report.</p>
       </div>
       <form action={`/groups/${groupId}/closing`} method="get">
         <label>
@@ -456,14 +327,6 @@ function ClosingFilters({
             ))}
           </select>
         </label>
-        <label>
-          Audit status
-          <select defaultValue={query.status ?? "all"} name="status">
-            <option value="all">All required closings</option>
-            <option value="missing">Missing</option>
-            <option value="complete">Complete</option>
-          </select>
-        </label>
         <div className="group-report-filter-actions">
           <button type="submit">Apply filters</button>
           <Link href={`/groups/${groupId}/closing?range=today`}>Reset</Link>
@@ -484,7 +347,7 @@ function ExportLinks({
     <div className="group-report-export-group">
       <nav
         className="group-report-export-actions"
-        aria-label="Closing audit exports"
+        aria-label="Historical closing exports"
       >
         {(["csv", "xlsx", "pdf"] as const).map((format) => (
           <a
@@ -496,39 +359,7 @@ function ExportLinks({
           </a>
         ))}
       </nav>
-      <small>Exports contain the full filtered audit and frozen records.</small>
-    </div>
-  );
-}
-
-function ClosingAuditSummary({ report }: { report: GroupClosingReport }) {
-  const { audit } = report;
-  const metrics = [
-    ["Required", audit.requiredCount.toString()],
-    ["Completed", audit.completedCount.toString()],
-    ["Missing", audit.missingCount.toString()],
-    [
-      "Completion",
-      audit.completionPercent === null
-        ? "N/A"
-        : `${audit.completionPercent.toFixed(1)}%`,
-    ],
-    ["Not due", audit.notDueCount.toString()],
-    ["Excluded", audit.notApplicableCount.toString()],
-    ["Unexpected", audit.unexpectedSnapshotCount.toString()],
-    ["Checked", formatAuditTimestamp(audit.checkedAt)],
-  ];
-  return (
-    <div className="group-closing-summary-grid group-closing-audit-summary">
-      {metrics.map(([label, value]) => (
-        <article
-          data-metric={`audit-${label.toLowerCase().replaceAll(" ", "-")}`}
-          key={label}
-        >
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </article>
-      ))}
+      <small>Exports contain saved historical records, not complete period sales.</small>
     </div>
   );
 }

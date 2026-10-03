@@ -18,6 +18,7 @@ import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { ANALYTICS_BUSINESS_DAY_DEFINITION_VERSION, ANALYTICS_METRIC_DEFINITION_VERSION } from "@/lib/analytics/constants";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { readCashierShiftSettings } from "@/lib/cashier/shift-settings";
 
 export type ExpenseActor = Readonly<{ userId: string; name: string; email: string }>;
 export type ExpenseReceiptInput = Readonly<{
@@ -766,6 +767,8 @@ async function recordExpenseDrawerPayout(tx: Prisma.TransactionClient, input: {
   paymentSource: ExpensePaymentSource;
 }) {
   if (input.paymentSource !== "POS_DRAWER") return;
+  const settings = await readCashierShiftSettings(tx, input.businessId);
+  if (!settings.cashierShiftsEnabled) throw new ExpenseDomainError("Cashier shifts are disabled; POS Drawer payments are unavailable.", "EXPENSE_DRAWER_SHIFTS_DISABLED");
   if (input.paymentMethod !== "CASH") throw new ExpenseDomainError("POS Drawer payments must use the Cash payment method.", "EXPENSE_DRAWER_METHOD_INVALID");
   if (!input.branchId) throw new ExpenseDomainError("Business-wide expenses cannot be paid from a branch POS Drawer.", "EXPENSE_DRAWER_BRANCH_REQUIRED");
   if (!input.cashierShiftId) throw new ExpenseDomainError("Select an open POS shift for this drawer payment.", "EXPENSE_DRAWER_SHIFT_REQUIRED");

@@ -48,7 +48,7 @@ export default async function AppointmentDetailPage({
     },
     include: {
       business: {
-        select: { sstEnabled: true, sstLabel: true, sstRate: true },
+        select: { sstEnabled: true, sstLabel: true, sstRate: true, cashierShiftsEnabled: true },
       },
       branch: true,
       customer: true,
@@ -142,16 +142,15 @@ export default async function AppointmentDetailPage({
     industryType === "SALON_BEAUTY" &&
     appointment.status === "COMPLETED" &&
     selectedServices.length > 0;
-  const hasOpenShift = Boolean(
-    await prisma.cashierShift.findFirst({
+  const openShift = await prisma.cashierShift.findFirst({
       where: {
         businessId,
         cashierId: user.userId,
         status: "OPEN",
       },
-      select: { id: true },
-    }),
-  );
+      select: { id: true, branchId: true },
+    });
+  const hasOpenShift = Boolean(openShift && openShift.branchId === appointment.branchId);
   const availableCustomerPackages = industryType === "SALON_BEAUTY" && !salonInvoice
     ? await prisma.customerPackage.findMany({
         where: {
@@ -353,6 +352,8 @@ export default async function AppointmentDetailPage({
 
               {canOpenSalonCheckout ? (
                 <SalonAppointmentCheckoutModal
+                  cashierShiftsEnabled={appointment.business.cashierShiftsEnabled}
+                  shiftId={openShift?.id ?? null}
                   appointmentId={appointment.id}
                   availablePackages={availableCustomerPackages.flatMap((customerPackage) =>
                     customerPackage.package.serviceId

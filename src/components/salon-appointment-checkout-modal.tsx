@@ -27,6 +27,8 @@ type AvailableCustomerPackage = {
 };
 
 type SalonAppointmentCheckoutModalProps = {
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   appointmentId: string;
   availablePackages: AvailableCustomerPackage[];
   balance: number;
@@ -50,6 +52,8 @@ type SalonAppointmentCheckoutModalProps = {
 };
 
 export function SalonAppointmentCheckoutModal({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   appointmentId,
   availablePackages,
   balance,
@@ -191,7 +195,9 @@ export function SalonAppointmentCheckoutModal({
                   availablePackages={availablePackages}
                   balance={balance}
                   hasInvoice={hasInvoice}
-                  hasOpenShift={hasOpenShift}
+              hasOpenShift={hasOpenShift}
+              cashierShiftsEnabled={cashierShiftsEnabled}
+              shiftId={shiftId}
                   checkoutReady={checkoutReady}
                   subtotal={subtotal}
                   totalAmount={totalAmount}

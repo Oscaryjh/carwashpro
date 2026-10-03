@@ -27,6 +27,8 @@ type CashierSalesPanelProps = {
   catalogCreateAccess: CashierCatalogCreateAccess;
   hasCatalogItems: boolean;
   hasOpenShift: boolean;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   initialCatalog: CashierCatalogResult;
   initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
@@ -68,6 +70,8 @@ function renderCashierSalesPanel({
   catalogCreateAccess,
   hasCatalogItems,
   hasOpenShift,
+  cashierShiftsEnabled,
+  shiftId,
   initialCatalog,
   initialCatalogType,
   initialSale = null,
@@ -117,6 +121,8 @@ function renderCashierSalesPanel({
       branches={branches}
       catalogDiscounts={catalogDiscounts}
       hasOpenShift={hasOpenShift}
+      cashierShiftsEnabled={cashierShiftsEnabled}
+      shiftId={shiftId}
       initialCatalog={initialCatalog}
       initialCatalogType={initialCatalogType}
       initialSale={initialSale}

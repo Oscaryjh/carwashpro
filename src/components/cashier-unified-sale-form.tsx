@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal, useFormStatus } from "react-dom";
 import type { CashierSaleInvoiceSummary, CashierSaleState } from "@/app/(business)/cashier/actions";
+import { cashierActivityOptionsAction } from "@/app/(business)/cashier/actions";
 import { startShiftAction } from "@/app/(business)/closing/actions";
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
 import { MoneyNumpadInput } from "@/components/money-numpad-input";
@@ -30,7 +31,7 @@ import {
 } from "@/lib/catalog-discounts";
 import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
-import { createWalletCheckoutIntent, readWalletCheckoutRecovery, toWalletCheckoutFormData, type WalletCheckoutIntent } from "@/lib/wallet/checkout-intent";
+import { createWalletCheckoutIntent, readWalletCheckoutRecovery, reconfirmWalletCheckoutActivity, toWalletCheckoutFormData, type WalletCheckoutIntent } from "@/lib/wallet/checkout-intent";
 
 export type CashierCartLine = CashierCatalogItem & { quantity: number };
 
@@ -82,6 +83,8 @@ type CashierUnifiedSaleFormProps = {
   branches: CashierBranchOption[];
   catalogDiscounts: CatalogDiscountOption[];
   hasOpenShift: boolean;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   initialCatalog: CashierCatalogResult;
   initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
@@ -105,6 +108,8 @@ export function CashierUnifiedSaleForm({
   branches,
   catalogDiscounts,
   hasOpenShift,
+  cashierShiftsEnabled = true,
+  shiftId = null,
   initialCatalog,
   initialCatalogType,
   initialSale = null,
@@ -209,6 +214,8 @@ export function CashierUnifiedSaleForm({
   const shiftDraftKey = `cashier-shift-draft:${appointmentSale?.appointmentId ?? "direct"}`;
   const operationStorageKey = `cashier-operation:${appointmentSale?.appointmentId ?? "direct"}`;
   const [operationId, setOperationId] = useState("");
+  const [reviewedActivity,setReviewedActivity]=useState<{modeAtConfirmation:"ON"|"OFF";branchId:string;shiftId:string|null}|null>(null);
+  const regularConfirmation=useRef<{modeAtConfirmation:string;shiftId:string}|null>(null);
 
   useEffect(() => {
     const stored = window.sessionStorage.getItem(operationStorageKey);
@@ -612,7 +619,7 @@ export function CashierUnifiedSaleForm({
 
   function openPayment() {
     if (!canPay) return;
-    if (!hasOpenShift) {
+    if (cashierShiftsEnabled && !hasOpenShift) {
       setShiftModalOpen(true);
       return;
     }
@@ -699,6 +706,9 @@ export function CashierUnifiedSaleForm({
       return;
     }
     try {
+      regularConfirmation.current ??= { modeAtConfirmation: String(formData.get("modeAtConfirmation") ?? ""), shiftId: String(formData.get("shiftId") ?? "") };
+      formData.set("modeAtConfirmation", regularConfirmation.current.modeAtConfirmation);
+      formData.set("shiftId", regularConfirmation.current.shiftId);
       result = await action(formData);
     } catch {
       setSaleError("Unable to confirm payment. Your cart and original request ID are retained. Check payment status before retrying.");
@@ -711,6 +721,7 @@ export function CashierUnifiedSaleForm({
     }
 
     setCompletedInvoice(result.invoice);
+    regularConfirmation.current=null;
     window.sessionStorage.removeItem(operationStorageKey);
     setOperationId(`checkout:${crypto.randomUUID()}`);
     if (!appointmentSale) {
@@ -771,7 +782,7 @@ export function CashierUnifiedSaleForm({
   return (
     <>
       {appointmentError && !completedInvoice ? <div className="error">{appointmentError}</div> : null}
-      {!hasOpenShift && !completedInvoice ? (
+      {cashierShiftsEnabled && !hasOpenShift && !completedInvoice ? (
         <div className={styles.shiftNotice} role="alert">
           <span>Start a cashier shift before completing a sale.</span>
           <button onClick={() => setShiftModalOpen(true)} type="button">Start shift</button>
@@ -782,12 +793,44 @@ export function CashierUnifiedSaleForm({
         {!walletCheckoutEnabled ? <p>Wallet checkout is currently unavailable. The original request remains protected; do not collect payment again.</p> : null}
         <p>Do not collect payment again. This retries the same request and operation key.</p>
         {walletPending ? <><dl>{walletPending.summary.map((row, index) => <div key={index}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+          {saleError.startsWith("CASHIER_SHIFT_MODE_CHANGED") ? <>
+            <button type="button" disabled={walletSending} onClick={async()=>{
+              setReviewedActivity(null);
+              try {
+                const result=await cashierActivityOptionsAction(String(toWalletCheckoutFormData(walletPending).get("branchId")??""));
+                if(result.ok)setReviewedActivity(result.activity);else setSaleError(`CASHIER_SHIFT_MODE_CHANGED: ${result.message}`);
+              }catch{setSaleError("CASHIER_SHIFT_MODE_CHANGED: Current settings could not be loaded. Retry the review.");}
+            }}>Review current cashier settings</button>
+            {reviewedActivity ? <>
+              <p>Cashier shifts: {reviewedActivity.modeAtConfirmation}. Original branch and payment details are retained.</p>
+              <button type="button" disabled={walletSending} onClick={async()=>{
+                try {
+                  const updated=reconfirmWalletCheckoutActivity(walletPending,reviewedActivity);
+                  sessionStorage.setItem(walletStorageKey,JSON.stringify(updated));
+                  setWalletPending(updated);setReviewedActivity(null);
+                  await sendWalletIntent(updated);
+                }catch{setSaleError("Could not safely retain the reconfirmed settings. No new payment request was sent.");}
+              }}>Confirm settings and retry original checkout</button>
+            </> : null}
+          </> : null}
           <button type="button" disabled={walletSending} onClick={() => void sendWalletIntent(walletPending)}>{walletSending ? "Checking…" : "Retry original checkout"}</button></>
           : <p>Saved checkout could not be restored safely. Ask the owner to check the original transaction before starting another sale.</p>}
         {saleError ? <p role="alert">{saleError}</p> : null}
       </section> : null}
+      {!walletPending && saleError.startsWith("CASHIER_SHIFT_MODE_CHANGED") ? <section role="status">
+        <button type="button" onClick={async()=>{
+          setReviewedActivity(null);
+          try { const result=await cashierActivityOptionsAction(branchId); if(result.ok)setReviewedActivity(result.activity);else setSaleError(`CASHIER_SHIFT_MODE_CHANGED: ${result.message}`); }
+          catch { setSaleError("CASHIER_SHIFT_MODE_CHANGED: Could not read current settings. No payment was sent."); }
+        }}>Review current cashier settings</button>
+        {reviewedActivity ? <><p>Cashier shifts: {reviewedActivity.modeAtConfirmation}. Review and confirm the original payment again.</p>
+          <button type="button" onClick={()=>{regularConfirmation.current={modeAtConfirmation:reviewedActivity.modeAtConfirmation,shiftId:reviewedActivity.shiftId??""};setReviewedActivity(null);setSaleError("");}}>Use reviewed cashier settings</button>
+        </> : null}
+      </section> : null}
       <form action={submitSale} style={walletPending || walletRecoveryBlocked ? { display: "none" } : undefined} className={`${styles.posShell} ${styles.formalShell} ${styles.compactCashier}`}>
       <input name="operationId" type="hidden" value={operationId} />
+      <input name="modeAtConfirmation" type="hidden" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+      <input name="shiftId" type="hidden" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
           <div>
@@ -1410,7 +1453,7 @@ export function CashierUnifiedSaleForm({
         </div>
       ) : null}
       </form>
-    {shiftModalOpen && typeof document !== "undefined"
+    {cashierShiftsEnabled && shiftModalOpen && typeof document !== "undefined"
       ? createPortal(
           <div
             className={styles.shiftModalBackdrop}

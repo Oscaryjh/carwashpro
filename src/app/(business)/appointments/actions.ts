@@ -59,9 +59,9 @@ import { appendCheckoutTip } from "@/lib/performance/checkout-tip";
 import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import {
-  assertCashierShiftAcceptsActivity,
   CASHIER_SHIFT_CUTOFF_MESSAGE,
 } from "@/lib/closing/shift-control";
+import { resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -1135,23 +1135,6 @@ export async function recordSalonAppointmentPaymentAction(
       where: { id: businessId },
       select: { sstEnabled: true, sstLabel: true, sstRate: true },
     });
-    const shift = await tx.cashierShift.findFirst({
-      where: {
-        businessId,
-        cashierId: user.userId,
-        status: "OPEN",
-      },
-      select: { branchId: true, id: true, startedAt: true },
-    });
-
-    if (!shift) {
-      throw new Error("Start a cashier shift before checkout.");
-    }
-    const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
-      businessId,
-      shift,
-    });
-
     const appointment = await tx.appointment.findFirstOrThrow({
       where: {
         id: input.appointmentId,
@@ -1173,9 +1156,11 @@ export async function recordSalonAppointmentPaymentAction(
       throw new Error("Complete the service before checkout.");
     }
 
-    if (shift.branchId !== appointment.branchId) {
-      throw new Error("This payment does not belong to the current shift branch.");
-    }
+    if (!appointment.branchId) throw new Error("Select a branch before checkout.");
+    const shiftActivity = await resolveCashierActivityContext(tx, {
+      businessId, branchId: appointment.branchId, actor: user, capability: "MODIFY_APPOINTMENTS",
+      confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
+    });
 
     const now = new Date();
     const catalogDiscountRecord = input.catalogDiscountId
@@ -1565,7 +1550,7 @@ export async function recordSalonAppointmentPaymentAction(
             customerPackageServiceBalanceId: serviceBalance.id,
             cashierId: user.userId,
             paidAt: shiftActivity.activityAt,
-            shiftId: shift.id,
+            shiftId: shiftActivity.shiftId,
             amount: fromCents(packageCoverageByServiceBalanceId.get(serviceBalance.id) ?? 0),
             method: "PACKAGE",
             packageUses: 1,
@@ -1628,7 +1613,7 @@ export async function recordSalonAppointmentPaymentAction(
           invoiceId: invoice.id,
           cashierId: user.userId,
           paidAt: shiftActivity.activityAt,
-          shiftId: shift.id,
+          shiftId: shiftActivity.shiftId,
           amount: fromCents(depositCents),
           method: input.depositMethod,
           reference: input.depositReference || "Deposit",
@@ -1645,7 +1630,7 @@ export async function recordSalonAppointmentPaymentAction(
           invoiceId: invoice.id,
           cashierId: user.userId,
           paidAt: shiftActivity.activityAt,
-          shiftId: shift.id,
+          shiftId: shiftActivity.shiftId,
           amount: fromCents(amountCents),
           method: input.method,
           reference: input.reference || null,
@@ -1798,7 +1783,7 @@ export async function recordSalonAppointmentPaymentAction(
     const message = error instanceof Error ? error.message : "";
     return {
       status: "error",
-      message: salonCheckoutMessages.has(message) || message.includes("does not have enough stock")
+      message: salonCheckoutMessages.has(message) || message.startsWith("CASHIER_SHIFT_MODE_CHANGED:") || message.includes("does not have enough stock")
         ? message
         : "Checkout could not be completed. Check the details and try again.",
       invoiceId: null,

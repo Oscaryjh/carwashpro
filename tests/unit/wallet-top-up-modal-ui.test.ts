@@ -13,13 +13,13 @@ const require = createRequire(import.meta.url);
 let directory: string;
 let ui: { WalletTopUpModal: (props: unknown) => ReactElement };
 const offer = { id: "offer", version: 7, name: "Summer credit", paidAmount: "1000.00", bonusAmount: "100.00", totalCredited: "1100.00" };
-const options = { offers: [offer], paymentMethods: [{ code: "BUILTIN_CASH", label: "Cash" }, { code: "BUILTIN_CARD", label: "Card" }] };
+const options = { activity: {modeAtConfirmation:"OFF",branchId:"branch",shiftId:null}, branches:[{id:"branch",name:"Local"}], offers: [offer], paymentMethods: [{ code: "BUILTIN_CASH", label: "Cash" }, { code: "BUILTIN_CARD", label: "Card" }] };
 const tasks: Promise<unknown>[] = [];
 let actionForm: FormData | undefined;
 let closes = 0;
 after(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
-async function render(state: { offers?: typeof offer[]; offerId?: string; method?: string; pending?: boolean; locked?: boolean; storageFailed?: boolean; intent?: WalletTopUpIntent; balance?: string } = {}) {
+async function render(state: { offers?: typeof offer[]; offerId?: string; method?: string; pending?: boolean; locked?: boolean; storageFailed?: boolean; intent?: WalletTopUpIntent; balance?: string; multiBranch?: boolean; modeChanged?: boolean } = {}) {
   if (!ui) {
     directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/wallet-modal-ui-"));
     const outfile = join(directory, "modal.cjs");
@@ -36,7 +36,7 @@ async function render(state: { offers?: typeof offer[]; offerId?: string; method
     ] });
     ui = require(outfile);
   }
-  const values = [{ ...options, offers: state.offers ?? options.offers }, state.offerId ?? "offer", state.method ?? "BUILTIN_CASH", "ref-123", "", null, state.locked ?? false, state.intent?.confirmation ?? null, state.storageFailed ?? false];
+  const values = [{ ...options, activity:state.multiBranch ? null : options.activity, branches:state.multiBranch ? [...options.branches,{id:"other",name:"Other"}] : options.branches, offers: state.offers ?? options.offers }, state.offerId ?? "offer", state.method ?? "BUILTIN_CASH", "ref-123", "", null, state.locked ?? false, state.intent?.confirmation ?? null, state.storageFailed ?? false,state.modeChanged ?? false];
   let index = 0;
   Object.assign(globalThis, {
     __walletModalHooks: { next: () => [values[index++], () => {}], intent: state.intent ?? null, transition: [state.pending ?? false, (callback: () => Promise<unknown>) => tasks.push(callback())] },
@@ -127,4 +127,54 @@ test("pending presentation uses saved amounts and retry sends the original paylo
   assert.deepEqual(Object.fromEntries(actionForm!), Object.fromEntries(Object.entries(request).map(([key, value]) => [key, String(value)])));
   assert.equal(saved, storedBefore);
   assert.equal(restored.locked, true);
+});
+
+test("new top-up captures the displayed mode and branch without inventing a shift", async () => {
+  const intent = new WalletTopUpIntent();
+  const {tree} = await render({intent});
+  (button(tree,"Confirm top-up").onClick as () => void)();
+  await Promise.all(tasks.splice(0));
+  assert.equal(actionForm?.get("modeAtConfirmation"),"OFF");
+  assert.equal(actionForm?.get("branchId"),"branch");
+  assert.equal(actionForm?.get("shiftId"),"");
+  assert.equal(intent.existing?.shiftId,null);
+});
+
+test("multiple branches require explicit selection, not the first branch",async()=>{
+  const {tree,html}=await render({multiBranch:true});
+  assert.equal(button(tree,"Confirm top-up").disabled,true);
+  assert.match(html,/Select collection branch/);
+  const selector=elements(tree).find(node=>node.type==="select" && node.props["aria-label"]==="Collection branch");
+  assert.ok(selector); assert.equal(selector.props.value,"");
+});
+
+test("mode change requires an explicit button and preserves the original key/amounts",async()=>{
+  const intent=new WalletTopUpIntent();
+  const original=intent.confirm({customerId:"customer",offerId:"old-offer",expectedOfferVersion:4,paymentMethodCode:"BUILTIN_CARD",reference:"original",modeAtConfirmation:"ON",branchId:"branch",shiftId:"old-shift"}, {offerName:"Original",paymentMethodLabel:"Card",paidAmount:"200.00",bonusAmount:"20.00",totalCredited:"220.00"})!;
+  intent.modeChanged();
+  const {tree,html}=await render({intent,locked:true,modeChanged:true});
+  assert.deepEqual(intent.existing,original);
+  assert.match(html,/Cashier shifts: OFF/);
+  (button(tree,"Confirm with current cashier settings").onClick as () => void)();
+  await Promise.all(tasks.splice(0));
+  assert.equal(actionForm?.get("operationKey"),original.operationKey);
+  assert.equal(actionForm?.get("offerId"),"old-offer");
+  assert.equal(actionForm?.get("modeAtConfirmation"),"OFF");
+  assert.equal(actionForm?.get("shiftId"),"");
+});
+
+test("legacy pending without a branch requires selection and explicit confirmation, never a new key",async()=>{
+  const intent=new WalletTopUpIntent();
+  const original=intent.confirm({customerId:"customer",offerId:"old-offer",expectedOfferVersion:4,paymentMethodCode:"BUILTIN_CARD",reference:"legacy"})!;
+  intent.modeChanged();
+  const multiple=await render({intent,locked:true,modeChanged:true,multiBranch:true});
+  assert.equal(button(multiple.tree,"Confirm with current cashier settings").disabled,true);
+  const selector=elements(multiple.tree).find(node=>node.type==="select"&&node.props["aria-label"]==="Review collection branch");
+  assert.ok(selector);assert.equal(selector.props.value,"");assert.deepEqual(intent.existing,original);
+  const reviewed=await render({intent,locked:true,modeChanged:true});
+  assert.equal(button(reviewed.tree,"Confirm with current cashier settings").disabled,false);
+  (button(reviewed.tree,"Confirm with current cashier settings").onClick as ()=>void)();
+  await Promise.all(tasks.splice(0));
+  assert.equal(actionForm?.get("operationKey"),original.operationKey);
+  assert.equal(actionForm?.get("branchId"),"branch");assert.equal(actionForm?.get("reference"),"legacy");
 });

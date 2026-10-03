@@ -13,6 +13,19 @@ async function adapter() {
 }
 const offerInput = { name: "RM1,000 Top-up", paidAmount: "1000.00", bonusAmount: "100.00", active: true };
 
+test("legacy pending top-up requires explicit activity review while completed legacy replay remains original",async()=>{
+  const a=await adapter(),f=await walletFixture(db);
+  const {branchId: _branch,shiftId: _shift,modeAtConfirmation: _mode,...legacy}=f.input;
+  await assert.rejects(a.submitWalletTopUp(f.ctx,legacy,db),{code:"CASHIER_SHIFT_MODE_CHANGED"});
+  assert.equal(await db.walletTopUp.count({where:{businessId:f.business.id}}),0);
+  const options=await a.getWalletTopUpOptions(f.ctx,f.customer.id,db);
+  assert.ok(options.activity);
+  const first=await a.submitWalletTopUp(f.ctx,{...legacy,...options.activity!},db);
+  await db.cashierShift.update({where:{id:f.shift.id},data:{status:"CLOSED"}});
+  const replay=await a.submitWalletTopUp(f.ctx,legacy,db);
+  assert.equal(replay.topUpId,first.topUpId);assert.equal(replay.replayed,true);
+});
+
 test("Owner manages versioned offers without changing historical top-up snapshots", async () => {
   const a = await adapter();
   const f = await walletFixture(db);
@@ -77,7 +90,7 @@ test("UI adapter resolves actor shift, replays original collection after closing
   assert.equal(retry.replayed, true);
   assert.equal(await db.payment.count({ where: { businessId: f.business.id } }), 1);
   assert.equal(await db.invoice.count({ where: { businessId: f.business.id } }), 0);
-  await assert.rejects(a.submitWalletTopUp(ctx, { ...f.input, operationKey: randomUUID() }, db), { code: "WALLET_ACTIVE_SHIFT_REQUIRED" });
+  await assert.rejects(a.submitWalletTopUp(ctx, { ...f.input, operationKey: randomUUID() }, db), { code: "CASHIER_SHIFT_MODE_CHANGED" });
 });
 
 test("adapter denies CRM-only, missing shift, stale offer, foreign tenant and excludes unsupported tenders", async () => {

@@ -7,7 +7,6 @@ import {
   markSentToServer,
   recoverExpiredSending,
 } from "../src/lib/notification-queue/repository";
-import { queueDueUnclosedClosingReminders } from "../src/lib/closing-whatsapp/scheduler";
 import {
   getWhatsAppSendModeRuntimeConfig,
   classifyWhatsAppSendFailure,
@@ -19,7 +18,6 @@ const pollIntervalMs = 1000;
 const batchSize = 10;
 const queuedAfter = parseQueuedAfter(process.argv);
 let shuttingDown = false;
-let lastClosingReminderSweepAt = 0;
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
@@ -76,7 +74,6 @@ function parseQueuedAfter(args: string[]) {
 }
 
 async function processQueuedBatch() {
-  await queueClosingReminderSweep();
   const recovery = await recoverExpiredSending();
   if (recovery.recovered || recovery.exhausted) {
     console.warn("[notification-queue-worker] Recovered expired send leases", recovery);
@@ -157,37 +154,6 @@ async function processQueuedBatch() {
   }
 
   return true;
-}
-
-async function queueClosingReminderSweep() {
-  const now = Date.now();
-
-  if (now - lastClosingReminderSweepAt < 60_000) {
-    return;
-  }
-
-  lastClosingReminderSweepAt = now;
-
-  try {
-    const result = await queueDueUnclosedClosingReminders({ now: new Date(now) });
-
-    if (result.queued) {
-      console.log("[notification-queue-worker] Queued closing reminders", {
-        branches: result.branchesChecked,
-        created: result.queued,
-      });
-    }
-  } catch (error) {
-    console.error(
-      "[notification-queue-worker] Closing reminder sweep failed",
-      getErrorMessage(error),
-    );
-    await emitScheduledJobFailure({
-      job: "closing-reminder-sweep",
-      code: "CLOSING_REMINDER_SWEEP_FAILED",
-      message: getErrorMessage(error),
-    }).catch(() => undefined);
-  }
 }
 
 function getErrorMessage(error: unknown) {

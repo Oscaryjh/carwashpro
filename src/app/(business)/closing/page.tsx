@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { z } from "zod";
 import { summarizePayments } from "@/lib/closing/payment-summary";
 import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import { BranchSelect } from "@/components/branch-select";
@@ -12,10 +13,9 @@ import {
   isValidDateValue,
 } from "@/lib/business-time";
 import { formatMoneyFromCents } from "@/lib/daily-closing/format";
-import { getDailyClosingReport } from "@/lib/daily-closing/query";
+import type { getDailyClosingReport } from "@/lib/daily-closing/query";
 import { getDailyClosingRange } from "@/lib/daily-closing/range";
 import {
-  getExpectedCashCents,
   getSnapshotBusinessDayCutoffTime,
   isDailyClosingSnapshotPayload,
   normalizeBusinessDate,
@@ -23,7 +23,7 @@ import {
 import { isDailyClosingIndustry } from "@/lib/daily-closing/types";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
-import { hasStaffPermission } from "@/lib/auth/staff-permissions";
+import { assertStaffPermission, hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { fromCents, sumMoneyAmounts, toCents } from "@/lib/validation/pos";
 import { endShiftAction, resolveStaleShiftAction, startShiftAction } from "./actions";
 
@@ -56,6 +56,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 
 export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const context = await requireBusinessContext({ capability: "RUN_CLOSING" });
+  assertStaffPermission(context.user, "CLOSING");
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
@@ -90,8 +91,16 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     select: {
       businessDayCutoffTime: true,
       timezone: true,
+      cashierShiftsEnabled: true,
     },
   });
+  if (!businessTimeSettings.cashierShiftsEnabled && !explicitDate) {
+    return <section className="content"><div className="panel">
+      <h1>Shift Closing</h1><p>Cashier shifts are disabled for this business.</p>
+      <p>Collections do not require a cashier shift.</p>
+      <Link href="/closing/history">Historical closing records</Link>
+    </div></section>;
+  }
   const todayDateValue = getCurrentBusinessDateValue(
     new Date(),
     businessTimeSettings.timezone,
@@ -106,6 +115,9 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     "CONFIRM_DAILY_CLOSING",
   );
   const branches = await getOperationalBranches(businessId, context.user);
+  if (params.branchId && !branches.some((branch) => branch.id === params.branchId)) {
+    throw new Error("Branch is invalid.");
+  }
   const todayStart = getDailyClosingRange(
     undefined,
     todayDateValue,
@@ -205,17 +217,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     include: shiftInclude,
     orderBy: { startedAt: "desc" },
   });
-  const relevantOpenShiftCount = selectedBranch
-    ? await prisma.cashierShift.count({
-        where: {
-          branchId: selectedBranch.id,
-          businessId,
-          startedAt: { gte: fromDate, lt: toDateExclusive },
-          status: "OPEN",
-        },
-      })
-    : 0;
-  const existingSnapshot = selectedBranch
+  const existingSnapshot = explicitDate && selectedBranch
     ? await prisma.dailyClosingSnapshot.findUnique({
         where: {
           businessId_branchId_businessDate: {
@@ -255,42 +257,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const openShiftCrossedCutoff = Boolean(
     openShiftBusinessDate && openShiftBusinessDate !== todayDateValue,
   );
-  const [otherOpenShiftCount, openShiftSnapshot] = openShift?.branchId
-    ? await Promise.all([
-        prisma.cashierShift.count({
-          where: {
-            branchId: openShift.branchId,
-            businessId,
-            id: { not: openShift.id },
-            status: "OPEN",
-          },
-        }),
-        prisma.dailyClosingSnapshot.findUnique({
-          where: {
-            businessId_branchId_businessDate: {
-              branchId: openShift.branchId,
-              businessDate: normalizeBusinessDate(openShiftBusinessDate!),
-              businessId,
-            },
-          },
-          select: { id: true },
-        }),
-      ])
-    : [0, null];
-  const willCompleteDailyClosing =
-    Boolean(openShift?.branchId) &&
-    !openShiftCrossedCutoff &&
-    otherOpenShiftCount === 0 &&
-    !openShiftSnapshot;
-  const isViewingOpenShiftBusinessDay =
-    Boolean(openShift?.branchId) &&
-    selectedBranch?.id === openShift?.branchId &&
-    dateValue === openShiftBusinessDate;
-  const snapshotPayload =
-    existingSnapshot &&
-    isDailyClosingSnapshotPayload(existingSnapshot.reportDataJson)
-      ? existingSnapshot.reportDataJson
-      : null;
+  const snapshotPayload = readDisplayableFrozenSnapshot(existingSnapshot?.reportDataJson);
   const displayTimeZone =
     snapshotPayload?.timezone ?? businessTimeSettings.timezone;
   const snapshotBusinessDayCutoffTime = snapshotPayload
@@ -302,7 +269,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         timezone: snapshotPayload.timezone,
       })
     : todayRange;
-  const dailyClosing = selectedBranch && closingIndustry
+  const dailyClosing = explicitDate && selectedBranch && closingIndustry
     ? snapshotPayload
       ? {
           branchId: snapshotPayload.branch.id,
@@ -322,14 +289,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           businessDayCutoffTime: snapshotBusinessDayCutoffTime,
           toDateExclusive: snapshotRange.toDateExclusive,
         }
-      : existingSnapshot
-        ? null
-        : await getDailyClosingReport({
-            branchId: selectedBranch.id,
-            businessId,
-            dateValue,
-            industryType: closingIndustry,
-          })
+      : null
     : null;
   const currentShiftSummary = openShift
     ? summarizePayments(openShift.payments, openShift.refunds)
@@ -374,7 +334,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         <div className="page-header report-header closing-page-header">
           <div>
             <h1>Shift Closing</h1>
-            <p>Cashier shift closing and daily business summary.</p>
+            <p>End your shift and reconcile your cash drawer.</p>
           </div>
           <div className="report-period closing-period">
             <span>{dateValue === todayDateValue ? "Today" : "Business date"}</span>
@@ -427,7 +387,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         <section className="report-grid closing-overview-grid">
           <div className="panel report-card closing-shift-card">
             <div className="section-header">
-              <h2>{openShift ? "Current shift" : "Start shift"}</h2>
+              <h2>{openShift ? "Your shift" : "Start shift"}</h2>
               {openShift ? <span className="status">open</span> : null}
             </div>
             {openShift ? (
@@ -453,7 +413,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                     value={formatMoneyFromCents(currentShiftNetCashMovementCents)}
                   />
                   <Metric
-                    label="Expected Drawer Cash"
+                    label="Expected cash in drawer"
                     value={formatMoneyFromCents(currentShiftExpectedCashCents)}
                   />
                 </div>
@@ -461,7 +421,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   <input type="hidden" name="shiftId" value={openShift.id} />
                   <div className="field-grid closing-field-grid">
                     <label>
-                      <span>Counted Cash</span>
+                      <span>Cash in drawer</span>
                       <input
                         inputMode="decimal"
                         min="0"
@@ -474,37 +434,13 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       />
                     </label>
                     <label>
-                      <span>Notes required if cash is short or over</span>
+                      <span>Cash difference — notes required if cash is short or over</span>
                       <input name="notes" placeholder="Reason for any difference" />
                     </label>
                   </div>
-                  <div
-                    className={`closing-shift-completion-note ${
-                      willCompleteDailyClosing
-                        ? "closing-shift-completion-note-final"
-                        : ""
-                    }`}
-                  >
-                    <strong>
-                      {openShiftCrossedCutoff
-                        ? "Cutoff crossed — close this shift now"
-                        : willCompleteDailyClosing
-                        ? "Final open shift for this branch"
-                        : otherOpenShiftCount > 0
-                          ? `${otherOpenShiftCount} other open ${
-                              otherOpenShiftCount === 1 ? "shift" : "shifts"
-                            }`
-                          : "Daily closing already completed"}
-                    </strong>
-                    <span>
-                      {openShiftCrossedCutoff
-                        ? "New POS activity is blocked. Ending this shift will not freeze a wrong-date daily snapshot."
-                        : willCompleteDailyClosing
-                        ? "Ending this shift will also freeze today's daily closing report."
-                        : otherOpenShiftCount > 0
-                          ? "This shift will end now. Daily closing completes when the final shift ends."
-                          : "Ending this shift will not create another daily closing report."}
-                    </span>
+                  <div className="closing-shift-completion-note">
+                    {openShiftCrossedCutoff ? <strong>Cutoff crossed — new POS activity is blocked. Close this shift now.</strong> : null}
+                    <span>End your shift and reconcile your cash drawer.</span>
                   </div>
                   <div className="form-actions closing-form-actions">
                     <button type="submit">End shift</button>
@@ -574,17 +510,8 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           ) : null}
         </section>
 
-        {canConfirmDailyClosing && !selectedBranch ? (
-          <section className="panel">
-            <h2>Select a store for daily closing</h2>
-            <form method="get">
-              <input type="hidden" name="date" value={dateValue} />
-              <BranchSelect branches={branches} />
-              {branches.length > 0 ? <button type="submit">View closing</button> : null}
-            </form>
-          </section>
-        ) : null}
-        {canConfirmDailyClosing && dailyClosing ? (
+        <Link href="/closing/history" className="secondary-link-button">Historical closing records</Link>
+        {dailyClosing ? (
           <>
             <DailyClosingSummary
               dailyClosing={dailyClosing}
@@ -592,33 +519,8 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
               returnTo={returnTo}
               isFrozen={Boolean(existingSnapshot)}
             />
-            {isViewingOpenShiftBusinessDay && !existingSnapshot ? (
-              <div className="panel daily-closing-auto-panel">
-                <div>
-                  <span className="eyebrow">DAILY CLOSE</span>
-                  <h2>Daily Closing not ready</h2>
-                  <p>
-                    {openShiftCrossedCutoff
-                      ? "This cashier shift crossed the business-day cutoff. Close it now; the system will fail closed instead of freezing a wrong-date report."
-                      : `${otherOpenShiftCount + 1} cashier ${otherOpenShiftCount === 0 ? "shift is" : "shifts are"} still open. Close all shifts for this branch first.`}
-                  </p>
-                </div>
-                <span className="status warning">
-                  {openShiftCrossedCutoff
-                    ? "Review required"
-                    : `${otherOpenShiftCount + 1} ${otherOpenShiftCount === 0 ? "shift" : "shifts"} open`}
-                </span>
-              </div>
-            ) : (
+            {(
               <DailyClosingSnapshotPanel
-              branchId={dailyClosing.branchId}
-              branchName={dailyClosing.branchName}
-              businessDate={dailyClosing.dateValue}
-              openShiftCount={relevantOpenShiftCount}
-              expectedCashCents={
-                snapshotPayload?.cash.expectedCents ??
-                getExpectedCashCents(dailyClosing.report)
-              }
               snapshot={
                 existingSnapshot && snapshotPayload
                   ? {
@@ -665,19 +567,12 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
               />
             )}
           </>
-        ) : canConfirmDailyClosing && existingSnapshot ? (
+        ) : existingSnapshot ? (
           <div className="panel daily-closing-empty error">
             <h2>Frozen report cannot be displayed</h2>
             <p>
               This closing snapshot has an unsupported report format. Its stored
               data was not recalculated or replaced.
-            </p>
-          </div>
-        ) : canConfirmDailyClosing ? (
-          <div className="panel daily-closing-empty">
-            <h2>Daily Closing Report</h2>
-            <p className="empty-state">
-              Assign this account to an active branch to view today&apos;s business summary.
             </p>
           </div>
         ) : null}
@@ -1092,6 +987,48 @@ function formatBusinessDate(dateValue: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+// Validate only the frozen presentation boundary. Never rebuild missing history
+// from current transactions or substitute zeroes for unavailable amounts.
+const frozenNumber = z.number().finite();
+const frozenDisplaySchema = z.object({
+  branch: z.object({ id: z.string(), name: z.string() }),
+  business: z.object({ id: z.string(), name: z.string() }),
+  closedBy: z.object({ id: z.string(), name: z.string() }),
+  generatedAt: z.string().refine(value => Number.isFinite(Date.parse(value))),
+  closingNote: z.string().nullable(),
+  cash: z.object({ actualCents: frozenNumber, expectedCents: frozenNumber, differenceCents: frozenNumber }),
+  report: z.object({
+    financial: z.object({ collectedCents: frozenNumber, discountsCents: frozenNumber, grossSalesCents: frozenNumber, netSalesCents: frozenNumber, outstandingCents: frozenNumber, refundsCents: frozenNumber }),
+    cashDrawer: z.object({ expensePayoutCents: frozenNumber, unassignedRefundCents: frozenNumber.optional() }),
+    invoiceCounts: z.object({ paid: frozenNumber, partial: frozenNumber, refunded: frozenNumber, total: frozenNumber, unpaid: frozenNumber }),
+    operations: z.object({ averageSpendCents: frozenNumber, cancelled: frozenNumber, completed: frozenNumber, customersServed: frozenNumber, newCustomers: frozenNumber, returningCustomers: frozenNumber, vehiclesServed: frozenNumber }),
+    packages: z.object({ amountCents: frozenNumber, redemptions: frozenNumber, sold: frozenNumber }),
+    paymentMethods: z.array(z.object({ method: z.string(), grossCents: frozenNumber, netCents: frozenNumber, refundCents: frozenNumber })),
+    topServices: z.array(z.object({ name: z.string(), quantity: frozenNumber, salesCents: frozenNumber, serviceId: z.string() })),
+    alerts: z.array(z.object({ level: z.enum(["info", "warning"]), message: z.string() })),
+    walletActivity: z.object({
+      topUpPrincipalCents: frozenNumber, topUpBonusCents: frozenNumber,
+      redemptionPaidCents: frozenNumber, redemptionBonusCents: frozenNumber,
+      refundPaidCents: frozenNumber, refundBonusCents: frozenNumber,
+      reversedPrincipalCents: frozenNumber, reversedBonusCents: frozenNumber,
+      voidRestoredPaidCents: frozenNumber, voidRestoredBonusCents: frozenNumber,
+    }).optional(),
+  }),
+});
+
+function readDisplayableFrozenSnapshot(value: unknown) {
+  if (!isDailyClosingSnapshotPayload(value) || !frozenDisplaySchema.safeParse(value).success || !isValidDateValue(value.businessDate)) return null;
+  try {
+    getDailyClosingRange(undefined, value.businessDate, {
+      timezone: value.timezone,
+      businessDayCutoffTime: getSnapshotBusinessDayCutoffTime(value),
+    });
+    return value;
+  } catch {
+    return null;
+  }
 }
 
 function formatSnapshotDateTime(value: Date, timeZone: string) {

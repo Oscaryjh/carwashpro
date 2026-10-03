@@ -22,7 +22,7 @@ test("UAT shift 2100 external / 380 wallet reconciles with day 2000 net and unas
     for (const [price, wallet, method] of [[180, "180", "MEMBER_WALLET"], [300, "200", "CARD"]] as const) {
       await db.product.update({ where: { id: product.id }, data: { price } });
       const form = new FormData();
-      for (const [key, value] of Object.entries({ operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : "BUILTIN_CARD", ...(method === "CARD" ? { reference: "Synthetic only" } : {}) })) form.set(key, value);
+      for (const [key, value] of Object.entries({ modeAtConfirmation: "ON", shiftId: f.shift.id, operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id, productId: product.id, productQuantity: "1", method, walletAmount: wallet, paymentMethodCode: method === "MEMBER_WALLET" ? method : "BUILTIN_CARD", ...(method === "CARD" ? { reference: "Synthetic only" } : {}) })) form.set(key, value);
       const result = await h.action.completeCashierSaleAction(form);
       assert.equal(result.status, "success", result.message);
     }

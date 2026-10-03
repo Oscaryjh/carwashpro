@@ -67,9 +67,9 @@ async function inspectCatalog(targetName) {
     const wallet = await client.query("SELECT count(*)::int AS total FROM pg_tables WHERE schemaname='public' AND tablename=ANY($1::text[])", [[
       "wallet_accounts", "wallet_transactions", "wallet_top_up_offers", "wallet_top_ups", "wallet_top_up_reversals",
     ]]);
-    const expectedCounts = { tables: 252, columns: 3932, indexes: 1226, foreign_keys: 857, user_triggers: 305 };
+    const expectedCounts = { tables: 252, columns: 3933, indexes: 1226, foreign_keys: 857, user_triggers: 305 };
     if (JSON.stringify(counts.rows[0]) !== JSON.stringify(expectedCounts)) {
-      throw new Error(`Fresh 226 catalog drift: expected ${JSON.stringify(expectedCounts)}, got ${JSON.stringify(counts.rows[0])}`);
+      throw new Error(`Fresh 228 catalog drift: expected ${JSON.stringify(expectedCounts)}, got ${JSON.stringify(counts.rows[0])}`);
     }
     if (fk.rows[0].total !== 1 || index.rows[0].total !== 1 || performance.rows[0].total !== 6 || wallet.rows[0].total !== 5) {
       throw new Error(`Fresh catalog objects incomplete: FK=${fk.rows[0].total}, index=${index.rows[0].total}, Performance=${performance.rows[0].total}, Wallet=${wallet.rows[0].total}`);
@@ -90,8 +90,8 @@ async function verifyMigrationHistory(targetName) {
         .update(readFileSync(resolve(migrationRoot, entry.name, "migration.sql")))
         .digest("hex"),
     }));
-  if (expected.length !== 226) {
-    throw new Error(`Expected 226 SQL migrations, got ${expected.length}`);
+  if (expected.length !== 228) {
+    throw new Error(`Expected 228 SQL migrations, got ${expected.length}`);
   }
   const client = pg.getPgClient(targetName, "127.0.0.1");
   try {
@@ -100,7 +100,7 @@ async function verifyMigrationHistory(targetName) {
       'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "_prisma_migrations"',
     );
     assertMigrationHistory(expected, result.rows);
-    console.log(`Verified ${result.rows.length}/226 completed migration history rows and SQL checksums.`);
+    console.log(`Verified ${result.rows.length}/228 completed migration history rows and SQL checksums.`);
   } finally {
     await client.end().catch(() => undefined);
   }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExpensePaymentForm } from "@/components/expense-payment-form";
@@ -16,6 +17,7 @@ export default async function ExpenseDetailPage({ params, searchParams }: { para
   const [{ expenseId }, query, scope, moduleContext] = await Promise.all([params, searchParams, resolveExpenseReadScope(context), loadBusinessModuleContext(context.businessId)]);
   const expense = await getBusinessExpenseDetail({ businessId: context.businessId, expenseId, ...scope }).catch(() => null);
   if (!expense) notFound();
+  const {cashierShiftsEnabled} = await prisma.business.findUniqueOrThrow({where:{id:context.businessId},select:{cashierShiftsEnabled:true}});
 
   const canEdit = hasBusinessCapability(context.access, "EDIT_EXPENSE_DRAFT") && expense.sourceType === "MANUAL" && expense.status !== "VOID" && expense.paymentStatus === "UNPAID";
   const canConfirm = hasBusinessCapability(context.access, "CONFIRM_EXPENSE") && expense.sourceType === "MANUAL" && expense.status === "DRAFT";
@@ -118,7 +120,7 @@ export default async function ExpenseDetailPage({ params, searchParams }: { para
       <div className={styles.cardHeading}><div><span className={styles.eyebrow}>Next step</span><h2>Payment & corrections</h2></div></div>
       <div className={styles.grid}>
         {canConfirm ? <form action={confirmExpenseAction} className={styles.actions}><input type="hidden" name="expenseId" value={expense.id} /><input type="hidden" name="expectedRevision" value={expense.revision} /><input type="hidden" name="operationKey" value={`CONFIRM_EXPENSE:${expense.id}:${randomUUID()}`} /><button>Confirm expense</button></form> : null}
-        {canMarkPaid ? <ExpensePaymentForm expenseId={expense.id} expectedRevision={expense.revision} openDrawerShifts={openDrawerShifts.map((shift) => ({ availableCash: shift.availableCash, cashierName: shift.cashierName, id: shift.id, isCurrentUser: shift.cashierId === context.access.userId, startedAt: shift.startedAt.toISOString() }))} operationKey={`MARK_EXPENSE_PAID:${expense.id}:${randomUUID()}`} outstanding={outstanding.toFixed(2)} /> : null}
+        {canMarkPaid ? <ExpensePaymentForm cashierShiftsEnabled={cashierShiftsEnabled} expenseId={expense.id} expectedRevision={expense.revision} openDrawerShifts={openDrawerShifts.map((shift) => ({ availableCash: shift.availableCash, cashierName: shift.cashierName, id: shift.id, isCurrentUser: shift.cashierId === context.access.userId, startedAt: shift.startedAt.toISOString() }))} operationKey={`MARK_EXPENSE_PAID:${expense.id}:${randomUUID()}`} outstanding={outstanding.toFixed(2)} /> : null}
         {canVoid ? <details className={styles.dangerDisclosure}><summary><span><strong>Void expense</strong><small>Entered by mistake? Void it so it no longer counts as spending. The audit history will be kept.</small></span><span className={styles.dangerDisclosureAction}>Open</span></summary><form action={voidExpenseAction} className={styles.form}><p className={`${styles.full} ${styles.voidExplanation}`}>This does not delete the record. Its status will change to Void and the reason will be saved in the revision history.</p><input type="hidden" name="expenseId" value={expense.id} /><input type="hidden" name="expectedRevision" value={expense.revision} /><input type="hidden" name="operationKey" value={`VOID_EXPENSE:${expense.id}:${randomUUID()}`} /><label className={styles.full}>Why are you voiding this expense?<input name="reason" required minLength={5} maxLength={500} placeholder="Example: Duplicate expense entered by mistake" /></label><button className={`danger-button ${styles.full}`}>Confirm void expense</button></form></details> : null}
       </div>
     </section> : null}

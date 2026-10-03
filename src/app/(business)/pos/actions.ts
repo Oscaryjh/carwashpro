@@ -12,7 +12,6 @@ import {
 import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { activateCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
-import { prisma } from "@/lib/prisma";
 import { calculatePackageTax, calculateTax } from "@/lib/tax/calculator";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
@@ -26,10 +25,19 @@ import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
 import { capturePerformanceCheckout } from "@/lib/performance/service";
-import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
+import { CashierShiftModeChangedError, resolveCashierActivityContext } from "@/lib/cashier/activity-context";
 
 export async function recordPaymentAction(formData: FormData) {
+  try {
+    return await recordPayment(formData);
+  } catch (error) {
+    if (error instanceof CashierShiftModeChangedError) return { code: error.code, message: error.message } as const;
+    throw error;
+  }
+}
+
+async function recordPayment(formData: FormData) {
   rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
@@ -52,7 +60,6 @@ export async function recordPaymentAction(formData: FormData) {
     operationType: FinancialOperationType.WORK_ORDER_PAYMENT,
     payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
-    const shift = await getOpenShift(tx, businessId, user.userId);
     const operationalBranchWhere = authorizedOperationalBranchWhere(user);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
@@ -73,7 +80,11 @@ export async function recordPaymentAction(formData: FormData) {
         },
       },
     });
-    assertShiftBranch(shift.branchId, workOrder.branchId);
+    if (!workOrder.branchId) throw new Error("Select a branch before checkout.");
+    const shift = await resolveCashierActivityContext(tx, {
+      businessId, branchId: workOrder.branchId, actor: user,
+      confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
+    });
 
     if (workOrder.status === "CANCELLED") {
       throw new Error("Cannot take payment for a cancelled work order.");
@@ -157,7 +168,7 @@ export async function recordPaymentAction(formData: FormData) {
         branchId: workOrder.branchId,
         cashierId: user.userId,
         paidAt: shift.activityAt,
-        shiftId: shift.id,
+        shiftId: shift.shiftId,
         workOrderId: workOrder.id,
         invoiceId: invoice.id,
         amount: fromCents(amountCents),
@@ -257,6 +268,15 @@ export async function recordPaymentAction(formData: FormData) {
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
+  try {
+    return await usePackagePayment(formData);
+  } catch (error) {
+    if (error instanceof CashierShiftModeChangedError) return { code: error.code, message: error.message } as const;
+    throw error;
+  }
+}
+
+async function usePackagePayment(formData: FormData) {
   rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
@@ -277,7 +297,6 @@ export async function usePackagePaymentAction(formData: FormData) {
     operationType: FinancialOperationType.PACKAGE_REDEMPTION,
     payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
-    const shift = await getOpenShift(tx, businessId, user.userId);
     const operationalBranchWhere = authorizedOperationalBranchWhere(user);
     const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
     const workOrder = await tx.workOrder.findFirstOrThrow({
@@ -300,7 +319,11 @@ export async function usePackagePaymentAction(formData: FormData) {
         vehicle: { select: { size: true } },
       },
     });
-    assertShiftBranch(shift.branchId, workOrder.branchId);
+    if (!workOrder.branchId) throw new Error("Select a branch before checkout.");
+    const shift = await resolveCashierActivityContext(tx, {
+      businessId, branchId: workOrder.branchId, actor: user,
+      confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
+    });
 
     if (workOrder.status === "CANCELLED") {
       throw new Error("Cannot use a package for a cancelled work order.");
@@ -439,7 +462,7 @@ export async function usePackagePaymentAction(formData: FormData) {
         invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
         customerPackageServiceBalanceId: serviceBalance?.id ?? null,
-        shiftId: shift.id,
+        shiftId: shift.shiftId,
         amount: fromCents(balanceCents),
         method: "PACKAGE",
         packageUses: 1,
@@ -519,6 +542,15 @@ export async function usePackagePaymentAction(formData: FormData) {
 }
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
+  try {
+    return await recordPackagePurchasePayment(formData);
+  } catch (error) {
+    if (error instanceof CashierShiftModeChangedError) return { code: error.code, message: error.message } as const;
+    throw error;
+  }
+}
+
+async function recordPackagePurchasePayment(formData: FormData) {
   rejectWalletOutsideCashier(formData);
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
@@ -541,7 +573,6 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
     operationType: FinancialOperationType.PACKAGE_PURCHASE,
     payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
-    const shift = await getOpenShift(tx, businessId, user.userId);
     const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
     const customerPackage = await tx.customerPackage.findFirstOrThrow({
       where: {
@@ -559,7 +590,11 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         },
       },
     });
-    assertShiftBranch(shift.branchId, customerPackage.branchId);
+    if (!customerPackage.branchId) throw new Error("Select a branch before checkout.");
+    const shift = await resolveCashierActivityContext(tx, {
+      businessId, branchId: customerPackage.branchId, actor: user,
+      confirmation: { modeAtConfirmation: formData.get("modeAtConfirmation"), shiftId: formData.get("shiftId") },
+    });
 
     const business = await tx.business.findUniqueOrThrow({
       where: { id: businessId },
@@ -628,7 +663,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         workOrderId: null,
         invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
-        shiftId: shift.id,
+        shiftId: shift.shiftId,
         amount: fromCents(priceCents),
         method: input.method,
         reference: input.reference || `${customerPackage.package.name} package purchase`,
@@ -700,36 +735,4 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
     sentByUserId: user.userId,
   });
   redirect(`/crm/customers/${result.customerId}`);
-}
-
-type PosTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
-
-async function getOpenShift(
-  tx: PosTransactionClient,
-  businessId: string,
-  cashierId: string,
-) {
-  const shift = await tx.cashierShift.findFirst({
-    where: {
-      businessId,
-      cashierId,
-      status: "OPEN",
-    },
-    select: { id: true, branchId: true, startedAt: true },
-  });
-
-  if (!shift) {
-    throw new Error("Start a cashier shift before checkout.");
-  }
-  const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
-    businessId,
-    shift,
-  });
-  return { ...shift, activityAt: shiftActivity.activityAt };
-}
-
-function assertShiftBranch(shiftBranchId: string | null, recordBranchId: string | null) {
-  if (shiftBranchId !== recordBranchId) {
-    throw new Error("This payment does not belong to the current shift branch.");
-  }
 }

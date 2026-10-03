@@ -81,7 +81,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
   });
   const shiftMatchesWorkOrder = Boolean(openShift) && openShift?.branchId === workOrder.branchId;
   const canPay =
-    shiftMatchesWorkOrder &&
+    (!workOrder.business.cashierShiftsEnabled || shiftMatchesWorkOrder) &&
     workOrder.status !== "CANCELLED" &&
     workOrder.paymentStatus !== "PAID";
   const customerPackages = await prisma.customerPackage.findMany({
@@ -229,6 +229,8 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
           </div>
 
           <PosPaymentPanel
+            cashierShiftsEnabled={workOrder.business.cashierShiftsEnabled}
+            shiftId={openShift?.id ?? null}
             recordPaymentAction={recordPaymentAction}
             usePackagePaymentAction={usePackagePaymentAction}
             workOrderId={workOrder.id}
@@ -245,7 +247,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
             }
           />
         </div>
-        {!openShift ? (
+        {workOrder.business.cashierShiftsEnabled && !openShift ? (
           <div className="panel warning-panel">
             <h2>Shift required</h2>
             <p className="muted">
@@ -256,7 +258,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
               Start shift
             </Link>
           </div>
-        ) : !shiftMatchesWorkOrder ? (
+        ) : workOrder.business.cashierShiftsEnabled && !shiftMatchesWorkOrder ? (
           <div className="panel warning-panel">
             <h2>Wrong shift branch</h2>
             <p className="muted">

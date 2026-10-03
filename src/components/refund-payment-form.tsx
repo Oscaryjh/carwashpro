@@ -1,14 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   refundPaymentAction,
+  refundCashierActivityAction,
   type RefundPaymentState,
 } from "@/app/(business)/invoices/actions";
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 type RefundPaymentFormProps = {
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   invoiceId: string;
   invoiceNumber: string;
   paymentId: string;
@@ -36,6 +39,8 @@ const refundMethods = [
 ] as const;
 
 export function RefundPaymentForm({
+  cashierShiftsEnabled,
+  shiftId = null,
   invoiceId,
   invoiceNumber,
   paymentId,
@@ -57,12 +62,55 @@ export function RefundPaymentForm({
       ? originalMethod
       : "CASH";
   const [method, setMethod] = useState(defaultMethod);
+  const form = useRef<HTMLFormElement>(null);
+  const submittedValues = useRef<[string, string][]>([]);
   const [state, formAction, pending] = useActionState(
-    refundPaymentAction,
+    async (previous: RefundPaymentState, data: FormData): Promise<RefundPaymentState> => {
+      submittedValues.current = [...data.entries()].filter((entry): entry is [string, string] => typeof entry[1] === "string");
+      try {
+        return await refundPaymentAction(previous, data);
+      } catch (error) {
+        if (error && typeof error === "object" && "digest" in error && String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
+        return { status: "error", message: "Unable to confirm refund. Check refund status before retrying with this same request. Your entries and request ID are retained." };
+      }
+    },
     initialState,
   );
   const safeState = state ?? initialState;
+  useLayoutEffect(() => {
+    if (safeState.status !== "error" || !form.current) return;
+    // A resolved error action also resets uncontrolled inputs in React.
+    // Restore the submitted request, never the refundable-balance defaults.
+    for (const element of form.current.elements) {
+      if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) continue;
+      if (!element.name || (element instanceof HTMLInputElement && ["hidden", "file"].includes(element.type))) continue;
+      const values = submittedValues.current.filter(([name]) => name === element.name).map(([, value]) => value);
+      if (element instanceof HTMLInputElement && ["radio", "checkbox"].includes(element.type)) element.checked = values.includes(element.value);
+      else if (values.length) element.value = values[0];
+    }
+  }, [safeState]);
   const { operationId, rotateOperationId } = useFinancialOperationId("refund");
+  const [activity,setActivity]=useState<{modeAtConfirmation:"ON"|"OFF";shiftId:string|null}|null>(cashierShiftsEnabled === undefined ? null : {modeAtConfirmation:cashierShiftsEnabled?"ON":"OFF",shiftId:cashierShiftsEnabled?shiftId:null});
+  const [activityError,setActivityError]=useState("");
+  async function reviewCashierSettings() {
+    setActivity(null); setActivityError("");
+    try {
+      const result=await refundCashierActivityAction(paymentId);
+      if(result.ok)setActivity(result.activity); else setActivityError(result.message);
+    } catch { setActivityError("Cashier settings could not be loaded. Try again."); }
+  }
+  useEffect(()=>{
+    if(cashierShiftsEnabled !== undefined)return;
+    let active=true;
+    setActivity(null);
+    void refundCashierActivityAction(paymentId).then(result=>{
+      if(!active)return;
+      if(result.ok)setActivity(result.activity); else setActivityError(result.message);
+    }).catch(()=>{if(active)setActivityError("Cashier settings could not be loaded. Try again.");});
+    return ()=>{active=false;};
+    // Keep confirmation hints stable for this payment across ordinary rerenders.
+    // A changed mode requires the explicit review button, never an automatic retry.
+  },[paymentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (safeState.status === "success") {
@@ -74,9 +122,11 @@ export function RefundPaymentForm({
 
   return (
     <form
+      ref={form}
       action={formAction}
       className="refund-payment-form"
       onSubmit={(event) => {
+        if(!activity){event.preventDefault();return;}
         const amount = new FormData(event.currentTarget).get("amount");
         const confirmed = window.confirm(
           `Refund RM${amount} from invoice ${invoiceNumber}? This changes payment totals only; the related order status will stay unchanged.`,
@@ -90,6 +140,10 @@ export function RefundPaymentForm({
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <input type="hidden" name="paymentId" value={paymentId} />
       <input type="hidden" name="operationId" value={operationId} />
+      <input type="hidden" name="modeAtConfirmation" value={activity?.modeAtConfirmation ?? ""} />
+      <input type="hidden" name="shiftId" value={activity?.shiftId ?? ""} />
+      {!activity ? <p role="status">{activityError || "Loading cashier settings…"}</p> : <p className="field-helper">Cashier shifts: {activity.modeAtConfirmation}</p>}
+      {activityError || safeState.message.startsWith("CASHIER_SHIFT_MODE_CHANGED") ? <button type="button" disabled={pending} onClick={reviewCashierSettings}>Review current cashier settings</button> : null}
       {packageRefund ? (
         <input type="hidden" name="method" value="PACKAGE" />
       ) : null}
@@ -172,7 +226,7 @@ export function RefundPaymentForm({
       ) : null}
 
       <div className="refund-form-footer">
-        <button className="danger-button" type="submit" disabled={pending}>
+        <button className="danger-button" type="submit" disabled={pending || !activity}>
           {pending ? "Processing..." : "Process refund"}
         </button>
         {safeState.status !== "idle" ? (

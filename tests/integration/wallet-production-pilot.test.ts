@@ -157,7 +157,7 @@ test("Production pilot disabled does not block ordinary Cash/Card sales or non-W
       const sale = await h.action.completeCashierSaleAction(form); assert.equal(sale.status, "success", sale.message);
       const payment = await db.payment.findFirstOrThrow({ where: { invoiceId: sale.invoice!.id } });
       const refund = new FormData();
-      for (const [key, value] of Object.entries({ invoiceId: sale.invoice!.id, paymentId: payment.id, operationId: randomUUID(),
+      for (const [key, value] of Object.entries({ modeAtConfirmation: "ON", shiftId: a.shift.id, invoiceId: sale.invoice!.id, paymentId: payment.id, operationId: randomUUID(),
         amount: "1", method, reference: "Synthetic refund", reason: "Ordinary regression" })) refund.set(key, value);
       const result = await h.invoices.refundPaymentAction({ status: "idle", message: "" }, refund);
       assert.equal(result.status, "success", result.message);

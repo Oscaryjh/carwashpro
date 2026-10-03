@@ -20,6 +20,8 @@ import {
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 type SalonAppointmentPaymentFormProps = {
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
   appointmentId: string;
   availablePackages: {
     id: string;
@@ -55,6 +57,8 @@ const initialPaymentState: SalonAppointmentPaymentState = {
 };
 
 export function SalonAppointmentPaymentForm({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   appointmentId,
   availablePackages,
   balance,
@@ -92,8 +96,20 @@ export function SalonAppointmentPaymentForm({
   const [amountEdited, setAmountEdited] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const cashReceivedRef = useRef<HTMLInputElement>(null);
+  const confirmation = useRef<{modeAtConfirmation:"ON"|"OFF";shiftId:string|null}|null>(null);
+  const needsReview = useRef(false);
+  const [reviewRequested,setReviewRequested] = useState(false);
   const [paymentState, formAction, pending] = useActionState(
-    recordSalonAppointmentPaymentAction,
+    async (previous:SalonAppointmentPaymentState,data:FormData) => {
+      if(needsReview.current)return {...previous,status:"error" as const,message:"CASHIER_SHIFT_MODE_CHANGED: Review and explicitly accept cashier settings before retrying."};
+      confirmation.current ??= {modeAtConfirmation:cashierShiftsEnabled?"ON":"OFF",shiftId:cashierShiftsEnabled?shiftId:null};
+      data.set("modeAtConfirmation", confirmation.current.modeAtConfirmation);
+      data.set("shiftId",confirmation.current.shiftId??"");
+      const result=await recordSalonAppointmentPaymentAction(previous,data);
+      if(result.message.startsWith("CASHIER_SHIFT_MODE_CHANGED"))needsReview.current=true;
+      if(result.status==="success")confirmation.current=null;
+      return result;
+    },
     initialPaymentState,
   );
   const safePaymentState = paymentState ?? initialPaymentState;
@@ -176,7 +192,7 @@ export function SalonAppointmentPaymentForm({
       return;
     }
 
-    if (!hasOpenShift) {
+    if (cashierShiftsEnabled && !hasOpenShift) {
       event.preventDefault();
       return;
     }
@@ -220,6 +236,8 @@ export function SalonAppointmentPaymentForm({
     >
       <input type="hidden" name="appointmentId" value={appointmentId} />
       <input type="hidden" name="operationId" value={operationId} />
+      <input type="hidden" name="modeAtConfirmation" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+      <input type="hidden" name="shiftId" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
       <input type="hidden" name="catalogDiscountId" value={catalogDiscountId} />
       {additionalTipAmount > 0 && <input type="hidden" name="performanceTipAmount" value={additionalTip} />}
       {selectedCustomerPackageIds.map((customerPackageId) => (
@@ -500,7 +518,7 @@ export function SalonAppointmentPaymentForm({
         </div>
       ) : null}
       <CheckoutAttribution key={operationId} appointmentId={appointmentId} hasTip={Number(tip) > 0 || additionalTipAmount > 0} onEnabledChange={setPerformanceAvailable} exempt={Number(amount) + Number(deposit) <= 0} />
-      {!hasOpenShift ? (
+      {cashierShiftsEnabled && !hasOpenShift ? (
         <div className="salon-payment-action-error" role="alert">
           <span>Start a cashier shift before checkout.</span>
           <Link href="/closing">Open Shift Closing</Link>
@@ -513,9 +531,15 @@ export function SalonAppointmentPaymentForm({
           ) : null}
         </div>
       ) : null}
+      {safePaymentState.message.startsWith("CASHIER_SHIFT_MODE_CHANGED") ? <div role="status">
+        <button type="button" onClick={()=>{setReviewRequested(true);router.refresh();}}>Review current cashier settings</button>
+        {reviewRequested ? <><p>Cashier shifts: {cashierShiftsEnabled?"ON":"OFF"}. Original payment details and request ID are retained.</p>
+          <button type="button" onClick={()=>{confirmation.current={modeAtConfirmation:cashierShiftsEnabled?"ON":"OFF",shiftId:cashierShiftsEnabled?shiftId:null};needsReview.current=false;setReviewRequested(false);}}>Use reviewed cashier settings</button>
+        </> : null}
+      </div> : null}
       <button
         className="salon-payment-submit"
-        disabled={pending || !checkoutReady || !hasOpenShift || !cashPaymentReady}
+        disabled={pending || !checkoutReady || (cashierShiftsEnabled && !hasOpenShift) || !cashPaymentReady}
         type="submit"
       >
         {pending

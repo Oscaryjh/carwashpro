@@ -67,6 +67,7 @@ export async function checkoutFixture(db: PrismaClient, method = "MEMBER_WALLET"
   const product = await db.product.create({ data: { businessId: f.business.id, name: "P1C Synthetic product", sku: randomUUID(), price: 40 } });
   const form = new FormData();
   for (const [key, value] of Object.entries({ operationId: randomUUID(), branchId: f.branch.id, customerId: f.customer.id,
+    modeAtConfirmation: "ON", shiftId: f.shift.id,
     method, paymentMethodCode: method === "MEMBER_WALLET" ? method : `BUILTIN_${method}`, walletAmount: method === "MEMBER_WALLET" ? "40" : "20",
     productId: product.id, productQuantity: "1", ...(method !== "MEMBER_WALLET" && method !== "CASH" ? { reference: "synthetic external collection" } : {}) })) form.set(key, value);
   return { ...f, product, form };

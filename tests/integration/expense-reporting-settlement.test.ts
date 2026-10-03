@@ -20,7 +20,7 @@ after(async () => prisma.$disconnect());
 test("recognition, partial settlement, recurring source and POS drawer payout remain separate", async () => {
   assertLocalDatabase();
   const token = randomUUID().slice(0, 8);
-  const business = await prisma.business.create({ data: { businessDayCutoffTime: "00:00", industryType: "SALON_BEAUTY", name: `Expense Reporting ${token}`, slug: `expense-reporting-${token}`, timezone: "Asia/Kuala_Lumpur" } });
+  const business = await prisma.business.create({ data: { cashierShiftsEnabled: true, businessDayCutoffTime: "00:00", industryType: "SALON_BEAUTY", name: `Expense Reporting ${token}`, slug: `expense-reporting-${token}`, timezone: "Asia/Kuala_Lumpur" } });
   const [branch, otherBranch] = await Promise.all([
     prisma.branch.create({ data: { businessId: business.id, name: `Main ${token}` } }),
     prisma.branch.create({ data: { businessId: business.id, name: `Other ${token}` } }),

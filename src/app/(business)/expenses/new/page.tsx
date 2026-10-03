@@ -18,6 +18,7 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
     prisma.expenseCategory.findMany({ where: { active: true, businessId: context.businessId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
   const autofill = getExpenseDocumentAiConfiguration();
+  const {cashierShiftsEnabled} = await prisma.business.findUniqueOrThrow({where:{id:context.businessId},select:{cashierShiftsEnabled:true}});
   const openShifts = await listOpenExpenseDrawerShifts({ branchIds: scope.branches.map((branch) => branch.id), businessId: context.businessId });
   const defaultBranchId = scope.branches.some((branch) => branch.id === context.user.branchId)
     ? context.user.branchId
@@ -34,6 +35,7 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
     {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`} role={query.type === "error" ? "alert" : "status"}>{query.message}</p> : null}
 
     <ExpenseDocumentAutofillForm
+      cashierShiftsEnabled={cashierShiftsEnabled}
       operationKey={`CREATE_EXPENSE:${randomUUID()}`}
       categories={categories.map(({ id, name, requiresReceipt }) => ({ id, name, requiresReceipt }))}
       branches={scope.branches}

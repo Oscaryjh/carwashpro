@@ -1,6 +1,6 @@
 "use client";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
-import { SafePaymentForm } from "@/components/performance/safe-payment-form";
+import { SafePaymentForm, type PaymentFormAction } from "@/components/performance/safe-payment-form";
 
 import { useMemo, useState } from "react";
 import {
@@ -31,7 +31,9 @@ type PackagePurchaseLine = {
 };
 
 type WorkOrderPackagePurchaseProps = {
-  action: (formData: FormData) => Promise<void>;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
+  action: PaymentFormAction;
   branches: BranchOption[];
   branchId?: string;
   hideBranch?: boolean;
@@ -42,6 +44,8 @@ type WorkOrderPackagePurchaseProps = {
 };
 
 export function WorkOrderPackagePurchase({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   action,
   branches,
   branchId,
@@ -144,8 +148,10 @@ export function WorkOrderPackagePurchase({
   }
 
   return (
-    <SafePaymentForm action={action} className="product-sale-form package-cart-form">
+    <SafePaymentForm cashierActivity={{ modeAtConfirmation: cashierShiftsEnabled ? "ON" : "OFF", shiftId: cashierShiftsEnabled ? shiftId : null }} action={action} className="product-sale-form package-cart-form">
       <input name="operationId" type="hidden" value={operationId} />
+      <input type="hidden" name="modeAtConfirmation" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+      <input type="hidden" name="shiftId" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
       <section className="product-sale-section">
         <h3>Customer account</h3>
         <p className="field-helper">

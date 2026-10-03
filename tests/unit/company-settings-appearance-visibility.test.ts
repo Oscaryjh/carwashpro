@@ -19,6 +19,7 @@ const boundary = `
   export const CompanyLocationSaveProvider = ({children}) => children;
   export const CompanySettingsDialog = () => null;
   export const PaymentMethodsSettings = () => null;
+  export const CashierOperationsSettings = () => null;
   export const StaffAppAppearanceEditor = () => null;
   export const requireBusinessContext = async () => ({businessId: 'synthetic', user: {}, access: {}});
   export const assertRole = () => {};

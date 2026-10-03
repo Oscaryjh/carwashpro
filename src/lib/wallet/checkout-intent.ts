@@ -25,6 +25,16 @@ export function toWalletCheckoutFormData(intent: WalletCheckoutIntent): FormData
   return form;
 }
 
+/** Explicit UI reconfirmation after CASHIER_SHIFT_MODE_CHANGED, not authorization. */
+export function reconfirmWalletCheckoutActivity(intent:WalletCheckoutIntent,activity:{modeAtConfirmation:"ON"|"OFF";branchId:string;shiftId:string|null}):WalletCheckoutIntent {
+  const original=intentSchema.parse(intent);
+  const form=toWalletCheckoutFormData(original);
+  if(form.get("branchId")!==activity.branchId)throw new Error("The original collection branch must not change.");
+  form.set("modeAtConfirmation",activity.modeAtConfirmation);
+  form.set("shiftId",activity.shiftId??"");
+  return createWalletCheckoutIntent(form,original.scope,original.summary);
+}
+
 /** Search only this authenticated business/actor. The original branch can outlive its shift. */
 export function readWalletCheckoutRecovery(storage: Pick<Storage, "length" | "key" | "getItem">, identityScope: string): {
   key: string; intent: WalletCheckoutIntent | null; blocked: boolean;

@@ -11,48 +11,13 @@ import {
 export type GroupClosingExportFormat = "csv" | "xlsx" | "pdf";
 
 export function buildGroupClosingExportRows(report: GroupClosingReport) {
-  const audit = report.audit;
   const summary = report.summary;
   return [
     ["Group", report.groupName],
     ["Currency", "MYR"],
     ["Period", rangeValue(report)],
     ["Store filter", report.filters.storeId ?? "All authorized stores"],
-    ["Audit status", report.filters.auditStatus ?? "All"],
-    ["Checked at", audit.checkedAt.toISOString()],
-    ["Required closings", audit.requiredCount],
-    ["Completed closings", audit.completedCount],
-    ["Missing closings", audit.missingCount],
-    [
-      "Completion percent",
-      audit.completionPercent === null ? "Not applicable" : audit.completionPercent,
-    ],
-    ["Not due", audit.notDueCount],
-    ["Not applicable", audit.notApplicableCount],
-    ["Partial membership", audit.partialMembershipCount],
-    ["Branch not open", audit.branchNotOpenCount],
-    ["Branch history unknown", audit.branchHistoryUnknownCount],
-    ["Unsupported industry", audit.unsupportedIndustryCount],
-    ["Unexpected snapshots", audit.unexpectedSnapshotCount],
-    [],
-    ["Closing audit"],
-    [
-      "Business date",
-      "Store",
-      "Branch",
-      "Due at",
-      "Status",
-      "Snapshot ID",
-    ],
-    ...audit.rows.map((row) => [
-      row.businessDate,
-      row.businessName,
-      row.branchName,
-      row.dueAt.toISOString(),
-      row.status,
-      row.snapshotId ?? "",
-    ]),
-    [],
+    ["Historical closing records", "Saved historical records; not a complete sales report."],
     ["Frozen closing summary"],
     ["Snapshots", summary.snapshotCount],
     ["Gross sales", centsValue(summary.grossSalesCents)],
@@ -104,24 +69,10 @@ export function buildGroupClosingXlsx(report: GroupClosingReport) {
 }
 
 export function buildGroupClosingPdf(report: GroupClosingReport) {
-  const completion =
-    report.audit.completionPercent === null
-      ? "Not applicable"
-      : `${report.audit.completionPercent.toFixed(1)}%`;
   const lines = [
     `CLOSING AUDIT - ${report.groupName}`,
+    "Historical closing records; not a complete sales report.",
     `Period: ${rangeValue(report)}`,
-    `Required: ${report.audit.requiredCount}`,
-    `Completed: ${report.audit.completedCount}`,
-    `Missing: ${report.audit.missingCount}`,
-    `Completion: ${completion}`,
-    "",
-    "Business date | Store | Branch | Due at | Status",
-    ...report.audit.rows.map(
-      (row) =>
-        `${row.businessDate} | ${row.businessName} | ${row.branchName} | ${row.dueAt.toISOString()} | ${row.status}`,
-    ),
-    "",
     "Business date | Store | Branch | Net | Cash difference | Closed by",
     ...report.rows.map(
       (row) =>

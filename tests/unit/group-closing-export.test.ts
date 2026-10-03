@@ -105,11 +105,13 @@ const report: GroupClosingReport = {
   totalPages: 1,
 };
 
-test("Closing CSV exports audit and snapshots with formula injection protection", () => {
-  const csv = buildGroupClosingCsv(report).toString("utf8");
+test("Closing CSV exports historical snapshots with formula injection protection", () => {
+  const csv = buildGroupClosingCsv({...report, rows: report.rows.map(row=>({...row,branchName:"=FORMULA"}))}).toString("utf8");
   assert.match(csv, /^\uFEFF"Group","QA Group"/);
-  assert.match(csv, /"Missing closings","1"/);
-  assert.match(csv, /"'=FORMULA"/);
+  assert.doesNotMatch(csv, /Missing closings|Required closings|Completion percent/);
+  assert.match(csv, /not a complete sales report/);
+  assert.match(csv, /"QA Store"/);
+  assert.match(csv, /'=FORMULA/);
   assert.match(csv, /"Cash difference","'-2"/);
 });
 

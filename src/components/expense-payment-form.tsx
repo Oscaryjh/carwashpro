@@ -7,7 +7,7 @@ import styles from "@/app/(business)/expenses/expense.module.css";
 
 type DrawerShift = { availableCash: string; cashierName: string; id: string; isCurrentUser: boolean; startedAt: string };
 
-export function ExpensePaymentForm(props: { expenseId: string; expectedRevision: number; openDrawerShifts: DrawerShift[]; operationKey: string; outstanding: string }) {
+export function ExpensePaymentForm(props: { cashierShiftsEnabled?: boolean; expenseId: string; expectedRevision: number; openDrawerShifts: DrawerShift[]; operationKey: string; outstanding: string }) {
   const [amount, setAmount] = useState(props.outstanding);
   const [method, setMethod] = useState("");
   const [source, setSource] = useState("");
@@ -40,7 +40,7 @@ export function ExpensePaymentForm(props: { expenseId: string; expectedRevision:
     <label>Amount (MYR)<input name="amount" inputMode="decimal" required value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
     <label>Payment date<input name="paymentDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
     <label>Paid from / payment account
-      <select required value={expensePaymentAccountValue(method, source)} onChange={(event) => changePaymentAccount(event.target.value)}><PaymentAccountOptions canUsePosDrawer={props.openDrawerShifts.length > 0} /></select>
+      <select required value={expensePaymentAccountValue(method, source)} onChange={(event) => changePaymentAccount(event.target.value)}><PaymentAccountOptions cashierShiftsEnabled={props.cashierShiftsEnabled ?? true} canUsePosDrawer={props.openDrawerShifts.length > 0} /></select>
       <small>Choose the account used. Tetamu records the matching payment method automatically; only POS drawer cash reduces Shift Closing expected cash.</small>
     </label>
     {source === "POS_DRAWER" ? automaticShift ? <AutomaticShift shift={automaticShift} /> : props.openDrawerShifts.length ? <label className={styles.full}>Which open POS shift?
@@ -71,8 +71,8 @@ function automaticDrawerShift(shifts: DrawerShift[]) {
   return shifts.length === 1 ? shifts[0] : null;
 }
 
-function PaymentAccountOptions({ canUsePosDrawer }: { canUsePosDrawer: boolean }) {
-  return <><option value="" disabled>Select payment account</option>{EXPENSE_PAYMENT_ACCOUNTS.map((option) => <option key={option.value} value={option.value} disabled={option.paymentSource === "POS_DRAWER" && !canUsePosDrawer}>{option.label}{option.paymentSource === "POS_DRAWER" && !canUsePosDrawer ? " · no open shift" : ""}</option>)}</>;
+function PaymentAccountOptions({ canUsePosDrawer, cashierShiftsEnabled = true }: { canUsePosDrawer: boolean; cashierShiftsEnabled?: boolean }) {
+  return <><option value="" disabled>Select payment account</option>{EXPENSE_PAYMENT_ACCOUNTS.filter(option => cashierShiftsEnabled || option.paymentSource !== "POS_DRAWER").map((option) => <option key={option.value} value={option.value} disabled={option.paymentSource === "POS_DRAWER" && !canUsePosDrawer}>{option.label}{option.paymentSource === "POS_DRAWER" && !canUsePosDrawer ? " · no open shift" : ""}</option>)}</>;
 }
 
 function formatTime(value: string) {

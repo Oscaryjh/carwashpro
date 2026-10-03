@@ -28,6 +28,7 @@ async function result<T>(work: () => Promise<T>) {
       WALLET_UNAVAILABLE: "Member Wallet is not enabled for this business.",
       WALLET_ACCESS_DENIED: "You do not have permission to perform this wallet action.",
       WALLET_ACTIVE_SHIFT_REQUIRED: "Open a cashier shift before topping up a wallet.",
+      CASHIER_SHIFT_MODE_CHANGED: "Cashier settings or your shift changed. Review the current branch and shift, then explicitly confirm again. Do not collect payment again.",
       WALLET_CUSTOMER_NOT_FOUND: "This customer is unavailable in your current business.",
       WALLET_OFFER_UNAVAILABLE: "This offer is no longer available. Select an active offer.",
       WALLET_OFFER_INVALID: "Enter a positive payment amount and a bonus of zero or more, with up to two decimal places.",
@@ -73,8 +74,8 @@ export async function walletRefundOptionsAction(sourceId:string,kind:"invoice"|"
       stockLines:invoice.items.filter(i=>i.inventoryTracked&&i.productId).map(i=>({id:i.id,name:i.name,remainingQuantity:i.quantity-i.inventoryRefundLines.reduce((n,l)=>n+l.quantity,0)})).filter(i=>i.remainingQuantity>0)};
   });
 }
-export async function walletTopUpOptionsAction(customerId: string) {
-  return result(async () => getWalletTopUpOptions(await context(), z.string().uuid().parse(customerId)));
+export async function walletTopUpOptionsAction(customerId: string, branchId?: string) {
+  return result(async () => getWalletTopUpOptions({ ...await context(), branchId: branchId ? z.string().uuid().parse(branchId) : null }, z.string().uuid().parse(customerId)));
 }
 export async function walletHistoryAction(customerId: string, page: number) {
   return result(async () => {
@@ -101,8 +102,11 @@ export async function saveWalletOfferAction(form: FormData) {
 export async function walletTopUpAction(form: FormData) {
   return result(async () => {
     const ctx = await context();
-    const input = z.object({ customerId: z.string().uuid(), offerId: z.string().uuid(), expectedOfferVersion: z.number().int().nonnegative(), paymentMethodCode: z.string().min(1).max(128), reference: z.string().max(500), operationKey: financialOperationKeySchema }).parse({
+    const input = z.object({ customerId: z.string().uuid(), offerId: z.string().uuid(), expectedOfferVersion: z.number().int().nonnegative(), paymentMethodCode: z.string().min(1).max(128), reference: z.string().max(500), operationKey: financialOperationKeySchema,
+      modeAtConfirmation: z.enum(["ON", "OFF"]).optional(), branchId: z.string().uuid().optional(), shiftId: z.string().uuid().nullable().optional(),
+    }).parse({
       customerId: form.get("customerId"), offerId: form.get("offerId"), expectedOfferVersion: Number(form.get("expectedOfferVersion")), paymentMethodCode: form.get("paymentMethodCode"), reference: form.get("reference") ?? "", operationKey: form.get("operationKey"),
+      modeAtConfirmation: form.get("modeAtConfirmation") ?? undefined, branchId: form.get("branchId") || undefined, shiftId: form.get("shiftId") || null,
     });
     const receipt = await submitWalletTopUp(ctx, input);
     // Explicit confirmation DTO: Staff may see this collection, not account composition.

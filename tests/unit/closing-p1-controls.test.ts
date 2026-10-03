@@ -41,8 +41,7 @@ test("server actions enforce P1 control boundaries", () => {
   assert.match(start, /acquireCashierOpenShiftLock/);
   assert.match(start, /cashierId: user\.userId/);
   assert.match(manual, /CONFIRM_DAILY_CLOSING/);
-  assert.match(manual, /requireDailyClosingDifferenceReason/);
-  assert.ok(manual.indexOf("requireDailyClosingDifferenceReason") < manual.indexOf("createDailyClosingSnapshotInTransaction"));
+  assert.doesNotMatch(manual, /runFinancialOperation|createDailyClosingSnapshotInTransaction/);
   assert.match(stale, /CONFIRM_DAILY_CLOSING/);
   assert.match(stale, /STALE_SHIFT_RESOLVED/);
   assert.match(stale, /assertShiftActivityWithinBusinessDate/);
@@ -51,7 +50,7 @@ test("server actions enforce P1 control boundaries", () => {
 test("Closing UI separates manager controls, frozen data, and late activity", () => {
   const page = readFileSync("src/app/(business)/closing/page.tsx", "utf8");
   const panel = readFileSync("src/components/daily-closing-snapshot-panel.tsx", "utf8");
-  assert.match(page, /canConfirmDailyClosing && dailyClosing/);
+  assert.match(page, /explicitDate && selectedBranch && closingIndustry/);
   assert.match(page, /Branch View/);
   assert.match(page, /Closes at/);
   assert.doesNotMatch(page, /00:00 to next/);
@@ -59,6 +58,5 @@ test("Closing UI separates manager controls, frozen data, and late activity", ()
   assert.match(panel, /Activity recorded after Daily Closing/);
   assert.match(panel, /Expected Net Cash Movement/);
   assert.match(panel, /Daily cash movement excludes opening floats/);
-  assert.match(panel, /event\.key === "Escape"/);
-  assert.match(panel, /focusable/);
+  assert.doesNotMatch(panel, /<form|ManualSendForm|useFinancialOperationId/);
 });

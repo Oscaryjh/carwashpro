@@ -1,6 +1,6 @@
 "use client";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
-import { SafePaymentForm } from "@/components/performance/safe-payment-form";
+import { SafePaymentForm, type PaymentFormAction } from "@/components/performance/safe-payment-form";
 
 import { useMemo, useState } from "react";
 import { PackageCustomerPicker } from "@/components/package-customer-picker";
@@ -30,7 +30,9 @@ type ProductSaleLine = {
 };
 
 type ProductSaleFormProps = {
-  action: (formData: FormData) => Promise<void>;
+  cashierShiftsEnabled?: boolean;
+  shiftId?: string | null;
+  action: PaymentFormAction;
   branches: BranchOption[];
   branchId?: string;
   hideBranch?: boolean;
@@ -41,6 +43,8 @@ type ProductSaleFormProps = {
 };
 
 export function ProductSaleForm({
+  cashierShiftsEnabled = true,
+  shiftId = null,
   action,
   branches,
   branchId: initialBranchId,
@@ -51,7 +55,7 @@ export function ProductSaleForm({
   taxSettings,
 }: ProductSaleFormProps) {
   const [lines, setLines] = useState<ProductSaleLine[]>([]);
-  const [branchId, setBranchId] = useState(initialBranchId ?? branches[0]?.id ?? "");
+  const [branchId, setBranchId] = useState(initialBranchId ?? (branches.length === 1 ? branches[0].id : ""));
   const [method, setMethod] = useState("CASH");
   const [openPickerIndex, setOpenPickerIndex] = useState<number | null>(null);
   const { operationId } = useFinancialOperationId("product-sale");
@@ -123,8 +127,10 @@ export function ProductSaleForm({
   }
 
   return (
-    <SafePaymentForm action={action} className="product-sale-form">
+    <SafePaymentForm cashierActivity={{ modeAtConfirmation: cashierShiftsEnabled ? "ON" : "OFF", shiftId: cashierShiftsEnabled ? shiftId : null }} action={action} className="product-sale-form">
       <input name="operationId" type="hidden" value={operationId} />
+      <input type="hidden" name="modeAtConfirmation" value={cashierShiftsEnabled ? "ON" : "OFF"} />
+      <input type="hidden" name="shiftId" value={cashierShiftsEnabled ? shiftId ?? "" : ""} />
       <div className="product-sale-section">
         <h3>Customer optional</h3>
         <p className="field-helper">Link the sale to a customer to send the receipt and earn loyalty points.</p>
@@ -198,6 +204,7 @@ export function ProductSaleForm({
           <label>
             <span>Branch</span>
             <select name="branchId" onChange={(event) => setBranchId(event.target.value)} value={branchId} required>
+              <option value="" disabled>Select branch</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
           </label>

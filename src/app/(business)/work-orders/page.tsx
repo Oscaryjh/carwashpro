@@ -117,9 +117,12 @@ export default async function WorkOrdersPage({
     getOperationalBranches(businessId, user),
     prisma.business.findUniqueOrThrow({
       where: { id: businessId },
-      select: { sstEnabled: true, sstLabel: true, sstRate: true },
+      select: { sstEnabled: true, sstLabel: true, sstRate: true, cashierShiftsEnabled: true },
     }),
   ]);
+  const openShift = await prisma.cashierShift.findFirst({
+    where: {businessId,cashierId:user.userId,status:"OPEN"},select:{id:true},
+  });
   const serviceOptions = services.map((service) => ({
     id: service.id,
     category: service.serviceCategory?.name ?? service.category,
@@ -166,6 +169,8 @@ export default async function WorkOrdersPage({
             </p>
           </div>
           <WorkOrderQuickCreateModal
+            cashierShiftsEnabled={business.cashierShiftsEnabled}
+            shiftId={openShift?.id ?? null}
             action={createWorkOrderAction}
             branches={branches}
             packageAction={purchasePackageFromCashierAction}
