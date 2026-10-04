@@ -487,13 +487,15 @@ async function loadDayTransactions(
       subtotal: true,
       discountAmount: true,
       total: true,
+      balance: true,
       status: true,
       customer: { select: { name: true } },
       appointment: {
         select: { assignedStaff: { select: { name: true } } },
       },
       payments: {
-        where: { status: "ACTIVE", method: { not: "PACKAGE" } },
+        // Settlement sources are presentation facts, not external collections.
+        where: { status: "ACTIVE" },
         orderBy: { paidAt: "asc" },
         select: {
           method: true,
@@ -516,7 +518,12 @@ async function loadDayTransactions(
       discountCents: toCents(row.discountAmount),
       totalCents: toCents(row.total),
       paymentLabel:
-        [...new Set(row.payments.map(paymentLabel))].join(" + ") || "Unpaid",
+        [...new Set([
+          ...row.payments.filter(payment => payment.method === "PACKAGE").map(() => "Package"),
+          ...row.payments.filter(payment => payment.method !== "PACKAGE").map(paymentLabel),
+        ])].join(" + ") ||
+        ((row.status === "UNPAID" || row.status === "PARTIAL") && toCents(row.balance) > 0
+          ? "Unpaid" : "Not recorded"),
       status: row.status,
     })),
   };
