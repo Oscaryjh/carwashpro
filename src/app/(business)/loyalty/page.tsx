@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
+import { formatLoyaltyActivityDetails } from "@/components/loyalty-activity-copy";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
@@ -60,9 +61,9 @@ export default async function LoyaltyPage({ searchParams }: LoyaltyPageProps) {
         <div className="loyalty-metrics">
           <LoyaltyMetric label="Members" value={memberCount} />
           <LoyaltyMetric label="Active" value={activeCount} />
-          <LoyaltyMetric label="Points outstanding" value={totals._sum.pointsBalance ?? 0} />
-          <LoyaltyMetric label="Lifetime earned" value={totals._sum.lifetimePointsEarned ?? 0} />
-          <LoyaltyMetric label="Refund reversals" value={totals._sum.lifetimePointsReversed ?? 0} />
+          <LoyaltyMetric label="Points balance" value={totals._sum.pointsBalance ?? 0} />
+          <LoyaltyMetric label="Points earned" value={totals._sum.lifetimePointsEarned ?? 0} />
+          <LoyaltyMetric label="Points reversed" value={totals._sum.lifetimePointsReversed ?? 0} />
         </div>
 
         <div className="panel loyalty-activity-panel">
@@ -91,7 +92,7 @@ export default async function LoyaltyPage({ searchParams }: LoyaltyPageProps) {
                     {activity.points > 0 ? "+" : ""}{activity.points}
                   </strong>
                   <div className="loyalty-activity-detail">
-                    <span>{activity.description}</span>
+                    <span>{formatLoyaltyActivityDetails(activity.type)}</span>
                     <small>
                       {activity.createdAt.toLocaleString("en-MY")} - {activity.createdBy?.name ?? "System"}
                     </small>

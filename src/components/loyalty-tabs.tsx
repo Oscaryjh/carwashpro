@@ -5,7 +5,7 @@ type LoyaltyTab = "overview" | "members" | "activity" | "settings";
 const tabs: Array<{ key: LoyaltyTab; label: string; href: string }> = [
   { key: "overview", label: "Overview", href: "/loyalty" },
   { key: "members", label: "Members", href: "/loyalty/members" },
-  { key: "settings", label: "Program Settings", href: "/loyalty/settings" },
+  { key: "settings", label: "Loyalty Settings", href: "/loyalty/settings" },
 ];
 
 export function LoyaltyTabs({

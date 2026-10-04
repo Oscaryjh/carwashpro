@@ -26,7 +26,7 @@ test("calculates canonical store-day metrics and payment-method nets", () => {
       invoices: [
         {
           balance: "10.00",
-          discountAmount: "5.00",
+          discountAmount: "10.00", // Saved total: RM5 manual + RM5 Points.
           loyaltyDiscountAmount: "5.00",
           payments: [{ amount: "20.00", status: "ACTIVE", updatedAt: older }],
           status: "PARTIAL",

@@ -2385,3 +2385,25 @@
     padding-left: 0;
   }
 }
+.pointsBalance,
+.pointsPreview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.pointsBalance strong,
+.pointsPreview strong {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #182230);
+}
+
+.pointsBalance strong { font-size: 1.3rem; }
+.pointsHint { margin: 0; font-size: .85rem; line-height: 1.4; }
+
+@media (max-width: 479px) {
+  .pointsBalance { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}

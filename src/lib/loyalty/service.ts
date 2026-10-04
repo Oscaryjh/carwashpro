@@ -117,7 +117,7 @@ export async function awardLoyaltyPointsForPayment(
 
   const points = calculateEarnedPoints(
     input.amountCents,
-    Number(program.pointsPerRinggit),
+    program.pointsPerRinggit.toString(),
   );
 
   if (points <= 0) {

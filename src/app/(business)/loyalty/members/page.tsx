@@ -107,7 +107,7 @@ export default async function LoyaltyMembersPage({ searchParams }: LoyaltyMember
                     <th>No.</th>
                     <th>Customer</th>
                     <th>Status</th>
-                    <th>Balance</th>
+                    <th>Points balance</th>
                     <th>Earned</th>
                     <th>Reversed</th>
                     <th>Joined</th>

@@ -6,12 +6,12 @@ export const FINANCIAL_METRIC_DEFINITIONS = {
   grossSalesCents: {
     eventDate: "invoice.issuedAt",
     formula:
-      "invoice total - tips - package vouchers + invoice and loyalty discounts",
+      "invoice total - tips - package vouchers + invoice total discount",
     label: "Gross sales",
   },
   discountsCents: {
     eventDate: "invoice.issuedAt",
-    formula: "invoice discount + loyalty discount",
+    formula: "invoice total discount (includes loyalty discount)",
     label: "Discounts",
   },
   refundsCents: {
@@ -43,6 +43,7 @@ export const FINANCIAL_METRIC_DEFINITIONS = {
 
 export type FinancialMetricInvoice = {
   balanceCents?: number;
+  /** Canonical Invoice.discountAmount: manual/catalog plus loyalty, already combined. */
   discountCents: number;
   loyaltyDiscountCents: number;
   packageVoucherCents: number;
@@ -98,8 +99,8 @@ export function calculateInvoiceFinancialMetrics(
   assertCents(invoice.loyaltyDiscountCents, "Loyalty discount");
   assertCents(invoice.balanceCents ?? 0, "Invoice balance");
 
-  const discountsCents =
-    invoice.discountCents + invoice.loyaltyDiscountCents;
+  // Loyalty is a breakdown of the saved total discount, not another discount.
+  const discountsCents = invoice.discountCents;
   const recognizedSalesCents =
     invoice.totalCents - invoice.tipCents - invoice.packageVoucherCents;
 

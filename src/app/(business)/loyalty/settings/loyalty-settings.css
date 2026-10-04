@@ -1,0 +1,50 @@
+.loyalty-settings-form.loyalty-settings-grouped {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.loyalty-settings-grouped .loyalty-settings-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.loyalty-settings-grouped .loyalty-settings-group > legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.loyalty-settings-grouped .loyalty-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.loyalty-settings-grouped .loyalty-settings-fields > label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loyalty-settings-grouped .loyalty-settings-fields .loyalty-enabled-toggle {
+  grid-column: 1 / -1;
+}
+
+.loyalty-settings-form.loyalty-settings-grouped > button {
+  grid-column: 1;
+}
+
+@media (max-width: 1023px) {
+  .loyalty-settings-grouped .loyalty-settings-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .loyalty-settings-grouped .loyalty-settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

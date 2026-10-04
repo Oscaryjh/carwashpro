@@ -35,6 +35,37 @@ async function fixture(overrides: Record<number, unknown> = {}, wallet: "on" | "
 }
 function find(tree: ReactElement, type: string, predicate: (props: Record<string, unknown>) => boolean) { const result = nodes(tree).find(node => node.type === type && predicate(node.props)); assert.ok(result); return result.props; }
 
+for (const [quantity,covered,payable,points] of [[1,1,0,0],[2,1,90,1000],[3,1,190,1000],[3,2,90,1000]]) {
+  test(`voucher-aware UI preview qty${quantity}/covered${covered} matches server contract`, async()=>{
+    const options=[0,1].map(i=>({id:`balance-${i}`,serviceId:cashierItem.id,name:`Voucher ${i}`,serviceName:cashierItem.name,remainingUses:5,totalUses:5}));
+    const {tree,html,state}=await fixture({8:{...cashierCustomer,loyaltyPoints:50000},9:[{...cashierItem,price:100,quantity}],33:"1000",42:options,43:options.slice(0,covered).map(x=>x.id)},"off",{loyaltySettings:{enabled:true,redemptionEnabled:true,pointsPerRinggit:100,minimumPoints:1}});
+    assert.ok(find(tree,"button",p=>p.children===`Pay RM${payable.toFixed(2)}`));
+    assert.equal(find(tree,"input",p=>p.name==="loyaltyPoints").value,points);
+    assert.equal(nodes(tree).filter(n=>n.type==="input"&&n.props.name==="customerPackageId").length,covered);
+    assert.match(html,new RegExp(`RM${(quantity*100-(points?10:0)).toFixed(2)}`));
+    if(quantity===3&&covered===2){
+      (find(tree,"button",p=>p["aria-label"]===`Reduce ${cashierItem.name}`).onClick as ()=>void)();
+      assert.equal((state[43] as string[]).length,2);
+    }
+  });
+}
+
+test("voucher UI uses server ordering for manual allocation and prunes selection when quantity falls",async()=>{
+  const options=[0,1].map(i=>({id:`balance-${i}`,serviceId:cashierItem.id,name:`Voucher ${i}`,serviceName:cashierItem.name,remainingUses:5,totalUses:5}));
+  const {tree,state}=await fixture({8:{...cashierCustomer,loyaltyPoints:50000},9:[{...cashierItem,price:100,quantity:2}],33:"1000",30:"20",42:options,43:options.map(x=>x.id)},"off",{loyaltySettings:{enabled:true,redemptionEnabled:true,pointsPerRinggit:100,minimumPoints:1}});
+  assert.equal(find(tree,"input",p=>p.name==="loyaltyPoints").value,0);
+  (find(tree,"button",p=>p["aria-label"]===`Reduce ${cashierItem.name}`).onClick as ()=>void)();
+  assert.deepEqual(state[43],["balance-0"]);
+  const mixed=await fixture({8:{...cashierCustomer,loyaltyPoints:50000},9:[
+    {...cashierItem,price:100,quantity:1,taxable:true},
+    {...cashierItem,id:"product-a",type:"product",price:33.33,quantity:1,taxable:true},
+    {...cashierItem,id:"product-b",type:"product",price:33.34,quantity:1,taxable:true},
+  ],33:"1000",30:"16.67",42:options,43:["balance-0"]},"off",{
+    loyaltySettings:{enabled:true,redemptionEnabled:true,pointsPerRinggit:100,minimumPoints:1},taxSettings:{enabled:true,label:"SST",rate:6},
+  });
+  assert.ok(find(mixed.tree,"button",p=>p.children==="Pay RM53.01"));
+});
+
 test("shifts OFF opens payment without a Start shift modal and submits the confirmation mode", async () => {
   const { tree, html, state } = await fixture({}, "on", { hasOpenShift: false, cashierShiftsEnabled: false, shiftId: null });
   assert.doesNotMatch(html, /Start a cashier shift|>Start shift</);

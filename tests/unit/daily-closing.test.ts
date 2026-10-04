@@ -150,11 +150,12 @@ test("reconstructs gross sales before invoice discount", () => {
   assert.equal(report.financial.netSalesCents, 9_000);
 });
 
-test("includes loyalty discount in the discount total", () => {
+test("saved invoice discount already includes loyalty discount", () => {
   const report = calculateDailyClosingReport(
     createSource({
       invoices: [
         createInvoice({
+          discountCents: 500,
           loyaltyDiscountCents: 500,
           totalCents: 9_500,
         }),

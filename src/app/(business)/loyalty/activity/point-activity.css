@@ -1,0 +1,40 @@
+.point-activity-page .point-activity-toolbar {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+
+.point-activity-page .point-activity-heading h2 {
+  margin: 0;
+}
+
+.point-activity-page .point-activity-heading p {
+  margin: 4px 0 0;
+}
+
+.point-activity-page .loyalty-activity-filter {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 170px) minmax(110px, 140px) auto auto;
+}
+
+.point-activity-page .loyalty-activity-filter > * {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .point-activity-page .loyalty-activity-filter {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  }
+
+  .point-activity-page .loyalty-activity-filter > input {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .point-activity-page .loyalty-activity-filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

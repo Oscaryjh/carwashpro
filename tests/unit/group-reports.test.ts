@@ -96,7 +96,7 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
     invoiceNumber: "QA-001",
     issuedAt: new Date("2026-06-30T20:00:00.000Z"),
     total: "120.00",
-    discountAmount: "10.00",
+    discountAmount: "15.00", // Saved total: RM10 manual + RM5 Points.
     loyaltyDiscountAmount: "5.00",
     tipAmount: "10.00",
     balance: "25.00",
@@ -135,7 +135,7 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
           ? [
           {
             businessId: salon.id,
-            discountAmount: "10.00",
+            discountAmount: "15.00",
             id: invoice.id,
             items: [],
             issuedAt: invoice.issuedAt,

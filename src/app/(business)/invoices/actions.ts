@@ -1,4 +1,5 @@
 "use server";
+import { compensateInvoiceVoidLoyalty } from "@/lib/loyalty/invoice-void";
 import { capturePerformanceRefund, capturePerformanceVoid } from "@/lib/performance/service";
 
 import { FinancialOperationType } from "@prisma/client";
@@ -8,10 +9,7 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { makeCreditNoteNumber } from "@/lib/invoices/credit-note-number";
-import {
-  restoreRedeemedLoyaltyPointsForRefund,
-  reverseLoyaltyPointsForRefund,
-} from "@/lib/loyalty/service";
+import { compensateNormalRefundLoyalty } from "@/lib/loyalty/normal-refund";
 import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
 import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
 import {
@@ -379,15 +377,7 @@ export async function refundPaymentAction(
             );
           }
 
-        await reverseLoyaltyPointsForRefund(tx, {
-          businessId,
-          branchId: payment.branchId,
-          paymentId: payment.id,
-          refundId: refund.id,
-          paymentAmountCents: toCents(payment.amount),
-          createdById: user.userId,
-        });
-        await restoreRedeemedLoyaltyPointsForRefund(tx, {
+        await compensateNormalRefundLoyalty(tx, {
           businessId,
           branchId: payment.branchId,
           paymentId: payment.id,
@@ -713,6 +703,11 @@ export async function voidInvoiceAction(
             }
           }
       }
+
+      await compensateInvoiceVoidLoyalty(tx, {
+        businessId, invoiceId: invoice.id, paymentIds: activePayments.map(payment => payment.id),
+        operationKey: operationId.data, actorUserId: user.userId,
+      });
 
       await tx.payment.updateMany({
         where: {

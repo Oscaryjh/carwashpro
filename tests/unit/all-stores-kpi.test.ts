@@ -31,7 +31,7 @@ test("calculates invoice sales, package redemption, refunds, collection, count, 
         issuedAt: new Date("2026-06-30T20:00:00.000Z"),
         total: "120.00",
         tipAmount: "10.00",
-        discountAmount: "10.00",
+        discountAmount: "15.00", // Saved total: RM10 manual + RM5 Points.
         loyaltyDiscountAmount: "5.00",
         payments: [{ amount: "20.00" }],
       },

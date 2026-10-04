@@ -18,6 +18,32 @@ const range = getBusinessDayRange({
   businessDayCutoffTime: "02:00",
 });
 
+for (const [name, totalDiscount, loyalty, net] of [
+  ["points only", 1300, 1300, 8700],
+  ["manual only", 500, 0, 9500],
+  ["manual plus points", 1800, 1300, 8200],
+  ["catalog plus points", 1800, 1300, 8200],
+  ["no discount", 0, 0, 10000],
+] as const) test(`canonical invoice discount counted once: ${name}`, () => {
+  const report = build({ invoices: [invoice("sale", "2026-07-31T20:00:00Z", net, {
+    discountCents: totalDiscount, loyaltyDiscountCents: loyalty,
+  })] });
+  assert.equal(report.summary.discountsCents, totalDiscount);
+  assert.equal(report.days[0].discountsCents, totalDiscount);
+  assert.equal(report.summary.grossSalesCents, 10000);
+  assert.equal(report.summary.netSalesCents, net);
+});
+
+test("refunded sale retains its original discount once and refunds remain a separate event", () => {
+  const report = build({
+    invoices: [invoice("sale", "2026-07-31T20:00:00Z", 8700, {discountCents:1300,loyaltyDiscountCents:1300,status:"REFUNDED"})],
+    refunds: [refund("refund", "2026-08-01T20:00:00Z", 8700)],
+  });
+  assert.equal(report.summary.discountsCents, 1300);
+  assert.equal(report.summary.refundsCents, 8700);
+  assert.equal(report.summary.netSalesCents, 0);
+});
+
 function invoice(
   id: string,
   issuedAt: string,

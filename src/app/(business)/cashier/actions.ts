@@ -2,6 +2,7 @@
 import { awardWalletInvoiceLoyalty } from "@/lib/loyalty/wallet-settlement";
 
 import { FinancialOperationType, type Payment } from "@prisma/client";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -17,12 +18,11 @@ import {
   activateCustomerPackageServiceBalances,
   createCustomerPackageServiceBalances,
 } from "@/lib/packages/service-balances";
-import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
+import { prepareCheckoutCoverage, calculateCoveredCheckoutTax, redeemCheckoutPoints } from "@/lib/loyalty/checkout-coverage";
 import {
   awardLoyaltyPointsForPayment,
   redeemLoyaltyPointsForPayment,
 } from "@/lib/loyalty/service";
-import { calculateTax } from "@/lib/tax/calculator";
 import { cashierSaleSchema } from "@/lib/validation/cashier";
 import { fromCents } from "@/lib/validation/pos";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
@@ -97,6 +97,25 @@ export async function cashierActivityOptionsAction(branchId:string) {
   }catch(error){return {ok:false as const,message:error instanceof Error?error.message:"Cashier settings could not be loaded."};}
 }
 
+/** Read-only UI hint; Pay still validates the authoritative membership and settings. */
+export async function cashierPointsOptionsAction(customerId: string) {
+  const { businessId } = await requireBusinessUser("PROCESS_CASHIER_PAYMENT");
+  if (!z.string().uuid().safeParse(customerId).success) {
+    return { ok: false as const, message: "Customer could not be found." };
+  }
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, businessId }, select: { id: true } });
+  if (!customer) return { ok: false as const, message: "Customer could not be found." };
+  const [membership, program] = await Promise.all([
+    prisma.customerMembership.findFirst({ where: { businessId, customerId }, select: { status: true, pointsBalance: true } }),
+    prisma.loyaltyProgram.findUnique({ where: { businessId }, select: { enabled: true, redemptionEnabled: true, redemptionPointsPerRinggit: true, minimumRedemptionPoints: true } }),
+  ]);
+  return { ok: true as const, data: {
+    customerId, membershipStatus: membership?.status ?? null, availablePoints: membership?.pointsBalance ?? 0,
+    settings: { enabled: program?.enabled ?? false, redemptionEnabled: program?.redemptionEnabled ?? false,
+      pointsPerRinggit: program?.redemptionPointsPerRinggit ?? 0, minimumPoints: program?.minimumRedemptionPoints ?? 0 },
+  } };
+}
+
 export async function completeCashierSaleAction(formData: FormData): Promise<CashierSaleState> {
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
@@ -156,7 +175,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       throw new Error("An active branch is required before completing a sale.");
     }
 
-    const { operationId, walletAmount: _walletAmount, ...financialPayload } = input;
+    const { operationId } = input;
+    const financialPayload: Partial<typeof input> = { ...input };
+    delete financialPayload.operationId;
+    delete financialPayload.walletAmount;
     const { result } = await runFinancialOperation({
       actorUserId: user.userId,
       branchId,
@@ -446,14 +468,17 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         string,
         typeof redeemedPackageBalances[number]
       >();
+      const coveredQuantityByServiceId = new Map<string, number>();
       for (const balance of redeemedPackageBalances) {
         if (!serviceQuantities.has(balance.serviceId)) {
           throw new Error("This package cannot be used for the selected services.");
         }
-        if (redeemedPackageByServiceId.has(balance.serviceId)) {
-          throw new Error("Only one package can be used for each service.");
+        const coveredQuantity = (coveredQuantityByServiceId.get(balance.serviceId) ?? 0) + 1;
+        if (coveredQuantity > (serviceQuantities.get(balance.serviceId) ?? 0)) {
+          throw new Error("Package coverage exceeds the selected service quantity.");
         }
-        redeemedPackageByServiceId.set(balance.serviceId, balance);
+        coveredQuantityByServiceId.set(balance.serviceId, coveredQuantity);
+        if (!redeemedPackageByServiceId.has(balance.serviceId)) redeemedPackageByServiceId.set(balance.serviceId, balance);
       }
       const packageUnits = [...packageQuantities].flatMap(([packageId, quantity]) => {
         const packageDefinition = packageById.get(packageId);
@@ -623,6 +648,30 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       let loyaltyPointsRedeemed = 0;
       let loyaltyDiscountCents = 0;
 
+      const coverageInput = {
+        sstEnabled: business.sstEnabled,
+        sstLabel: business.sstLabel,
+        sstRate: Number(business.sstRate),
+        lines: [
+          ...stocks.map(({ product }, index) => ({
+            lineTotal: productTotals[index], taxable: product.taxable,
+            taxRate: product.taxRate == null ? null : Number(product.taxRate),
+          })),
+          ...packageUnits.map((definition) => ({
+            lineTotal: Number(definition.price), taxable: definition.service?.taxable ?? true,
+            taxRate: definition.service?.taxRate == null ? null : Number(definition.service.taxRate),
+          })),
+          ...serviceLines.map(({ service, quantity }, index) => ({
+            lineTotal: serviceTotals[index], taxable: service.taxable,
+            taxRate: service.taxRate == null ? null : Number(service.taxRate),
+            quantity, coveredQuantity: coveredQuantityByServiceId.get(service.id) ?? 0,
+          })),
+        ],
+        discount: manualDiscountCents / 100,
+        tip: tipCents / 100,
+      };
+      const coverage = prepareCheckoutCoverage(coverageInput);
+
       if (input.loyaltyPoints > 0) {
         if (!customer) {
           throw new Error("Select a customer before redeeming loyalty points.");
@@ -634,9 +683,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           throw new Error("This customer does not have an active loyalty membership.");
         }
 
-        const redemption = calculateLoyaltyRedemption({
+        const redemption = redeemCheckoutPoints({
           availablePoints: membership.pointsBalance,
-          maximumDiscountCents: Math.max(0, subtotalCents - manualDiscountCents),
+          maximumDiscountCents: coverage.eligibleCents,
           minimumPoints: loyaltyProgram.minimumRedemptionPoints,
           pointsPerRinggit: loyaltyProgram.redemptionPointsPerRinggit,
           requestedPoints: input.loyaltyPoints,
@@ -646,34 +695,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       }
 
       const totalDiscountCents = manualDiscountCents + loyaltyDiscountCents;
-      const tax = calculateTax({
-        sstEnabled: business.sstEnabled,
-        sstLabel: business.sstLabel,
-        sstRate: Number(business.sstRate),
-        lines: [
-          ...stocks.map(({ product }, index) => ({
-            lineTotal: productTotals[index],
-            taxable: product.taxable,
-            taxRate: product.taxRate == null ? null : Number(product.taxRate),
-          })),
-          ...packageUnits.map((packageDefinition) => ({
-            lineTotal: Number(packageDefinition.price),
-            taxable: packageDefinition.service?.taxable ?? true,
-            taxRate:
-              packageDefinition.service?.taxRate == null
-                ? null
-                : Number(packageDefinition.service.taxRate),
-          })),
-          ...serviceLines.map(({ service }, index) => ({
-            lineTotal: serviceTotals[index],
-            taxable: service.taxable,
-            taxRate: service.taxRate == null ? null : Number(service.taxRate),
-          })),
-        ],
-        discount: totalDiscountCents / 100,
-        tip: tipCents / 100,
-      });
+      const { tax } = calculateCoveredCheckoutTax(coverageInput, loyaltyDiscountCents);
       const packageCoverageByBalanceId = new Map<string, number>();
+      const allocatedUnitsByServiceId = new Map<string, number>();
       let packageCoverageCents = 0;
       for (const balance of redeemedPackageBalances) {
         const serviceLineIndex = serviceLines.findIndex(
@@ -683,14 +707,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           throw new Error("This package cannot be used for the selected services.");
         }
 
-        const quantity = serviceLines[serviceLineIndex].quantity;
         const taxLineIndex = stocks.length + packageUnits.length + serviceLineIndex;
-        const coveredCents = Math.max(
-          0,
-          Math.round(Number(serviceLines[serviceLineIndex].service.price) * 100)
-            - Math.round((tax.lineDiscount[taxLineIndex] ?? 0) * 100 / quantity)
-            + Math.round((tax.lineTax[taxLineIndex] ?? 0) * 100 / quantity),
-        );
+        const unitIndex = allocatedUnitsByServiceId.get(balance.serviceId) ?? 0;
+        const coveredCents = coverage.coverageCents[taxLineIndex][unitIndex];
+        allocatedUnitsByServiceId.set(balance.serviceId, unitIndex + 1);
         packageCoverageByBalanceId.set(balance.id, coveredCents);
         packageCoverageCents += coveredCents;
       }
@@ -961,7 +981,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       );
 
       if (customer && !isTrainingComplimentary) {
-        if (loyaltyPointsRedeemed > 0 && payment) {
+      if (loyaltyPointsRedeemed > 0 && loyaltyDiscountCents > 0 && payment) {
           await redeemLoyaltyPointsForPayment(tx, {
             businessId,
             branchId,

@@ -9,7 +9,11 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {crmUiBoundaries} from "../helpers/crm-ui-fixture";
 import {readFile} from "node:fs/promises";
 
-test("actual calendar renders one duration card, real staff columns and singular counts",async()=>{
+test("actual calendar renders one duration card, real staff columns and singular counts",async(t)=>{
+ // Freeze Date only, using an explicit UTC instant for 10:00 in the business timezone.
+ // The layout fixture starts at 10:30; its visibility must not depend on wall-clock time.
+ t.mock.timers.enable({apis:["Date"],now:new Date("2026-10-04T02:00:00.000Z")});
+ t.after(()=>t.mock.timers.reset());
  const dir=await mkdtemp(join(process.cwd(),"node_modules/.cache/calendar-ui-"));
  try{
   await build({entryPoints:["src/components/appointment-calendar.tsx"],outfile:join(dir,"calendar.cjs"),bundle:true,packages:"external",platform:"node",format:"cjs",plugins:[crmUiBoundaries()]});
@@ -25,6 +29,14 @@ test("actual calendar renders one duration card, real staff columns and singular
   assert.deepEqual(Array.from(d.querySelectorAll('.appointment-calendar-day-head small')).map(el=>el.textContent),["1 appt","0 appts","2 appts"]);
   assert.equal(d.querySelector('.appointment-calendar-staff-card strong')!.getAttribute('title'),"Long staff name for accessible title");
   assert.ok(d.querySelector('[aria-label="Business hour"]'));
+  t.mock.timers.setTime(new Date("2026-10-04T04:00:00.000Z").getTime());
+  const visibilityProps={selectedDateValue:"2026-10-04",staffMembers:[{id:"staff",name:"Louis"}],appointments:[{id:"past",customerName:"Past visit",staffId:"staff",scheduledAt:"2026-10-04T10:30:00+08:00",durationMinutes:30,status:"SCHEDULED"}]};
+  const past=new JSDOM(renderToStaticMarkup(createElement(AppointmentCalendar,visibilityProps))).window.document;
+  assert.equal(past.querySelectorAll('.appointment-calendar-card').length,0,'truly past appointment stays hidden by default');
+  assert.match(past.querySelector('.appointment-calendar-earlier-toggle')!.textContent!,/Show earlier times \(1\)/);
+  const future=new JSDOM(renderToStaticMarkup(createElement(AppointmentCalendar,{...visibilityProps,selectedDateValue:"2026-10-05",appointments:[{...visibilityProps.appointments[0],id:"future",scheduledAt:"2026-10-05T10:30:00+08:00"}]}))).window.document;
+  assert.equal(future.querySelectorAll('.appointment-calendar-card').length,1,'future appointment remains visible');
+  assert.match(future.querySelector('.appointment-calendar-card')!.textContent!,/10:30 AM.*11:00 AM/);
   for(const count of [0,2,5,9]){
    const members=Array.from({length:count},(_,index)=>({id:`staff-${index}`,name:`Staff ${index}`,role:"STAFF"}));
    const layout=new JSDOM(renderToStaticMarkup(createElement(AppointmentCalendar,{selectedDateValue:"2099-10-04",selectedDateLabel:"4 Oct",datePickerHrefPrefix:"/appointments?date=",nextHref:"/next",previousHref:"/previous",staffMembers:members}))).window.document as Document;

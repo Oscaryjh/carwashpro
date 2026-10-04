@@ -1,16 +1,29 @@
 export function calculateEarnedPoints(
   amountCents: number,
-  pointsPerRinggit: number,
+  pointsPerRinggit: number | string,
 ) {
-  if (!Number.isInteger(amountCents) || amountCents < 0) {
+  if (!Number.isSafeInteger(amountCents) || amountCents < 0) {
     throw new Error("Payment amount must be a non-negative number of cents.");
   }
 
-  if (!Number.isFinite(pointsPerRinggit) || pointsPerRinggit < 0) {
+  // Stored Prisma Decimal rates arrive as their original decimal string.
+  // Keep number callers compatible, but never multiply binary floats.
+  const rate = String(pointsPerRinggit);
+  const parts = /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(rate);
+  const exponent = Number(parts?.[3] ?? 0);
+  if (!parts || rate.length > 400 || !Number.isInteger(exponent) || Math.abs(exponent) > 324) {
     throw new Error("Points per ringgit must be a non-negative number.");
   }
-
-  return Math.floor((amountCents / 100) * pointsPerRinggit);
+  const fraction = parts[2] ?? "";
+  const scale = fraction.length - exponent;
+  let numerator = BigInt(parts[1] + fraction);
+  let denominator = BigInt(100); // input is cents, rate is per ringgit
+  if (scale >= 0) denominator *= BigInt(10) ** BigInt(scale);
+  else numerator *= BigInt(10) ** BigInt(-scale);
+  // All operands are nonnegative, so integer division is exact floor.
+  const points = BigInt(amountCents) * numerator / denominator;
+  if (points > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("Earned points exceed the safe integer range.");
+  return Number(points);
 }
 
 export function calculateLoyaltyRedemption(input: {
@@ -49,18 +62,24 @@ export function calculateLoyaltyRedemption(input: {
     input.pointsPerRinggit;
   const maximumWholeRinggitPoints =
     Math.floor(input.maximumDiscountCents / 100) * input.pointsPerRinggit;
+  const availableWholeRinggitPoints =
+    Math.floor(input.availablePoints / input.pointsPerRinggit) * input.pointsPerRinggit;
+  // The existing `points` result is the canonical normalized quantity used
+  // by preview, Apply, request payload and the authoritative server path.
   const points = Math.min(
     requestedWholeRinggitPoints,
-    input.availablePoints,
+    availableWholeRinggitPoints,
     maximumWholeRinggitPoints,
   );
 
+  // No full RM1 block means no monetary redemption, never a fractional debit.
+  if (points === 0) return { discountCents: 0, points: 0 };
   if (points < input.minimumPoints) {
     throw new Error("The available points cannot be applied to this sale.");
   }
 
   return {
-    discountCents: Math.floor(points / input.pointsPerRinggit) * 100,
+    discountCents: (points / input.pointsPerRinggit) * 100,
     points,
   };
 }

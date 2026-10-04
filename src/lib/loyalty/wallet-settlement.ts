@@ -54,7 +54,7 @@ export async function awardWalletInvoiceLoyalty(tx: Prisma.TransactionClient, in
   const payments = invoice.payments.map(payment => {
     const eligibleCents = toCents(payment.amount);
     cumulative += eligibleCents;
-    const target = eligible ? calculateEarnedPoints(cumulative, Number(program.pointsPerRinggit)) : 0;
+    const target = eligible ? calculateEarnedPoints(cumulative, program.pointsPerRinggit.toString()) : 0;
     const earnedPoints = target - allocated; allocated = target;
     return { paymentId: payment.id, method: payment.method, eligibleCents, earnedPoints };
   });
@@ -89,7 +89,7 @@ export async function refundWalletInvoiceLoyalty(tx: Prisma.TransactionClient, i
   const evidence = evidenceSchema.parse(records[0].metadata);
   const payments = invoice.payments.map(p => ({ paymentId: p.id, method: p.method, eligibleCents: toCents(p.amount) }));
   if (evidence.invoiceId !== invoice.id || evidence.customerId !== invoice.customerId ||
-      JSON.stringify(evidence.payments.map(({ earnedPoints: _points, ...p }) => p)) !== JSON.stringify(payments) ||
+      JSON.stringify(evidence.payments.map(({ paymentId, method, eligibleCents }) => ({ paymentId, method, eligibleCents }))) !== JSON.stringify(payments) ||
       evidence.eligibleCents !== payments.reduce((n, p) => n + p.eligibleCents, 0)) {
     throw new Error("Wallet loyalty source evidence mismatch.");
   }

@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal, useFormStatus } from "react-dom";
 import type { CashierSaleInvoiceSummary, CashierSaleState } from "@/app/(business)/cashier/actions";
-import { cashierActivityOptionsAction } from "@/app/(business)/cashier/actions";
+import { cashierActivityOptionsAction, cashierPointsOptionsAction } from "@/app/(business)/cashier/actions";
 import { startShiftAction } from "@/app/(business)/closing/actions";
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
 import { MoneyNumpadInput } from "@/components/money-numpad-input";
@@ -32,11 +32,12 @@ import {
   formatCatalogDiscountValue,
   type CatalogDiscountOption,
 } from "@/lib/catalog-discounts";
-import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
-import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
+import { prepareCheckoutCoverage, calculateCoveredCheckoutTax, redeemCheckoutPoints } from "@/lib/loyalty/checkout-coverage";
+import { type TaxDisplaySettings } from "@/lib/tax/calculator";
 import { createWalletCheckoutIntent, readWalletCheckoutRecovery, reconfirmWalletCheckoutActivity, toWalletCheckoutFormData, type WalletCheckoutIntent } from "@/lib/wallet/checkout-intent";
 
 export type CashierCartLine = CashierCatalogItem & { quantity: number };
+type PointsRead = Extract<Awaited<ReturnType<typeof cashierPointsOptionsAction>>, {ok:true}>["data"];
 
 export type CashierInitialSale = {
   appointmentId: string;
@@ -119,7 +120,7 @@ export function CashierUnifiedSaleForm({
   paymentMethods,
   staffOptions,
   taxSettings,
-  loyaltySettings,
+  loyaltySettings: initialLoyaltySettings,
 }: CashierUnifiedSaleFormProps) {
   const router = useRouter();
   const [walletAmount, setWalletAmount] = useState("");
@@ -230,6 +231,37 @@ export function CashierUnifiedSaleForm({
   const walletEntryRef = useRef<HTMLButtonElement>(null);
   const walletDraftRef = useRef<HTMLInputElement>(null);
   const walletCardRef = useRef<HTMLElement>(null);
+  const [pointsRead, setPointsRead] = useState<PointsRead | null>(null);
+  const [pointsReadError, setPointsReadError] = useState(false);
+  const [pointsReadRevision, setPointsReadRevision] = useState(0);
+  const [appliedPointsContext, setAppliedPointsContext] = useState<PointsRead | null>(null);
+  const pointsSequence = useRef(0);
+  const pointsRefreshRequested = useRef(false);
+  const pointsCustomerId = useRef(customer?.id);
+  pointsCustomerId.current = customer?.id;
+  const freshPoints = pointsRead?.customerId === customer?.id ? pointsRead : null;
+  const appliedPoints = appliedPointsContext?.customerId === customer?.id ? appliedPointsContext : null;
+  const loyaltySettings = appliedPoints?.settings ?? initialLoyaltySettings;
+  const draftUsesFreshPoints = pointsRefreshRequested.current;
+  const draftPointsContext = draftUsesFreshPoints ? freshPoints : appliedPoints;
+  const draftPointsSettings = draftPointsContext?.settings ?? loyaltySettings;
+  const draftAvailablePoints = draftPointsContext?.availablePoints ?? (draftUsesFreshPoints ? 0 : customer?.loyaltyPoints ?? 0);
+  const pointsEligible = !!customer && freshPoints?.membershipStatus === "ACTIVE" && freshPoints.settings.enabled && freshPoints.settings.redemptionEnabled;
+  useEffect(() => {
+    const sequence = ++pointsSequence.current;
+    let cancelled = false;
+    if (!adjustmentsOpen || adjustmentTab !== "POINTS" || !customer?.id) return;
+    setPointsRead(null); setPointsReadError(false);
+    const customerId = customer.id;
+    void cashierPointsOptionsAction(customerId).then(result => {
+      if (cancelled || sequence !== pointsSequence.current || pointsCustomerId.current !== customerId) return;
+      if (!result.ok || result.data.customerId !== customerId) { setPointsReadError(true); return; }
+      setPointsRead(result.data);
+    }).catch(() => {
+      if (!cancelled && sequence === pointsSequence.current && pointsCustomerId.current === customerId) setPointsReadError(true);
+    });
+    return () => { cancelled = true; };
+  }, [adjustmentsOpen, adjustmentTab, customer?.id, pointsReadRevision]);
   function closeWalletCard() {
     setWalletExpanded(false);
     setWalletDraft("");
@@ -476,6 +508,26 @@ export function CashierUnifiedSaleForm({
   const discountReferenceError = discountReference.trim().length > 160
     ? "Discount reference is too long."
     : "";
+  const selectedCustomerPackages = useMemo(() => availableCustomerPackages.filter((option) =>
+    selectedCustomerPackageIds.includes(option.id),
+  ), [availableCustomerPackages, selectedCustomerPackageIds]);
+  // Match the server's product / individual package purchase / service order
+  // for voucher-aware allocation; keep the existing non-voucher preview intact.
+  const coverageLines = useMemo(() => selectedCustomerPackages.length ? [
+    ...lines.filter(line => line.type === "product"),
+    ...lines.filter(line => line.type === "package").flatMap(line =>
+      Array.from({ length: line.quantity }, () => ({ ...line, quantity: 1 }))),
+    ...lines.filter(line => line.type === "service"),
+  ] : lines, [lines, selectedCustomerPackages.length]);
+  const coverageInput = useMemo(() => ({
+    lines: coverageLines.map(line => ({
+      lineTotal: line.price * line.quantity, quantity: line.quantity,
+      coveredQuantity: line.type === "service" ? Math.min(line.quantity, selectedCustomerPackages.filter(option => option.serviceId === line.id).length) : 0,
+      taxable: line.taxable, taxRate: line.taxRate,
+    })),
+    sstEnabled: taxSettings.enabled, sstLabel: taxSettings.label, sstRate: taxSettings.rate,
+  }), [coverageLines, selectedCustomerPackages, taxSettings]);
+  const eligibleCents = prepareCheckoutCoverage({ ...coverageInput, discount: manualDiscount }).eligibleCents;
   const redemption = useMemo(() => {
     const requestedPoints = Math.max(0, Math.floor(Number(loyaltyPoints) || 0));
     if (!requestedPoints) return { discountCents: 0, error: "", points: 0 };
@@ -490,9 +542,9 @@ export function CashierUnifiedSaleForm({
     }
 
     try {
-      const result = calculateLoyaltyRedemption({
-        availablePoints: customer.loyaltyPoints ?? 0,
-        maximumDiscountCents: Math.max(0, Math.round((subtotal - manualDiscount) * 100)),
+      const result = redeemCheckoutPoints({
+        availablePoints: appliedPoints?.availablePoints ?? customer.loyaltyPoints ?? 0,
+        maximumDiscountCents: eligibleCents,
         minimumPoints: loyaltySettings.minimumPoints,
         pointsPerRinggit: loyaltySettings.pointsPerRinggit,
         requestedPoints,
@@ -505,7 +557,7 @@ export function CashierUnifiedSaleForm({
         points: 0,
       };
     }
-  }, [customer, loyaltyPoints, loyaltySettings, manualDiscount, selectedCatalogDiscount, subtotal]);
+  }, [customer, loyaltyPoints, loyaltySettings, eligibleCents, selectedCatalogDiscount, appliedPoints]);
   const loyaltyDiscount = redemption.discountCents / 100;
   const totalDiscount = manualDiscount + loyaltyDiscount;
 
@@ -531,7 +583,9 @@ export function CashierUnifiedSaleForm({
   const draftDiscountReferenceError = draftDiscountReference.trim().length > 160
     ? "Discount reference is too long."
     : "";
+  const draftEligibleCents = prepareCheckoutCoverage({ ...coverageInput, discount: draftManualDiscount }).eligibleCents;
   const draftRedemption = useMemo(() => {
+    if (draftUsesFreshPoints && !pointsEligible) return { discountCents: 0, error: "", points: 0 };
     const requestedPoints = Math.max(0, Math.floor(Number(draftLoyaltyPoints) || 0));
     if (!requestedPoints) return { discountCents: 0, error: "", points: 0 };
     if (!customer) {
@@ -540,16 +594,16 @@ export function CashierUnifiedSaleForm({
     if (draftCatalogDiscount && !draftCatalogDiscount.allowLoyaltyStacking) {
       return { discountCents: 0, error: "This discount cannot be combined with loyalty points.", points: 0 };
     }
-    if (!loyaltySettings.enabled || !loyaltySettings.redemptionEnabled) {
+    if (!draftPointsSettings.enabled || !draftPointsSettings.redemptionEnabled) {
       return { discountCents: 0, error: "Point redemption is not enabled.", points: 0 };
     }
 
     try {
-      const result = calculateLoyaltyRedemption({
-        availablePoints: customer.loyaltyPoints ?? 0,
-        maximumDiscountCents: Math.max(0, Math.round((subtotal - draftManualDiscount) * 100)),
-        minimumPoints: loyaltySettings.minimumPoints,
-        pointsPerRinggit: loyaltySettings.pointsPerRinggit,
+      const result = redeemCheckoutPoints({
+        availablePoints: draftAvailablePoints,
+        maximumDiscountCents: draftEligibleCents,
+        minimumPoints: draftPointsSettings.minimumPoints,
+        pointsPerRinggit: draftPointsSettings.pointsPerRinggit,
         requestedPoints,
       });
       return { ...result, error: "" };
@@ -563,46 +617,30 @@ export function CashierUnifiedSaleForm({
   }, [
     customer,
     draftLoyaltyPoints,
-    draftManualDiscount,
+    draftEligibleCents,
     draftCatalogDiscount,
-    loyaltySettings,
-    subtotal,
+    draftPointsSettings,
+    draftAvailablePoints,
+    draftUsesFreshPoints,
+    pointsEligible,
   ]);
   const draftLoyaltyDiscount = draftRedemption.discountCents / 100;
-  const draftTotalDiscount = draftManualDiscount + draftLoyaltyDiscount;
 
   const receivedTip = performanceAvailable && !isTrainingComplimentary ? Number(performanceTip || 0) : 0;
-  const tax = useMemo(() => calculateTax({
-    lines: lines.map((line) => {
-      return {
-        lineTotal: line.price * line.quantity,
-        taxable: line.taxable,
-        taxRate: line.taxRate,
-      };
-    }),
-    sstEnabled: taxSettings.enabled,
-    sstLabel: taxSettings.label,
-    sstRate: taxSettings.rate,
-    discount: isTrainingComplimentary ? subtotal : totalDiscount,
+  const checkoutCalculation = useMemo(() => calculateCoveredCheckoutTax({
+    ...coverageInput,
+    discount: isTrainingComplimentary ? subtotal : manualDiscount,
     tip: receivedTip,
-  }), [isTrainingComplimentary, lines, subtotal, taxSettings, totalDiscount, receivedTip]);
-
-  const selectedCustomerPackages = availableCustomerPackages.filter((option) =>
-    selectedCustomerPackageIds.includes(option.id),
-  );
+  }, isTrainingComplimentary ? 0 : redemption.discountCents), [coverageInput, isTrainingComplimentary, manualDiscount, subtotal, redemption.discountCents, receivedTip]);
+  const tax = checkoutCalculation.tax;
   const selectedPackageApplications = selectedCustomerPackages.flatMap((option) => {
-    const lineIndex = lines.findIndex(
+    const lineIndex = coverageLines.findIndex(
       (line) => line.type === "service" && line.id === option.serviceId,
     );
     if (lineIndex < 0) return [];
 
-    const quantity = Math.max(1, lines[lineIndex].quantity);
-    const coveredAmount = Math.max(
-      0,
-      lines[lineIndex].price
-        - (tax.lineDiscount[lineIndex] ?? 0) / quantity
-        + (tax.lineTax[lineIndex] ?? 0) / quantity,
-    );
+    const unitIndex = selectedCustomerPackages.filter(item => item.serviceId === option.serviceId).findIndex(item => item.id === option.id);
+    const coveredAmount = (checkoutCalculation.coverageCents[lineIndex][unitIndex] ?? 0) / 100;
     if (coveredAmount <= 0) return [];
 
     return [{ ...option, coveredAmount }];
@@ -613,18 +651,11 @@ export function CashierUnifiedSaleForm({
   );
   const amountDue = isTrainingComplimentary ? 0 : Math.max(0, tax.total - packageCoverage);
 
-  const draftTax = useMemo(() => calculateTax({
-    lines: lines.map((line) => ({
-      lineTotal: line.price * line.quantity,
-      taxable: line.taxable,
-      taxRate: line.taxRate,
-    })),
-    sstEnabled: taxSettings.enabled,
-    sstLabel: taxSettings.label,
-    sstRate: taxSettings.rate,
-    discount: draftTotalDiscount,
+  const draftTax = useMemo(() => calculateCoveredCheckoutTax({
+    ...coverageInput,
+    discount: draftManualDiscount,
     tip: receivedTip,
-  }), [draftTotalDiscount, lines, taxSettings, receivedTip]);
+  }, draftRedemption.discountCents).tax, [coverageInput, draftManualDiscount, draftRedemption.discountCents, receivedTip]);
 
   const totalCents = Math.max(0, Math.round(amountDue * 100));
   const walletAmountValid = /^\d+(?:\.\d{1,2})?$/.test(walletAmount);
@@ -688,14 +719,32 @@ export function CashierUnifiedSaleForm({
       !redemption.error,
   );
 
-  function useMaximumPoints() {
-    if (!customer || !loyaltySettings.redemptionEnabled) return;
-    const affordableRinggit = Math.floor(Math.max(0, subtotal - draftManualDiscount));
-    const maximumBySale = affordableRinggit * loyaltySettings.pointsPerRinggit;
-    const maximum = Math.min(customer.loyaltyPoints ?? 0, maximumBySale);
-    const wholePoints = Math.floor(maximum / loyaltySettings.pointsPerRinggit) * loyaltySettings.pointsPerRinggit;
-    setDraftLoyaltyPoints(String(wholePoints));
-  }
+  const maximumPoints = useMemo(() => {
+    if (!pointsEligible || !freshPoints) return 0;
+    return redeemCheckoutPoints({
+      availablePoints: freshPoints.availablePoints,
+      requestedPoints: freshPoints.availablePoints,
+      maximumDiscountCents: draftEligibleCents,
+      pointsPerRinggit: freshPoints.settings.pointsPerRinggit,
+      // Preview/Apply retain their existing minimum and stacking validation.
+      minimumPoints: 0,
+    }).points;
+  }, [pointsEligible, freshPoints, draftEligibleCents]);
+
+  const pointsLocked = regularPaymentSubmitted || !!walletPending || walletRecoveryBlocked || walletSending || !!regularConfirmation.current || walletSendLock.current;
+  const pointsUnavailableReason = !customer ? "Select a customer to use points."
+    : pointsReadError ? "Unable to refresh points balance. Please try again."
+    : !freshPoints ? "Refreshing points..."
+    : freshPoints.membershipStatus !== "ACTIVE" ? "Points unavailable: membership is not active."
+    : !freshPoints.settings.enabled ? "Points unavailable: the loyalty program is disabled."
+    : !freshPoints.settings.redemptionEnabled ? "Points unavailable: redemption is disabled."
+    : draftCatalogDiscount && !draftCatalogDiscount.allowLoyaltyStacking ? "This discount cannot be combined with loyalty points."
+    : draftEligibleCents === 0 ? "Points are not needed for this order."
+    : maximumPoints === 0 || maximumPoints < freshPoints.settings.minimumPoints ? "Not enough points to redeem."
+    : "";
+  const pointsControlsDisabled = !!pointsUnavailableReason || pointsLocked;
+
+  function useMaximumPoints() { if (!pointsControlsDisabled) setDraftLoyaltyPoints(String(maximumPoints)); }
 
   function openCustomerPickerFromRewards() {
     setAdjustmentsOpen(false);
@@ -703,6 +752,8 @@ export function CashierUnifiedSaleForm({
   }
 
   function openAdjustments() {
+    pointsRefreshRequested.current = Number(loyaltyPoints) > 0;
+    setPointsRead(null); setPointsReadError(false);
     setDraftDiscountType(discountType);
     setDraftDiscountValue(discountValue);
     setDraftDiscountReference(discountReference);
@@ -713,12 +764,15 @@ export function CashierUnifiedSaleForm({
   }
 
   function applyAdjustments() {
+    if (pointsLocked || regularConfirmation.current || walletSendLock.current) return;
+    if ((adjustmentTab === "POINTS" || (draftUsesFreshPoints && Number(draftLoyaltyPoints) > 0)) && pointsControlsDisabled) return;
     if (draftDiscountReferenceError || draftRedemption.error) return;
     setDiscountType(draftDiscountType);
     setDiscountValue(draftDiscountValue);
     setDiscountReference(draftDiscountReference);
     setCatalogDiscountId(draftCatalogDiscountId);
     setLoyaltyPoints(String(draftRedemption.points));
+    if (draftUsesFreshPoints && freshPoints) setAppliedPointsContext(freshPoints);
     setAdjustmentsOpen(false);
   }
 
@@ -776,6 +830,14 @@ export function CashierUnifiedSaleForm({
   }
 
   function updateQuantity(index: number, requested: number) {
+    const service = lines[index];
+    if (service?.type === "service") {
+      const matching = new Set(availableCustomerPackages.filter(option => option.serviceId === service.id).map(option => option.id));
+      setSelectedCustomerPackageIds(current => {
+        let retained = 0;
+        return current.filter(id => !matching.has(id) || ++retained <= Math.max(0, requested));
+      });
+    }
     setLines((current) => {
       const selected = current[index];
       if (!selected) return current;
@@ -1122,12 +1184,18 @@ export function CashierUnifiedSaleForm({
             initialCustomer={appointmentSale?.customer}
             key={customerPickerKey}
             onSelectionChange={(nextCustomer) => {
+              if (pointsLocked || regularConfirmation.current || walletSendLock.current) return;
+              if (nextCustomer?.id !== customer?.id) {
+                pointsSequence.current++; pointsCustomerId.current = nextCustomer?.id;
+                setLoyaltyPoints("0"); setDraftLoyaltyPoints("0");
+                setAppliedPointsContext(null); setPointsRead(null); setPointsReadError(false);
+              }
               if (nextCustomer?.id !== customer?.id) { setPaymentWallet(null); setWalletAmount(""); }
               setCustomer(nextCustomer);
               if (!nextCustomer) setLoyaltyPoints("0");
             }}
             posDisplay={false}
-            readOnly={Boolean(appointmentSale)}
+            readOnly={Boolean(appointmentSale) || pointsLocked}
             required={requiresCustomer}
           />
           {customer ? <div className={styles.customerFacts}>
@@ -1340,9 +1408,12 @@ export function CashierUnifiedSaleForm({
                       <div className={styles.customerPackageOptions}>
                         {availableCustomerPackages.map((option) => {
                           const selected = selectedCustomerPackageIds.includes(option.id);
+                          const quantity = lines.find(line => line.type === "service" && line.id === option.serviceId)?.quantity ?? 0;
+                          const coverageFull = selectedCustomerPackages.filter(item => item.serviceId === option.serviceId).length >= quantity;
                           return (
                             <button
                               aria-pressed={selected}
+                              disabled={!selected && coverageFull}
                               className={selected ? styles.customerPackageSelected : ""}
                               key={option.id}
                               onClick={() => {
@@ -1355,10 +1426,9 @@ export function CashierUnifiedSaleForm({
                                       .filter((item) => item.serviceId === option.serviceId)
                                       .map((item) => item.id),
                                   );
-                                  return [
-                                    ...current.filter((id) => !sameServiceIds.has(id)),
-                                    option.id,
-                                  ];
+                                  const quantity = lines.find(line => line.type === "service" && line.id === option.serviceId)?.quantity ?? 0;
+                                  if (current.filter(id => sameServiceIds.has(id)).length >= quantity) return current;
+                                  return [...current, option.id];
                                 });
                                 setCashReceived("");
                               }}
@@ -1696,7 +1766,10 @@ export function CashierUnifiedSaleForm({
                 <button
                   aria-selected={adjustmentTab === "POINTS"}
                   className={adjustmentTab === "POINTS" ? styles.activeAdjustmentTab : ""}
-                  onClick={() => setAdjustmentTab("POINTS")}
+                  onClick={() => {
+                    if (adjustmentTab !== "POINTS") { pointsRefreshRequested.current = true; setPointsRead(null); setPointsReadError(false); }
+                    setAdjustmentTab("POINTS");
+                  }}
                   role="tab"
                   type="button"
                 >
@@ -1791,24 +1864,31 @@ export function CashierUnifiedSaleForm({
                         <strong>{customer?.name ?? "Select a customer"}</strong>
                         <small>
                           {customer
-                            ? `${customer.phone} · Loyalty member`
+                            ? customer.phone
                             : "A customer account is required to redeem points."}
                         </small>
                       </div>
-                      <b>{customer ? `${customer.loyaltyPoints ?? 0} pts` : "Required"}</b>
+                      <b>{freshPoints?.membershipStatus === "ACTIVE" ? "Points" : customer ? "" : "Required"}</b>
                     </button>
+
+                    <div className={styles.pointsBalance}>
+                      <span>Available<strong>{freshPoints ? `${freshPoints.availablePoints.toLocaleString("en-MY")} pts` : "—"}</strong></span>
+                      {freshPoints && freshPoints.settings.pointsPerRinggit > 0 ? <span>{freshPoints.settings.pointsPerRinggit.toLocaleString("en-MY")} points = RM1</span> : null}
+                    </div>
+                    {pointsUnavailableReason ? <p role="status" className={styles.pointsHint}>{pointsUnavailableReason}{pointsReadError ? <> <button type="button" onClick={() => setPointsReadRevision(value => value + 1)}>Retry</button></> : null}</p> : null}
+                    {freshPoints && Number(loyaltyPoints) > 0 && (!pointsEligible || maximumPoints < Number(loyaltyPoints) || (appliedPoints && appliedPoints.settings.pointsPerRinggit !== freshPoints.settings.pointsPerRinggit)) ? <p className={styles.pointsHint}>Points availability has changed. Review and apply again.</p> : null}
 
                     <div className={styles.pointsInputRow}>
                       <label className={styles.adjustmentField}>
                         <span>Points to redeem</span>
                         <MoneyNumpadInput
                           aria-label="Points to redeem"
-                          amountDue={customer?.loyaltyPoints ?? 0}
-                          amountLabel="Available"
+                          amountDue={maximumPoints}
+                          amountLabel="Maximum"
                           decimalPlaces={0}
                           dialogEyebrow="LOYALTY REWARD"
                           dialogTitle="Points to redeem"
-                          disabled={!customer || !loyaltySettings.redemptionEnabled}
+                          disabled={pointsControlsDisabled}
                           exactLabel="Maximum"
                           onValueChange={setDraftLoyaltyPoints}
                           placeholder="0 pts"
@@ -1819,13 +1899,20 @@ export function CashierUnifiedSaleForm({
                       </label>
                       <button
                         className={styles.maximumPointsButton}
-                        disabled={!customer || !loyaltySettings.redemptionEnabled}
+                        disabled={pointsControlsDisabled}
                         onClick={useMaximumPoints}
                         type="button"
                       >
-                        Use maximum
+                        Use max
                       </button>
                     </div>
+
+                    <div className={styles.pointsPreview}>
+                      <span>Discount<strong>{formatMoney(pointsEligible ? draftLoyaltyDiscount : 0)}</strong></span>
+                      <span>Remaining points<strong>{freshPoints ? `${(freshPoints.availablePoints - (pointsEligible ? draftRedemption.points : 0)).toLocaleString("en-MY")} pts` : "—"}</strong></span>
+                    </div>
+                    {freshPoints ? <p className={styles.pointsHint}>Minimum redemption: {freshPoints.settings.minimumPoints.toLocaleString("en-MY")} points</p> : null}
+                    {pointsEligible && freshPoints && maximumPoints > 0 && maximumPoints < freshPoints.availablePoints ? <p className={styles.pointsHint}>Up to {maximumPoints.toLocaleString("en-MY")} points can be used for this order.</p> : null}
 
                     <div className={styles.savtNotice}>
                       <span>
@@ -1844,7 +1931,7 @@ export function CashierUnifiedSaleForm({
                   ) : null}
                   {draftLoyaltyDiscount > 0 ? (
                     <div>
-                      <span>TETAMU Points ({draftRedemption.points} pts)</span>
+                      <span>Points ({draftRedemption.points} pts)</span>
                       <strong>−{formatMoney(draftLoyaltyDiscount)}</strong>
                     </div>
                   ) : null}
@@ -1872,7 +1959,7 @@ export function CashierUnifiedSaleForm({
                   <button className={styles.removeDiscountButton} disabled={discountRemovalLocked || !!regularConfirmation.current} onClick={removeDiscount} type="button">Remove discount</button>
                 ) : <button onClick={() => setAdjustmentsOpen(false)} type="button">Cancel</button>}
                 <button
-                  disabled={Boolean(draftDiscountReferenceError || draftRedemption.error)}
+                  disabled={pointsLocked || Boolean(draftDiscountReferenceError || draftRedemption.error) || ((adjustmentTab === "POINTS" || (draftUsesFreshPoints && Number(draftLoyaltyPoints) > 0)) && pointsControlsDisabled)}
                   onClick={applyAdjustments}
                   type="button"
                 >

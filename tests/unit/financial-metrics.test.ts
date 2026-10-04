@@ -28,7 +28,7 @@ test("calculates sales, gross and net collections, refunds, and outstanding", ()
     invoices: [
       {
         balanceCents: 4_000,
-        discountCents: 1_000,
+        discountCents: 1_500, // Saved total: RM10 manual + RM5 Points.
         loyaltyDiscountCents: 500,
         packageVoucherCents: 2_000,
         status: "PARTIAL",

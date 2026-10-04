@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { LoyaltyTransactionType, Prisma } from "@prisma/client";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
+import { formatLoyaltyActivityDetails } from "@/components/loyalty-activity-copy";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
+import "./point-activity.css";
 
 type LoyaltyActivityPageProps = {
   searchParams: Promise<{
@@ -69,7 +71,7 @@ export default async function LoyaltyActivityPage({ searchParams }: LoyaltyActiv
 
   return (
     <>
-      <section className="content loyalty-content">
+      <section className="content loyalty-content point-activity-page">
         <div className="page-header">
           <div>
             <h1>Membership</h1>
@@ -83,11 +85,11 @@ export default async function LoyaltyActivityPage({ searchParams }: LoyaltyActiv
         />
 
         <div className="panel">
-          <div className="section-header loyalty-list-header">
-            <div>
+          <div className="point-activity-toolbar">
+            <div className="point-activity-heading">
               <h2>Point activity</h2>
               <p className="muted">
-                {totalCount ? `Showing ${firstItem}-${lastItem} of ${totalCount} entries.` : "No point activity found."}
+                {totalCount ? `Showing ${firstItem}–${lastItem} of ${totalCount} entries.` : "No point activity found."}
               </p>
             </div>
             <form className="loyalty-filter-form loyalty-activity-filter" action="/loyalty/activity">
@@ -132,8 +134,8 @@ export default async function LoyaltyActivityPage({ searchParams }: LoyaltyActiv
                     {entry.points > 0 ? "+" : ""}{entry.points}
                   </strong>
                   <div className="loyalty-activity-detail">
-                    <span>{entry.description}</span>
-                    <small>{entry.createdAt.toLocaleString("en-MY")} - {entry.createdBy?.name ?? "System"}</small>
+                    <span>{formatLoyaltyActivityDetails(entry.type)}</span>
+                    <small>{entry.createdAt.toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })} · {entry.createdBy?.name ?? "System"}</small>
                   </div>
                 </div>
               ))}

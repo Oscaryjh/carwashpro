@@ -27,7 +27,8 @@ type RefundPaymentFormProps = {
   }>;
 };
 
-const initialState: RefundPaymentState = {
+type RefundFormState = RefundPaymentState & { completedOperationId?: string };
+const initialState: RefundFormState = {
   status: "idle",
   message: "",
 };
@@ -67,21 +68,46 @@ export function RefundPaymentForm({
   const [method, setMethod] = useState(defaultMethod);
   const form = useRef<HTMLFormElement>(null);
   const submittedValues = useRef<[string, string][]>([]);
+  const submitting = useRef(false);
+  const completedOperation = useRef<string | null>(null);
+  const [lockedValues, setLockedValues] = useState<[string, string][] | null>(null);
+  const recoveryKey = `refund-request:${invoiceId}:${paymentId}`;
+  useEffect(() => {
+    const saved = sessionStorage.getItem(recoveryKey);
+    if (!saved) return;
+    try {
+      const entries: unknown = JSON.parse(saved);
+      if (Array.isArray(entries) && entries.every(entry => Array.isArray(entry) && entry.length === 2 && entry.every(value => typeof value === "string"))) {
+        submittedValues.current = entries;
+        setLockedValues(entries);
+        setMethod(entries.find(([name]) => name === "method")?.[1] ?? defaultMethod);
+      }
+    } catch { /* Invalid browser recovery data is never submitted. */ }
+  }, [recoveryKey, defaultMethod]);
   const [state, formAction, pending] = useActionState(
-    async (previous: RefundPaymentState, data: FormData): Promise<RefundPaymentState> => {
-      submittedValues.current = [...data.entries()].filter((entry): entry is [string, string] => typeof entry[1] === "string");
+    async (previous: RefundFormState, data: FormData): Promise<RefundFormState> => {
+      const request = new FormData();
+      for (const [name, value] of submittedValues.current.length ? submittedValues.current : [...data.entries()]) request.append(name, value);
       try {
-        return await refundPaymentAction(previous, data);
+        const result = await refundPaymentAction(previous, request);
+        if (result.status === "success") return { ...result, completedOperationId: String(request.get("operationId")) };
+        if (result.canCorrect) {
+          sessionStorage.removeItem(recoveryKey);
+          setLockedValues(null);
+        }
+        return result;
       } catch (error) {
         if (error && typeof error === "object" && "digest" in error && String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
         return { status: "error", message: "Unable to confirm refund. Check refund status before retrying with this same request. Your entries and request ID are retained." };
+      } finally {
+        submitting.current = false;
       }
     },
     initialState,
   );
   const safeState = state ?? initialState;
   useLayoutEffect(() => {
-    if (safeState.status !== "error" || !form.current) return;
+    if ((!lockedValues && safeState.status !== "error") || !form.current) return;
     // A resolved error action also resets uncontrolled inputs in React.
     // Restore the submitted request, never the refundable-balance defaults.
     for (const element of form.current.elements) {
@@ -91,7 +117,7 @@ export function RefundPaymentForm({
       if (element instanceof HTMLInputElement && ["radio", "checkbox"].includes(element.type)) element.checked = values.includes(element.value);
       else if (values.length) element.value = values[0];
     }
-  }, [safeState]);
+  }, [safeState, lockedValues, refundableAmount]);
   const { operationId, rotateOperationId } = useFinancialOperationId("refund");
   const [activity,setActivity]=useState<{modeAtConfirmation:"ON"|"OFF";shiftId:string|null}|null>(cashierShiftsEnabled === undefined ? null : {modeAtConfirmation:cashierShiftsEnabled?"ON":"OFF",shiftId:cashierShiftsEnabled?shiftId:null});
   const [activityError,setActivityError]=useState("");
@@ -99,7 +125,16 @@ export function RefundPaymentForm({
     setActivity(null); setActivityError("");
     try {
       const result=await refundCashierActivityAction(paymentId);
-      if(result.ok)setActivity(result.activity); else setActivityError(result.message);
+      if(result.ok){
+        setActivity(result.activity);
+        // Existing explicit mode-rejection review is a rolled-back request,
+        // not an unknown outcome. Preserve its key and refund fields.
+        if (safeState.message.startsWith("CASHIER_SHIFT_MODE_CHANGED") && submittedValues.current.length) {
+          submittedValues.current = submittedValues.current.map(([name,value]) => [name, name === "modeAtConfirmation" ? result.activity.modeAtConfirmation : name === "shiftId" ? result.activity.shiftId ?? "" : value]);
+          sessionStorage.setItem(recoveryKey, JSON.stringify(submittedValues.current));
+          setLockedValues(submittedValues.current);
+        }
+      } else setActivityError(result.message);
     } catch { setActivityError("Cashier settings could not be loaded. Try again."); }
   }
   useEffect(()=>{
@@ -116,12 +151,16 @@ export function RefundPaymentForm({
   },[paymentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (safeState.status === "success") {
+    if (safeState.status === "success" && safeState.completedOperationId && completedOperation.current !== safeState.completedOperationId) {
+      completedOperation.current = safeState.completedOperationId;
+      submittedValues.current = [];
+      sessionStorage.removeItem(recoveryKey);
+      setLockedValues(null);
       rotateOperationId();
       router.refresh();
       onSuccess?.();
     }
-  }, [onSuccess, rotateOperationId, router, safeState.status]);
+  }, [onSuccess, rotateOperationId, router, safeState, recoveryKey]);
 
   return (
     <form
@@ -129,20 +168,28 @@ export function RefundPaymentForm({
       action={formAction}
       className="refund-payment-form"
       onSubmit={(event) => {
-        if(!activity || packagePurchaseRefund?.unavailableReason){event.preventDefault();return;}
-        const amount = new FormData(event.currentTarget).get("amount");
+        if(submitting.current || pending || !operationId || !activity || packagePurchaseRefund?.unavailableReason){event.preventDefault();return;}
+        const data = new FormData(event.currentTarget);
+        const amount = lockedValues?.find(([name]) => name === "amount")?.[1] ?? data.get("amount");
         const confirmed = window.confirm(
           `Refund RM${amount} from invoice ${invoiceNumber}? This changes payment totals only; the related order status will stay unchanged.`,
         );
 
         if (!confirmed) {
           event.preventDefault();
+          return;
+        }
+        submitting.current = true;
+        if (!lockedValues) {
+          submittedValues.current = [...data.entries()].filter((entry): entry is [string, string] => typeof entry[1] === "string");
+          sessionStorage.setItem(recoveryKey, JSON.stringify(submittedValues.current));
+          setLockedValues(submittedValues.current);
         }
       }}
     >
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <input type="hidden" name="paymentId" value={paymentId} />
-      <input type="hidden" name="operationId" value={operationId} />
+      <input type="hidden" name="operationId" value={lockedValues?.find(([name]) => name === "operationId")?.[1] ?? operationId} />
       <input type="hidden" name="modeAtConfirmation" value={activity?.modeAtConfirmation ?? ""} />
       <input type="hidden" name="shiftId" value={activity?.shiftId ?? ""} />
       {!activity ? <p role="status">{activityError || "Loading cashier settings…"}</p> : <p className="field-helper">Cashier shifts: {activity.modeAtConfirmation}</p>}
@@ -161,16 +208,17 @@ export function RefundPaymentForm({
         </div> : <label>
           <span>Refund amount</span>
           <input
+            key={refundableAmount}
             name="amount"
             type="number"
             min="0.01"
             max={refundableAmount.toFixed(2)}
             step="0.01"
             defaultValue={refundableAmount.toFixed(2)}
-            readOnly={packageRefund}
+            readOnly={packageRefund || !!lockedValues}
             required
           />
-          <small>Available: RM{refundableAmount.toFixed(2)}</small>
+          <small>Remaining refundable: RM{refundableAmount.toFixed(2)}</small>
         </label>}
 
         {packageRefund ? (
@@ -185,6 +233,7 @@ export function RefundPaymentForm({
             <span>Refund method</span>
             <select
               name="method"
+              disabled={!!lockedValues}
               value={method}
               onChange={(event) => setMethod(event.target.value)}
             >
@@ -202,6 +251,7 @@ export function RefundPaymentForm({
             <span>Reference</span>
             <input
               name="reference"
+              readOnly={!!lockedValues}
               placeholder="Transaction or bank reference"
               required
             />
@@ -214,6 +264,7 @@ export function RefundPaymentForm({
           <span>Reason</span>
           <textarea
             name="reason"
+            readOnly={!!lockedValues}
             rows={2}
             placeholder="Why is this payment being refunded?"
             required
@@ -222,7 +273,7 @@ export function RefundPaymentForm({
       </div>
 
       {stockLines.length ? (
-        <fieldset className="product-stock-fieldset">
+        <fieldset className="product-stock-fieldset" disabled={!!lockedValues}>
           <legend>Returned product stock</legend>
           <p className="field-helper">For each returned tracked product, choose an explicit quantity and stock treatment.</p>
           {stockLines.map((line) => (
@@ -237,7 +288,8 @@ export function RefundPaymentForm({
       ) : null}
 
       <div className="refund-form-footer">
-        <button className="danger-button" type="submit" disabled={pending || !activity || !!packagePurchaseRefund?.unavailableReason}>
+        {lockedValues && !pending ? <p role="status">Retry uses the original refund request. Check refund status before retrying.</p> : null}
+        <button className="danger-button" type="submit" disabled={pending || !activity || refundableAmount <= 0 || !!packagePurchaseRefund?.unavailableReason}>
           {pending ? "Processing..." : packagePurchaseRefund ? "Process full refund" : "Process refund"}
         </button>
         {safeState.status !== "idle" ? (
