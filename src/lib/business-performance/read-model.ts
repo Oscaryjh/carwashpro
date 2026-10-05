@@ -17,6 +17,8 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { prisma } from "@/lib/prisma";
 import { readWalletActivity } from "@/lib/reports/wallet-activity";
 import { financialReadSnapshot } from "@/lib/reports/financial-read-snapshot";
+import { readSalonPerformance } from "./salon-performance";
+import { resolveSalonPerformanceScope, type SalonAccess } from "./salon-scope";
 
 export type PerformanceRange = "today" | "7days" | "yesterday" | "this_week" | "last_week" | "month" | "last_month" | "custom";
 
@@ -25,7 +27,7 @@ export type PerformanceReadModel = Awaited<ReturnType<typeof getBusinessPerforma
 type ReadDatabase = Pick<Prisma.TransactionClient,
   "business" | "branch" | "invoice" | "payment" | "paymentRefund" | "invoiceItem" |
   "product" | "productStock" | "businessExpense" | "expenseSourceSettlement" |
-  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement" | "walletTransaction">;
+  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement" | "walletTransaction" | "appointment" | "user">;
 type SalesInvoiceRow = { branchId: string | null; issuedAt: Date; total: unknown; tipAmount: unknown; discountAmount: unknown; loyaltyDiscountAmount: unknown; payments: Array<{ amount: unknown }> };
 type SalesPaymentRow = { amount: unknown; branchId: string | null; paidAt: Date; purpose?: Purpose; method?: Method };
 type SalesRefundRow = { amount: unknown; branchId: string | null; refundedAt: Date; method?: Method; payment?: { purpose: Purpose; method: Method } };
@@ -44,6 +46,7 @@ async function readBusinessPerformanceReadModel(input: {
   from?: string;
   to?: string;
   now?: Date;
+  salonAccess?: SalonAccess;
 }, database: ReadDatabase = prisma) {
   const business = await database.business.findUniqueOrThrow({
     where: { id: input.businessId },
@@ -105,7 +108,14 @@ async function readBusinessPerformanceReadModel(input: {
 
   const health = await performanceHealth({ businessId: input.businessId, branchId: selectedBranchId, enabled, branchIds });
   const recordedCents = spending ? moneyToCents(spending.recorded) : null;
+  const salonPerformance = enabled.has("POS") && business.industryType === "SALON_BEAUTY"
+    ? await readSalonPerformance({ businessId: input.businessId, branchFilter: input.salonAccess
+      ? await resolveSalonPerformanceScope(input.businessId, input.salonAccess, database)
+      : branchFilter,
+      fromDate: periods.current.fromDate, toDateExclusive: periods.current.toDateExclusive }, database)
+    : null;
   return {
+    salonPerformance,
     scope: { businessId: business.id, businessName: business.name, branchIds, selectedBranchId },
     walletActivity: enabled.has("POS") ? await readWalletActivity(database, {
       businessId: input.businessId, branchIds,

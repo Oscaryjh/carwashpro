@@ -230,6 +230,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
+    ...(isStoreUser && canSeeCapability("DASHBOARD", "VIEW_DASHBOARD")
+      ? [{ href: "/dashboard", label: "Dashboard", shortLabel: "Dashboard", icon: "dashboard" as const }]
+      : []),
     ...(!isSalonBusiness &&
     moduleEnabled("POS") &&
     moduleEnabled("AUTO") &&

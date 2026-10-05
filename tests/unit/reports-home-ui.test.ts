@@ -4,6 +4,9 @@ import test from "node:test";
 import { parse } from "postcss";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createRequire } from "node:module";
+import { transform } from "esbuild";
+import type { ReactElement } from "react";
 import type { DailySalesReport } from "../../src/lib/reports/daily-sales";
 
 async function components() {
@@ -75,22 +78,26 @@ test("bounded Today DTO renders 20 rows, with long names preserved rather than t
   assert.match(css, /white-space: normal; overflow-wrap: anywhere/);
 });
 
-test("Performance uses real activity guards and Wallet remains in the closed details subtree", () => {
+test("Salon has standalone services without duplicated staff/appointments; Wallet stays in details", async () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
-  assert.match(page, /if \(!services.length && !staff.length && !data.totalAppointments && !data.repeatCustomers\) return null/);
-  assert.match(page, /\{services.length \? <ReportCard title="Top Services">/);
-  assert.match(page, /\{staff.length \? <ReportCard title="Top Staff">/);
   const performanceStart = page.indexOf("function SalonReportSections");
-  const performanceEnd = page.indexOf("function Metric(", performanceStart);
+  const performanceEnd = page.indexOf("function getReportRange(", performanceStart);
   assert.ok(performanceStart >= 0 && performanceEnd > performanceStart);
-  const performance = page.slice(performanceStart, performanceEnd);
-  for (const metric of ["<th>Staff</th>", "<th>Appointments</th>", "<th>Attributed Sales</th>", "{row.name}", "{row.appointments}", "{money(row.amount)}", '<ReportCard title="Appointments">']) assert.ok(performance.includes(metric), `Performance retains ${metric}`);
+  const code = await transform(`import {formatReportMoney as money} from './src/lib/reports/presentation';${page.slice(performanceStart, performanceEnd)};export {SalonReportSections};`, {loader:'tsx',format:'cjs',jsx:'automatic'});
+  const compiled = {exports:{} as {SalonReportSections:(props:{data:object})=>ReactElement|null}};
+  new Function('require','module','exports',code.code)(createRequire(`${process.cwd()}/package.json`),compiled,compiled.exports);
+  const data = {serviceSales:[{name:'Haircut',quantity:2,amount:45},{name:'Empty',quantity:0,amount:0}],staffSales:[{id:'u',name:'Unassigned',appointments:2,amount:45}],totalAppointments:3,completedAppointments:1,cancelledAppointments:1,noShowAppointments:1,repeatCustomers:1,statusRows:[]};
+  const html = renderToStaticMarkup(createElement(compiled.exports.SalonReportSections,{data}));
+  assert.match(html, /Top Services/);
+  assert.match(html, /Haircut/); assert.match(html, /RM45\.00/); assert.match(html, /<td>2<\/td>/);
+  assert.doesNotMatch(html,/Top Staff|Attributed Sales|Appointments|Repeat visits|Performance|report-operational-grid|Empty/);
+  assert.equal(renderToStaticMarkup(createElement(compiled.exports.SalonReportSections,{data:{...data,serviceSales:[]}})), '');
   const details = page.slice(page.indexOf("<details className={styles.moreDetails}>"), page.indexOf("</details>"));
   assert.match(details, /<AdvancedReportDetails/);
   assert.doesNotMatch(page.slice(page.indexOf("<SalesOverview"), page.indexOf("<details className={styles.moreDetails}>")), /WalletFinancialSummary|DailySalesSection|Appointment Summary/);
 });
 
-test("Performance gives tablet tables fewer shrinkable tracks without changing desktop layout", () => {
+test("remaining non-Salon operational grid keeps its tablet and desktop layout", () => {
   const css = parse(readFileSync("src/app/(business)/reports/reports.module.css", "utf8"));
   // Check the active responsive contract, not a snapshot of CSS formatting.
   // Removing either tablet override would restore the overflowing three-card row.

@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { readSalonPerformance } from "@/lib/business-performance/salon-performance";
+import { resolveSalonPerformanceScope, type SalonAccess } from "@/lib/business-performance/salon-scope";
 import { SalesOverview, DailyTransactions, CollectedPayments, TransactionPagination } from "@/components/reports/daily-transactions";
 import styles from "./reports.module.css";
 import { AdvancedReportDetails, hasAdvancedReportDetails } from "@/components/reports/advanced-details";
 import { redirect } from "next/navigation";
-import type { PaymentMethod, Prisma } from "@prisma/client";
+import type { PaymentMethod } from "@prisma/client";
 import { ReportDrawerShell } from "@/components/report-drawer-shell";
 import {
   ReportFilterPanel,
@@ -429,6 +431,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const salonReport =
     context.industryType === "SALON_BEAUTY"
       ? await getSalonReportData({
+          salonAccess: { access: context.access, requestedBranchId: params.branchId === "" ? undefined : params.branchId },
           businessId,
           branchId: selectedBranchId,
           fromDate,
@@ -943,161 +946,53 @@ async function getSalonReportData({
   branchId,
   fromDate,
   toDateExclusive,
+  salonAccess,
 }: {
   businessId: string;
   branchId: string | null;
   fromDate: Date;
   toDateExclusive: Date;
+  salonAccess?: SalonAccess;
 }): Promise<SalonReportData> {
-  const branchFilter = branchWhere(branchId);
-  const appointmentWhere: Prisma.AppointmentWhereInput = {
-    businessId,
-    ...branchFilter,
-    scheduledAt: { gte: fromDate, lt: toDateExclusive },
-  };
-  const validAppointmentWhere: Prisma.AppointmentWhereInput = {
-    ...appointmentWhere,
-    status: { notIn: ["CANCELLED", "NO_SHOW"] },
-  };
-  const salonInvoiceLink = {
-    OR: [
-      { appointmentId: { not: null } },
-      { workOrderId: { not: null } },
-    ],
-  } satisfies Prisma.InvoiceWhereInput;
-
-  const [
-    appointmentsByStatus,
-    repeatCustomerGroups,
-    invoices,
-    staffAppointmentGroups,
-  ] = await Promise.all([
-    prisma.appointment.groupBy({
-      by: ["status"],
-      where: appointmentWhere,
-      _count: true,
-      orderBy: { _count: { status: "desc" } },
-    }),
-    prisma.appointment.groupBy({
-      by: ["customerId"],
-      where: validAppointmentWhere,
-      _count: true,
-    }),
-    prisma.invoice.findMany({
-      where: {
-        businessId,
-        ...branchFilter,
-        ...salonInvoiceLink,
-        status: { not: "VOID" },
-        issuedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      select: {
-        items: {
-          select: { name: true, quantity: true, lineTotal: true },
-        },
-        appointment: {
-          select: {
-            assignedStaffId: true,
-            assignedStaff: { select: { id: true, name: true } },
-          },
-        },
-      },
-    }),
-    prisma.appointment.groupBy({
-      by: ["assignedStaffId"],
-      where: validAppointmentWhere,
-      _count: true,
-    }),
-  ]);
-
-  const assignedStaffIds = staffAppointmentGroups
-    .map((row) => row.assignedStaffId)
-    .filter((id): id is string => Boolean(id));
-  const staffUsers = assignedStaffIds.length
-    ? await prisma.user.findMany({
-        where: { businessId, id: { in: assignedStaffIds } },
-        select: { id: true, name: true },
-      })
-    : [];
-  const staffNames = new Map(staffUsers.map((staff) => [staff.id, staff.name]));
-
+  const performanceFilter = salonAccess
+    ? await resolveSalonPerformanceScope(businessId, salonAccess)
+    : branchWhere(branchId);
+  const { sourceInvoices: performanceInvoices, ...performance } = await readSalonPerformance({
+    businessId, branchFilter: performanceFilter, fromDate, toDateExclusive,
+  });
+  // Top Services is outside the historical Staff/Appointment scope alignment.
+  const sourceInvoices = JSON.stringify(performanceFilter) === JSON.stringify(branchWhere(branchId))
+    ? performanceInvoices
+    : await prisma.invoice.findMany({
+        where: { businessId, ...branchWhere(branchId), status: { not: "VOID" },
+          OR: [{ appointmentId: { not: null } }, { workOrderId: { not: null } }],
+          issuedAt: { gte: fromDate, lt: toDateExclusive } },
+        select: { items: { select: { name: true, quantity: true, lineTotal: true } } },
+      });
+  // Reports Top Services retains its own aggregation; Dashboard Top Services is unchanged.
   const serviceMap = new Map<string, { quantity: number; amount: number }>();
-  const staffAmountMap = new Map<string, { name: string; amount: number }>();
-  for (const invoice of invoices) {
-    const staffId = invoice.appointment?.assignedStaffId ?? "unassigned";
-    const staffName =
-      invoice.appointment?.assignedStaff?.name ?? staffNames.get(staffId) ?? "Unassigned";
-    const staffEntry = staffAmountMap.get(staffId) ?? { name: staffName, amount: 0 };
-
+  for (const invoice of sourceInvoices) {
     for (const item of invoice.items) {
       const serviceEntry = serviceMap.get(item.name) ?? { quantity: 0, amount: 0 };
       serviceEntry.quantity += item.quantity;
       serviceEntry.amount += Number(item.lineTotal);
       serviceMap.set(item.name, serviceEntry);
-      staffEntry.amount += Number(item.lineTotal);
     }
-
-    staffAmountMap.set(staffId, staffEntry);
   }
-
-  const staffSales = Array.from(
-    new Set([
-      ...staffAppointmentGroups.map((row) => row.assignedStaffId ?? "unassigned"),
-      ...staffAmountMap.keys(),
-    ]),
-  )
-    .map((id) => {
-      const appointmentGroup = staffAppointmentGroups.find(
-        (row) => (row.assignedStaffId ?? "unassigned") === id,
-      );
-      const amount = staffAmountMap.get(id);
-      return {
-        id,
-        name:
-          amount?.name ??
-          (id === "unassigned" ? "Unassigned" : staffNames.get(id) ?? "Staff"),
-        appointments: appointmentGroup?._count ?? 0,
-        amount: amount?.amount ?? 0,
-      };
-    })
-    .sort((left, right) => right.amount - left.amount);
-
-  const statusCountMap = new Map<string, number>();
-  for (const row of appointmentsByStatus) {
-    const status = ["CONFIRMED", "ARRIVED", "IN_SERVICE"].includes(row.status)
-      ? "SCHEDULED"
-      : row.status;
-    statusCountMap.set(status, (statusCountMap.get(status) ?? 0) + row._count);
-  }
-  const statusRows = Array.from(statusCountMap.entries())
-    .map(([status, appointments]) => ({ status, appointments }))
-    .sort((left, right) => right.appointments - left.appointments);
-  const countForStatus = (status: string) =>
-    statusRows.find((row) => row.status === status)?.appointments ?? 0;
-  const totalAppointments = statusRows.reduce((total, row) => total + row.appointments, 0);
   return {
-    totalAppointments,
-    completedAppointments: countForStatus("COMPLETED"),
-    cancelledAppointments: countForStatus("CANCELLED"),
-    noShowAppointments: countForStatus("NO_SHOW"),
-    repeatCustomers: repeatCustomerGroups.filter((row) => row._count > 1).length,
+    ...performance,
     serviceSales: Array.from(serviceMap.entries())
       .map(([name, row]) => ({ name, ...row }))
       .sort((left, right) => right.amount - left.amount)
       .slice(0, 10),
-    staffSales,
-    statusRows,
   };
 }
 
 function SalonReportSections({ data }: { data: SalonReportData }) {
   const services = data.serviceSales.filter(row => row.amount !== 0 || row.quantity > 0);
-  const staff = data.staffSales.filter(row => row.amount !== 0 || row.appointments > 0);
-  if (!services.length && !staff.length && !data.totalAppointments && !data.repeatCustomers) return null;
+  if (!services.length) return null;
   return (
-      <section aria-label="Performance"><h2>Performance</h2><div className="report-grid report-operational-grid">
-        {services.length ? <ReportCard title="Top Services">
-          {data.serviceSales.length ? (
+        <ReportCard title="Top Services">
             <table className="table compact-table">
               <thead>
                 <tr>
@@ -1116,41 +1011,7 @@ function SalonReportSections({ data }: { data: SalonReportData }) {
                 ))}
               </tbody>
             </table>
-          ) : (
-            <p className="empty-state">No service sales in this period.</p>
-          )}
-        </ReportCard> : null}
-
-        {staff.length ? <ReportCard title="Top Staff">
-          {data.staffSales.length ? (
-            <table className="table compact-table">
-              <thead>
-                <tr>
-                  <th>Staff</th>
-                  <th>Appointments</th>
-                  <th>Attributed Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.name}</td>
-                    <td>{row.appointments}</td>
-                    <td>{money(row.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="empty-state">No staff activity in this period.</p>
-          )}
-        </ReportCard> : null}
-        {data.totalAppointments || data.repeatCustomers ? <ReportCard title="Appointments">
-          <p>{data.statusRows.filter(row => row.appointments > 0 && !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(row.status)).map(row => `${row.appointments} ${formatStatus(row.status).toLowerCase()}`).join(" · ") || `${data.totalAppointments} ${data.totalAppointments === 1 ? "appointment" : "appointments"}`}</p>
-          <p>{data.completedAppointments} completed · {data.cancelledAppointments} cancelled · {data.noShowAppointments} no-show</p>
-          <p>Repeat visits: {data.repeatCustomers}</p>
-        </ReportCard> : null}
-      </div></section>
+        </ReportCard>
   );
 }
 

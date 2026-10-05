@@ -172,10 +172,10 @@ test("summary KPIs are grouped and use a responsive non-fixed grid", () => {
   assert.match(styles, /\.report-summary-primary,[\s\S]*?repeat\(auto-fit,/);
 });
 
-test("staff section describes invoice-linked attribution rather than generic performance", () => {
+test("Reports no longer duplicates Dashboard staff attribution presentation", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
-  assert.match(page, /<ReportCard title="Top Staff">/);
-  assert.match(page, /<th>Attributed Sales<\/th>/);
+  assert.doesNotMatch(page, /<ReportCard title="Top Staff">/);
+  assert.doesNotMatch(page, /<th>Attributed Sales<\/th>/);
   assert.doesNotMatch(page, /<ReportCard title="Staff Performance">/);
 });
 
@@ -210,8 +210,9 @@ test("reports exposes invoice discount contributors and payment-method source dr
 test("repeat metric wording is period-scoped without changing its calculation", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
 
-  assert.match(page, /Repeat visits: \{data\.repeatCustomers\}/);
-  assert.match(page, /repeatCustomerGroups\.filter\(\(row\) => row\._count > 1\)\.length/);
+  assert.doesNotMatch(page, /Repeat visits: \{data\.repeatCustomers\}/);
+  const performance = readFileSync("src/lib/business-performance/salon-performance.ts", "utf8");
+  assert.match(performance, /repeatCustomerGroups\.filter\(\(row\) => row\._count > 1\)\.length/);
   assert.doesNotMatch(page, /label="Repeat customers"/);
 });
 

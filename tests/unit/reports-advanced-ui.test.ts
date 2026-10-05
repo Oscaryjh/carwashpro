@@ -54,11 +54,11 @@ test("payment breakdown preserves counts/refunds/links but no repeated period ne
   assert.match(html, /Payment Breakdown/); assert.match(html, /1 payment/); assert.match(html, /Gross/); assert.match(html, /Refunds/); assert.match(html, /paymentMethod=Cash/);
   assert.doesNotMatch(html, /Net collected|Daily Sales|Business Performance/);
 });
-test("page removes duplicate legacy sections and retains appointment attribution and balance formula", () => {
+test("page removes duplicate performance presentation and retains balance formula", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
   assert.doesNotMatch(page, /function DailySalesSection|function PaymentsCollectedSection/);
   assert.equal((page.match(/title="Business Performance"/g) ?? []).length, 1);
-  assert.match(page, /Attributed Sales/);
+  assert.doesNotMatch(page, /Attributed Sales/);
   assert.ok(page.includes('money(Number(fromCents(dailySalesReport.summary.netSalesCents)) - Number(expenseSummary.recorded))'));
   assert.doesNotMatch(page, /\{data.totalAppointments\} appointments/);
 });

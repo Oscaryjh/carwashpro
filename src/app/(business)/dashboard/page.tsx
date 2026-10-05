@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SalonPerformanceSection } from "@/components/dashboard/salon-performance";
 import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import type { ReactNode } from "react";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
@@ -7,6 +8,7 @@ import { getBusinessPerformanceReadModel, type PerformanceRange } from "@/lib/bu
 import { prisma } from "@/lib/prisma";
 import { getBusinessContext } from "@/lib/tenant";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import styles from "./dashboard.module.css";
 
 type Props = { searchParams: Promise<{ branchId?: string; range?: string; from?: string; to?: string }> };
 const ranges: Array<{ key: PerformanceRange; label: string }> = [
@@ -16,7 +18,7 @@ const ranges: Array<{ key: PerformanceRange; label: string }> = [
 ];
 
 export default async function DashboardPage({ searchParams }: Props) {
-  const context = await getBusinessContext();
+  const context = await getBusinessContext("VIEW_DASHBOARD");
   if (context.isPlatformAdmin) return <PlatformDashboard />;
   if (context.access.source === "DIRECT_BUSINESS") assertStaffPermission(context.user, "DASHBOARD");
   const businessId = context.businessId!;
@@ -25,41 +27,61 @@ export default async function DashboardPage({ searchParams }: Props) {
   const scope = await resolveExpenseReadScope({ access: context.access, businessId, user: context.user });
   const selectedBranchId = params.branchId && scope.allowedBranchIds?.includes(params.branchId) ? params.branchId : null;
   const model = await getBusinessPerformanceReadModel({
+    salonAccess: { access: context.access, requestedBranchId: params.branchId === "" ? undefined : params.branchId },
     businessId, allowedBranchIds: scope.allowedBranchIds ?? [], includeBusinessWide: Boolean(scope.includeBusinessWide),
     selectedBranchId, range: params.range, from: params.from, to: params.to,
   });
   const spending = model.businessSpending;
   const sales = model.sales;
+  const meaningfulBranches = model.branchPerformance.filter(row =>
+    row.netSalesCents !== 0 || row.transactions !== 0 || row.refundsCents !== 0 ||
+    Number(row.recordedSpending ?? 0) !== 0 || Number(row.incomeVsSpending ?? 0) !== 0);
+  const inventory = model.inventory;
+  const ap = model.accountsPayable;
+  const wallet = model.walletActivity;
+  const hasWalletActivity = wallet && Object.values(wallet).some(value => value !== 0);
+  const needsAttention = Boolean(inventory && (inventory.lowStock > 0 || inventory.outOfStock > 0)) || Boolean(ap && (ap.dueSoon > 0 || ap.overdue > 0)) || model.reconciliationHealth.status !== "HEALTHY";
   const maxTrend = Math.max(1, ...(sales?.trend.map((point) => Math.abs(point.netSalesCents)) ?? [0]));
   return <section className="content dashboard-content performance-dashboard">
-    <div className="page-header dashboard-header"><div><h1>Business performance</h1><p>{model.scope.businessName} · Read-only canonical operating view</p>{aiEnabled ? <Link href={aiHref(params, selectedBranchId)}>Ask AI about this period</Link> : null}</div><div className="performance-period"><span>Business period</span><strong>{model.dateRange.from} — {model.dateRange.to}</strong><small>{model.dateRange.timezone} · cutoff {model.dateRange.businessDayCutoffTime}</small></div></div>
+    <div className="page-header dashboard-header"><div><h1>Business performance</h1><p>{model.scope.businessName}</p>{aiEnabled ? <Link href={aiHref(params, selectedBranchId)}>Ask AI about this period</Link> : null}</div><div className="performance-period"><span>Business period</span><strong>{model.dateRange.from} — {model.dateRange.to}</strong><small>{model.dateRange.timezone} · cutoff {model.dateRange.businessDayCutoffTime}</small></div></div>
 
     <div className="panel performance-filter-panel">
       <nav className="dashboard-range-tabs" aria-label="Performance date range">{ranges.map((range) => <Link className={model.dateRange.range === range.key ? "active" : ""} href={href(range.key, selectedBranchId)} key={range.key}>{range.label}</Link>)}</nav>
       <form className="performance-filter-form" action="/dashboard"><input type="hidden" name="range" value="custom" /><label><span>From</span><input type="date" name="from" defaultValue={model.dateRange.from} /></label><label><span>To</span><input type="date" name="to" defaultValue={model.dateRange.to} /></label>{scope.branches.length > 1 ? <label><span>Branch</span><select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All authorised branches</option>{scope.branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : <label><span>Branch</span><strong>{scope.branches[0]?.name ?? "No authorised branch"}</strong></label>}<button>Apply</button></form>
     </div>
 
-    <div className="dashboard-kpis performance-primary-kpis">
-      {sales ? <><Metric label="Net Sales" value={moneyCents(sales.netSalesCents)} subValue={comparison(sales.change)} tone="sales" /><Metric label="Transactions" value={sales.transactions} /><Metric label="Average Transaction" value={moneyCents(sales.averageTransactionValueCents)} /><Metric label="Refunds" value={moneyCents(sales.refundsCents)} /></> : <Unavailable label="Sales" />}
-      {spending ? <><Metric label="Recorded Business Spending" value={money(spending.recorded)} href="/expenses" /><Metric label="Simple Operating Balance" value={money(spending.incomeVsRecordedSpending)} subValue="Net Sales - Recorded Business Spending" tone={Number(spending.incomeVsRecordedSpending) < 0 ? "danger" : "ready"} /></> : <Unavailable label="Recorded spending" />}
-      {model.accountsPayable ? <Metric label="Outstanding AP" value={money(model.accountsPayable.totalOutstanding)} href="/inventory/accounts-payable" tone="warning" /> : null}
+    <div className={`dashboard-kpis performance-primary-kpis ${styles.primary}`}>
+      {sales ? <><Metric label="Net Sales" value={moneyCents(sales.netSalesCents)} subValue={comparison(sales.change)} tone="sales" /><Metric label="Transactions" value={sales.transactions} /><Metric label="Average Sale" value={moneyCents(sales.averageTransactionValueCents)} /><Metric label="Refunds" value={moneyCents(sales.refundsCents)} /></> : <Unavailable label="Sales" />}
     </div>
-    <p className="performance-coverage-note">This view is operational and does not represent accounting profit. COGS, accounting inventory valuation, depreciation, tax accounting, General Ledger, Supplier Credit Notes and other accounting adjustments are not included.</p>
+    {spending ? <section className={styles.secondary} aria-label="Business spending and balance">
+      <div className={styles.metrics}><Metric label="Business Spending" value={money(spending.recorded)} href="/expenses" /><Metric label="Operating Balance" value={money(spending.incomeVsRecordedSpending)} subValue={!sales ? "Sales module not enabled" : undefined} /></div>
+      <p>Not accounting profit.</p>
+    </section> : null}
 
-    <div className="performance-two-column">
-      {sales ? <Panel title="Net Sales Trend" meta="Canonical invoice and refund facts"><div className="performance-trend" role="img" aria-label="Net Sales Trend">{sales.trend.map((point) => <div className="performance-trend-point" key={point.date}><span>{moneyCents(point.netSalesCents)}</span><div style={{ height: `${Math.max(3, Math.round(Math.abs(point.netSalesCents) / maxTrend * 130))}px` }} /><time>{point.date.slice(5)}</time></div>)}</div><p>Previous comparable period: <strong>{moneyCents(sales.previousNetSalesCents)}</strong></p></Panel> : null}
-      {spending ? <Panel title="Spending by Source" meta="Materialized Expense facts only"><div className="performance-breakdown">{sourceKeys.map(({ key, label }) => { const row = spending.bySource.find((item) => item.sourceType === key); return <div key={key}><span>{label}</span><strong>{money(row?.amount ?? "0.00")}</strong><small>{row?.count ?? 0} record(s)</small></div>; })}</div><p>Outstanding AP is settlement information and is not added to Recorded Business Spending.</p></Panel> : null}
-    </div>
+    {needsAttention ? <section className={`panel ${styles.attention}`}><h2>Needs Attention</h2><p>Current inventory, bills and data checks — not limited to the selected period.</p><ul>
+      {inventory && inventory.lowStock > 0 ? <li><Link href="/inventory/reorder">Low Stock: {inventory.lowStock}</Link></li> : null}
+      {inventory && inventory.outOfStock > 0 ? <li><Link href="/inventory/reorder">Out of Stock: {inventory.outOfStock}</Link></li> : null}
+      {ap && ap.dueSoon > 0 ? <li><Link href="/inventory/accounts-payable">Due Soon: {ap.dueSoon}</Link></li> : null}
+      {ap && ap.overdue > 0 ? <li><Link href="/inventory/accounts-payable">Overdue: {ap.overdue}</Link></li> : null}
+      {model.reconciliationHealth.status !== "HEALTHY" ? <li>Some business data needs attention</li> : null}
+    </ul></section> : null}
 
-    <div className="performance-two-column">
-      <Panel title="Branch Performance" meta="Ranked by Net Sales"><div className="performance-table-wrap"><table><thead><tr><th>Branch</th><th>Net Sales</th><th>Transactions</th><th>Average</th><th>Recorded Spending</th><th>Simple Operating Balance</th><th>Refunds</th></tr></thead><tbody>{model.branchPerformance.map((row) => <tr key={row.branchId}><td>{row.branchName}</td><td>{moneyCents(row.netSalesCents)}</td><td>{row.transactions}</td><td>{moneyCents(row.averageTransactionValueCents)}</td><td>{row.recordedSpending === null ? "Not included" : money(row.recordedSpending)}</td><td>{row.incomeVsSpending === null ? "Not included" : money(row.incomeVsSpending)}</td><td>{moneyCents(row.refundsCents)}</td></tr>)}</tbody></table></div>{model.coverage.unallocatedBusinessWideSpending && Number(model.coverage.unallocatedBusinessWideSpending) !== 0 ? <p>Business-wide spending kept unallocated: <strong>{money(model.coverage.unallocatedBusinessWideSpending)}</strong></p> : null}</Panel>
-      <Panel title="Data Health" meta={model.reconciliationHealth.status === "HEALTHY" ? "Healthy · Issues 0" : `Needs Review · Issues ${model.reconciliationHealth.issues}`}><dl className="performance-health"><div><dt>POS / Sales</dt><dd>{model.reconciliationHealth.domains.sales}</dd></div><div><dt>Expense Sources</dt><dd>{model.reconciliationHealth.domains.expense}</dd></div><div><dt>Inventory</dt><dd>{model.reconciliationHealth.domains.inventory}</dd></div><div><dt>Accounts Payable</dt><dd>{model.reconciliationHealth.domains.ap}</dd></div></dl>{model.reconciliationHealth.status !== "HEALTHY" ? <p className="form-message error">Some data requires reconciliation review. Source facts have not been changed.</p> : null}</Panel>
-    </div>
+    {sales ? <Panel title="Net Sales Trend"><div className="performance-trend" role="img" aria-label="Net Sales Trend">{sales.trend.map((point) => <div className="performance-trend-point" key={point.date}><span>{moneyCents(point.netSalesCents)}</span><div style={{ height: `${Math.max(3, Math.round(Math.abs(point.netSalesCents) / maxTrend * 130))}px` }} /><time>{point.date.slice(5)}</time></div>)}</div><p>Previous comparable period: <strong>{moneyCents(sales.previousNetSalesCents)}</strong></p></Panel> : null}
 
-    {(model.topServices.length || model.topProducts.length) ? <div className="performance-two-column"><Ranking title="Top Services" rows={model.topServices} empty="No service sales in this period." /><Ranking title="Top Products" rows={model.topProducts} empty="No product sales in this period." /></div> : null}
-    {model.inventory ? <div className="performance-two-column"><Panel title="Inventory Summary" meta="Selling value, not accounting valuation"><div className="performance-breakdown"><Metric label="Tracked Products" value={model.inventory.trackedProducts} /><Metric label="Low Stock" value={model.inventory.lowStock} tone="warning" /><Metric label="Out of Stock" value={model.inventory.outOfStock} tone="danger" /><Metric label="Inventory Selling Value" value={money(model.inventory.sellingValue)} /></div><Link href="/inventory/reorder">Review low stock</Link></Panel>{model.accountsPayable ? <Panel title="Accounts Payable" meta="Liability / settlement view"><div className="performance-breakdown"><Metric label="Outstanding" value={money(model.accountsPayable.totalOutstanding)} /><Metric label="Due Soon" value={model.accountsPayable.dueSoon} /><Metric label="Overdue" value={model.accountsPayable.overdue} tone="danger" /><Metric label="Open Bills" value={model.accountsPayable.openBills} /></div><Link href="/inventory/accounts-payable">Open Accounts Payable</Link></Panel> : null}</div> : null}
-    <WalletFinancialSummary activity={model.walletActivity} salesRefundsCents={sales?.refundsCents} externalRefundsCents={sales?.externalRefundsCents} />
-    <Panel title="Coverage" meta="Missing module data is not zero"><div className="performance-coverage-grid"><Coverage label="Sales" included={model.coverage.sales} /><Coverage label="Recorded Spending" included={model.coverage.recordedSpending} /><Coverage label="Inventory" included={model.coverage.inventory} /><Coverage label="Accounts Payable" included={model.coverage.accountsPayable} /><Coverage label="COGS" included={false} /><Coverage label="Accounting Profit" included={false} /></div></Panel>
+    <SalonPerformanceSection data={model.salonPerformance} />
+    {(model.topServices.length || model.topProducts.length) ? <div className={styles.rankings}>{model.topServices.length ? <Ranking title="Top Services" rows={model.topServices} empty="No service sales in this period." /> : null}{model.topProducts.length ? <Ranking title="Top Products" rows={model.topProducts} empty="No product sales in this period." /> : null}</div> : null}
+    {meaningfulBranches.length > 1 ? <Panel title="Branch Performance" meta="Ranked by Net Sales"><div className={styles.branchTable}><table><thead><tr><th>Branch</th><th>Net Sales</th><th>Transactions</th><th>Operating Balance</th></tr></thead><tbody>{meaningfulBranches.map(row => <tr key={row.branchId}><td>{row.branchName}</td><td>{moneyCents(row.netSalesCents)}</td><td>{row.transactions}</td><td>{row.incomeVsSpending === null ? "Not included" : money(row.incomeVsSpending)}</td></tr>)}</tbody></table></div></Panel> : null}
+
+    {hasWalletActivity ? <section className={styles.secondary} aria-label="Wallet summary"><h2>Wallet</h2><div className={styles.metrics}><Metric label="Top-ups" value={moneyCents(wallet.topUpPrincipalCents)} /><Metric label="Wallet used" value={moneyCents(wallet.redemptionPaidCents + wallet.redemptionBonusCents)} /><Metric label="Wallet refunds" value={moneyCents(wallet.refundPaidCents + wallet.refundBonusCents)} /></div><p>Top-ups show principal only, not sales. Wallet used and refunds include paid and bonus credit. Reversals and restored credit are in More details.</p></section> : null}
+
+    <details className={`panel ${styles.details}`}><summary>More details</summary><div className={styles.detailContent}>
+      {spending ? <Panel title="Spending by Source"><div className="performance-breakdown">{sourceKeys.map(({ key, label }) => { const row = spending.bySource.find(item => item.sourceType === key); return row && (row.count > 0 || Number(row.amount) !== 0) ? <div key={key}><span>{label}</span><strong>{money(row.amount)}</strong><small>{row.count} record(s)</small></div> : null; })}</div>{!spending.bySource.length ? <p>No recorded spending in this period.</p> : null}<p>Outstanding supplier balances are not added again to Business Spending.</p></Panel> : null}
+      {model.coverage.unallocatedBusinessWideSpending && Number(model.coverage.unallocatedBusinessWideSpending) !== 0 ? <p>Business-wide spending kept unallocated: <strong>{money(model.coverage.unallocatedBusinessWideSpending)}</strong></p> : null}
+      {hasWalletActivity ? <WalletFinancialSummary activity={wallet} /> : null}
+      {inventory ? <Panel title="Inventory Summary" meta="Current · Estimated at selling prices"><div className="performance-breakdown"><Metric label="Tracked Products" value={inventory.trackedProducts} /><Metric label="Inventory Selling Value" value={money(inventory.sellingValue)} /></div><Link href="/inventory/reorder">Review stock</Link></Panel> : null}
+      {ap ? <Panel title="Accounts Payable" meta="Current unpaid supplier bills"><div className="performance-breakdown"><Metric label="Outstanding" value={money(ap.totalOutstanding)} /><Metric label="Open Bills" value={ap.openBills} /></div><Link href="/inventory/accounts-payable">Open Accounts Payable</Link></Panel> : null}
+      <section><h2>About this dashboard</h2><p>This view is operational and does not represent accounting profit. COGS, accounting inventory valuation, depreciation, tax accounting, General Ledger, Supplier Credit Notes and other accounting adjustments are not included.</p><p>Business Spending includes recorded expenses. Operating Balance is Net Sales minus Business Spending. Inventory and Accounts Payable show current state, not historical period-end balances. Low Stock and Out of Stock counts can overlap.</p><p>Missing module data is not zero. Only enabled data sources are included.</p></section>
+    </div></details>
   </section>;
 }
 
@@ -67,8 +89,7 @@ async function PlatformDashboard() { const [companies, users] = await Promise.al
 function Panel({ title, meta, children }: { title: string; meta?: string; children: ReactNode }) { return <section className="panel performance-panel"><div className="section-header"><h2>{title}</h2>{meta ? <span>{meta}</span> : null}</div>{children}</section>; }
 function Metric({ label, value, subValue, href, tone = "default" }: { label: string; value: string | number; subValue?: string; href?: string; tone?: "default" | "sales" | "warning" | "ready" | "danger" }) { const content = <><span>{label}</span><strong>{value}</strong>{subValue ? <small>{subValue}</small> : null}</>; return href ? <Link className={`dashboard-kpi-card ${tone}`} href={href}>{content}</Link> : <div className={`dashboard-kpi-card ${tone}`}>{content}</div>; }
 function Unavailable({ label }: { label: string }) { return <div className="dashboard-kpi-card"><span>{label}</span><strong>Not included</strong><small>Module not enabled</small></div>; }
-function Coverage({ label, included }: { label: string; included: boolean }) { return <div><span>{label}</span><strong>{included ? "Included" : "Not Available"}</strong></div>; }
-function Ranking({ title, rows, empty }: { title: string; rows: Array<{ name: string; quantity: number; sales: string }>; empty: string }) { return <Panel title={title} meta="Canonical invoice line facts">{rows.length ? <ol className="performance-ranking">{rows.map((row) => <li key={row.name}><strong>{row.name}</strong><span>{row.quantity} unit(s)</span><b>{money(row.sales)}</b></li>)}</ol> : <p className="empty-state">{empty}</p>}</Panel>; }
+function Ranking({ title, rows, empty }: { title: string; rows: Array<{ name: string; quantity: number; sales: string }>; empty: string }) { return <Panel title={title}>{rows.length ? <ol className="performance-ranking">{rows.map((row) => <li key={row.name}><strong>{row.name}</strong><span>{row.quantity} unit(s)</span><b>{money(row.sales)}</b></li>)}</ol> : <p className="empty-state">{empty}</p>}</Panel>; }
 const sourceKeys: Array<{ key: "MANUAL" | "CLAIM" | "PAYROLL" | "INVENTORY_PURCHASE"; label: string }> = [{ key: "MANUAL", label: "Manual" }, { key: "CLAIM", label: "Claims" }, { key: "PAYROLL", label: "Payroll" }, { key: "INVENTORY_PURCHASE", label: "Inventory Purchases" }];
 function money(value: unknown) { return `RM ${Number(value ?? 0).toFixed(2)}`; }
 function moneyCents(value: number) { return money(value / 100); }

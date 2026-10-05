@@ -19,10 +19,10 @@ test("period comparison handles a zero denominator without Infinity", () => {
   assert.deepEqual(comparePeriods(110, 100), { kind: "PERCENT", percentage: 10 });
 });
 
-test("dashboard contract keeps canonical and accounting boundaries visible", async () => {
+test("dashboard contract keeps accounting boundaries available without technical default cards", async () => {
   const page = await readFile("src/app/(business)/dashboard/page.tsx", "utf8");
   const model = await readFile("src/lib/business-performance/read-model.ts", "utf8");
-  for (const wording of ["Recorded Business Spending", "Simple Operating Balance", "does not represent accounting profit", "Outstanding AP is settlement information", "Missing module data is not zero"]) assert.match(page, new RegExp(wording));
+  for (const wording of ["Business Spending", "Operating Balance", "does not represent accounting profit", "Outstanding supplier balances are not added again to Business Spending", "Missing module data is not zero"]) assert.match(page, new RegExp(wording));
   assert.doesNotMatch(page, /label="Net Profit"|label="Gross Profit"|label="Operating Profit"/);
   assert.match(model, /getExpenseDashboard/);
   assert.match(model, /getAccountsPayableOverview/);

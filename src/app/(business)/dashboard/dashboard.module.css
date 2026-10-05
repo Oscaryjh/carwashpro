@@ -1,0 +1,21 @@
+.secondary { border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; background: #fff; }
+.secondary h2 { margin: 0 0 10px; font-size: 17px; }
+.secondary p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.metrics { display: flex; flex-wrap: wrap; gap: 16px 32px; }
+.metrics > :global(.dashboard-kpi-card) { background: transparent; border: 0; box-shadow: none; border-radius: 0; padding: 0; min-height: 0; flex: 1 1 180px; }
+.metrics > :global(.dashboard-kpi-card) strong { font-size: 19px; }
+.attention h2 { margin: 0; font-size: 18px; }
+.attention p { color: var(--muted); font-size: 12px; }
+.attention ul { display: flex; flex-wrap: wrap; gap: 12px 24px; list-style: none; padding: 0; margin: 10px 0 0; }
+.rankings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 18px; }
+.branchTable { width: 100%; }
+.branchTable table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.branchTable th, .branchTable td { padding: 10px 8px; overflow-wrap: anywhere; }
+.branchTable th:first-child, .branchTable td:first-child { text-align: left; width: 34%; }
+.branchTable th:not(:first-child), .branchTable td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.details > summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+.detailContent { display: grid; gap: 18px; padding-top: 18px; }
+.detailContent h2 { font-size: 18px; }
+.detailContent p { color: var(--muted); line-height: 1.5; }
+.primary:global(.dashboard-kpis) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .primary:global(.dashboard-kpis) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
