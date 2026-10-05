@@ -140,44 +140,41 @@ test("business and expense financial labels use full metric lists without ellips
   );
 
   assert.match(page, /<ReportCard title="Business Performance">[\s\S]*?<MetricList/);
-  assert.match(page, /<ReportCard title="Expense Settlement">[\s\S]*?<MetricList/);
-  assert.match(page, /Simple Operating Balance/);
-  assert.match(page, /Paid against selected expenses/);
-  assert.match(page, /Outstanding selected expenses/);
+  const advanced = readFileSync("src/components/reports/advanced-details.tsx", "utf8");
+  assert.match(advanced, /Expense Settlement/);
+  assert.match(page, /Operating Balance/);
+  assert.match(advanced, /Paid against selected expenses/);
+  assert.match(advanced, /Outstanding selected expenses/);
   assert.doesNotMatch(metricListStyles, /text-overflow:\s*ellipsis/);
 });
 
 test("payment section is labelled as a payment view, not cashflow", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
-  assert.match(page, />Payment view</);
+  assert.match(page, /<CollectedPayments/);
   assert.doesNotMatch(page, />Cashflow view</i);
 });
 
-test("daily sales renders Payment Mix separately and avoids repeated empty payment copy", () => {
+test("daily summary keeps one primary day entry and removes the duplicate advanced date table", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
-  const dailySalesSection = page.slice(
-    page.indexOf("function DailySalesSection"),
-    page.indexOf("function PaymentsCollectedSection"),
-  );
-
-  assert.match(dailySalesSection, /<th>Payment Mix<\/th>/);
-  assert.match(dailySalesSection, /Show empty days/);
-  assert.match(dailySalesSection, /getVisibleDailySalesDays/);
-  assert.doesNotMatch(dailySalesSection, /No payments collected/);
+  const primary = readFileSync("src/components/reports/daily-transactions.tsx", "utf8");
+  assert.match(primary, /Daily Sales by Day/);
+  assert.match(primary, /getVisibleDailySalesDays/);
+  assert.match(primary, /View day/);
+  assert.doesNotMatch(page, /function DailySalesSection/);
 });
 
 test("summary KPIs are grouped and use a responsive non-fixed grid", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
   const styles = readFileSync("src/app/globals.css", "utf8");
 
-  assert.match(page, />Sales Summary</);
-  assert.match(page, />Appointment Summary</);
+  assert.match(page, /<SalesOverview report=/);
+  assert.doesNotMatch(page, />Appointment Summary</);
   assert.match(styles, /\.report-summary-primary,[\s\S]*?repeat\(auto-fit,/);
 });
 
 test("staff section describes invoice-linked attribution rather than generic performance", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
-  assert.match(page, /<ReportCard title="Staff Activity">/);
+  assert.match(page, /<ReportCard title="Top Staff">/);
   assert.match(page, /<th>Attributed Sales<\/th>/);
   assert.doesNotMatch(page, /<ReportCard title="Staff Performance">/);
 });
@@ -185,7 +182,7 @@ test("staff section describes invoice-linked attribution rather than generic per
 test("reports copy does not suggest changing a branch after the branch picker is removed", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
 
-  assert.match(page, /Try another date range\./);
+  assert.match(readFileSync("src/components/reports/daily-transactions.tsx", "utf8"), /No transactions in this period\./);
   assert.doesNotMatch(page, /date range or branch/i);
 });
 
@@ -203,8 +200,9 @@ test("reports exposes invoice discount contributors and payment-method source dr
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
 
   assert.match(page, /<th>Subtotal<\/th><th>Discount<\/th><th>Net<\/th>/);
-  assert.match(page, /paymentMethod: method\.label/);
-  assert.match(page, />View payments →</);
+  const advanced = readFileSync("src/components/reports/advanced-details.tsx", "utf8");
+  assert.match(advanced, /params.set\("paymentMethod", method.label\)/);
+  assert.match(advanced, />View payments →</);
   assert.match(page, /function PaymentMethodDrawer/);
   assert.match(page, /row\.invoiceId \? <Link href=\{`\/invoices\/\$\{row\.invoiceId\}`\}/);
 });
@@ -212,7 +210,7 @@ test("reports exposes invoice discount contributors and payment-method source dr
 test("repeat metric wording is period-scoped without changing its calculation", () => {
   const page = readFileSync("src/app/(business)/reports/page.tsx", "utf8");
 
-  assert.match(page, /label="Repeat Visits" value=\{salon\.repeatCustomers\}/);
+  assert.match(page, /Repeat visits: \{data\.repeatCustomers\}/);
   assert.match(page, /repeatCustomerGroups\.filter\(\(row\) => row\._count > 1\)\.length/);
   assert.doesNotMatch(page, /label="Repeat customers"/);
 });

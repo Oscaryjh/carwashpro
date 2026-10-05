@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/validation/pos";
 import { readWalletActivity } from "./wallet-activity";
 import { financialReadSnapshot } from "./financial-read-snapshot";
+import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import type { WalletLedgerMetrics } from "@/lib/financial-metrics";
 
 const DEFAULT_PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -107,6 +108,7 @@ export type DailySalesTransaction = {
   totalCents: number;
   paymentLabel: string;
   status: string;
+  displayStatus?: string;
 };
 
 export type PaymentMethodDetailRow = {
@@ -132,6 +134,8 @@ export type DailySalesReport = {
   selectedDay: {
     dateValue: string;
     transactions: DailySalesTransaction[];
+    page?: number;
+    hasNext?: boolean;
   } | null;
   selectedPaymentMethod: (PaymentCollectionRow & {
     rows: PaymentMethodDetailRow[];
@@ -264,6 +268,7 @@ async function readDailySalesReport(
     branchId: string | null;
     range: BusinessDayRange;
     selectedDay?: string;
+    transactionPage?: number;
     selectedPaymentMethod?: string;
   },
   database: ReadDatabase = prisma,
@@ -423,6 +428,7 @@ async function readDailySalesReport(
             businessId: input.businessId,
             branchId: input.branchId,
             dateValue: input.selectedDay,
+            transactionPage: input.transactionPage,
             timezone: input.range.timezone,
             businessDayCutoffTime: input.range.businessDayCutoffTime,
           },
@@ -463,6 +469,7 @@ async function loadDayTransactions(
     dateValue: string;
     timezone: string;
     businessDayCutoffTime: string;
+    transactionPage?: number;
   },
   database: ReadDatabase,
 ) {
@@ -472,6 +479,10 @@ async function loadDayTransactions(
     timezone: input.timezone,
     businessDayCutoffTime: input.businessDayCutoffTime,
   });
+  const requestedPage = input.transactionPage ?? 1;
+  // Keep the database offset within its signed 32-bit range.
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 107374182
+    ? requestedPage : 1;
   const rows = await database.invoice.findMany({
     where: {
       businessId: input.businessId,
@@ -479,7 +490,9 @@ async function loadDayTransactions(
       status: { not: "VOID" },
       issuedAt: { gte: dayRange.fromDate, lt: dayRange.toDateExclusive },
     },
-    orderBy: { issuedAt: "desc" },
+    orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
+    take: 21,
+    skip: (page - 1) * 20,
     select: {
       id: true,
       invoiceNumber: true,
@@ -499,6 +512,8 @@ async function loadDayTransactions(
         orderBy: { paidAt: "asc" },
         select: {
           method: true,
+          amount: true,
+          refunds: { select: { amount: true } },
           paymentMethodLabel: true,
           businessPaymentMethod: { select: { label: true } },
         },
@@ -508,7 +523,15 @@ async function loadDayTransactions(
 
   return {
     dateValue: input.dateValue,
-    transactions: rows.map((row) => ({
+    page,
+    hasNext: rows.length > 20,
+    transactions: rows.slice(0, 20).map((row) => {
+      const summary = getInvoicePaymentSummary(row.payments);
+      const displayStatus = summary.totalRefundedAmount > 0
+        ? summary.grossPaidAmount > 0 && summary.totalRefundedAmount >= summary.grossPaidAmount
+          ? "Refunded" : "Partially Refunded"
+        : row.status.charAt(0) + row.status.slice(1).toLowerCase();
+      return ({
       id: row.id,
       invoiceNumber: row.invoiceNumber,
       issuedAt: row.issuedAt,
@@ -525,7 +548,8 @@ async function loadDayTransactions(
         ((row.status === "UNPAID" || row.status === "PARTIAL") && toCents(row.balance) > 0
           ? "Unpaid" : "Not recorded"),
       status: row.status,
-    })),
+      displayStatus,
+    }); }),
   };
 }
 
