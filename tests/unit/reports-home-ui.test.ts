@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { parse } from "postcss";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { DailySalesReport } from "../../src/lib/reports/daily-sales";
@@ -79,7 +80,37 @@ test("Performance uses real activity guards and Wallet remains in the closed det
   assert.match(page, /if \(!services.length && !staff.length && !data.totalAppointments && !data.repeatCustomers\) return null/);
   assert.match(page, /\{services.length \? <ReportCard title="Top Services">/);
   assert.match(page, /\{staff.length \? <ReportCard title="Top Staff">/);
+  const performanceStart = page.indexOf("function SalonReportSections");
+  const performanceEnd = page.indexOf("function Metric(", performanceStart);
+  assert.ok(performanceStart >= 0 && performanceEnd > performanceStart);
+  const performance = page.slice(performanceStart, performanceEnd);
+  for (const metric of ["<th>Staff</th>", "<th>Appointments</th>", "<th>Attributed Sales</th>", "{row.name}", "{row.appointments}", "{money(row.amount)}", '<ReportCard title="Appointments">']) assert.ok(performance.includes(metric), `Performance retains ${metric}`);
   const details = page.slice(page.indexOf("<details className={styles.moreDetails}>"), page.indexOf("</details>"));
   assert.match(details, /<AdvancedReportDetails/);
   assert.doesNotMatch(page.slice(page.indexOf("<SalesOverview"), page.indexOf("<details className={styles.moreDetails}>")), /WalletFinancialSummary|DailySalesSection|Appointment Summary/);
+});
+
+test("Performance gives tablet tables fewer shrinkable tracks without changing desktop layout", () => {
+  const css = parse(readFileSync("src/app/(business)/reports/reports.module.css", "utf8"));
+  // Check the active responsive contract, not a snapshot of CSS formatting.
+  // Removing either tablet override would restore the overflowing three-card row.
+  for (const [width, expected] of [
+    [768, "repeat(1, minmax(0, 1fr))"],
+    [1024, "repeat(2, minmax(0, 1fr))"],
+    [1280, "repeat(auto-fit, minmax(220px, 1fr))"],
+    [1440, "repeat(auto-fit, minmax(220px, 1fr))"],
+  ] as const) {
+    let columns = "";
+    css.walkRules(".home :global(.report-operational-grid)", (rule) => {
+      const parent = rule.parent;
+      if (parent?.type === "atrule") {
+        assert.equal(parent.name, "media");
+        const maximum = /^\(max-width:\s*(\d+)px\)$/.exec(parent.params);
+        assert.ok(maximum, "Performance breakpoint must be an explicit maximum width");
+        if (width > Number(maximum[1])) return;
+      }
+      rule.walkDecls("grid-template-columns", (declaration) => { columns = declaration.value; });
+    });
+    assert.equal(columns, expected, `Performance grid at ${width}px`);
+  }
 });
