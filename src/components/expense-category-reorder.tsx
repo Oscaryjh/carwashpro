@@ -46,9 +46,8 @@ export function ExpenseCategoryReorder({ canReorder, categories, children, opera
 
   if (!reordering) {
     return <>
-      <div className={styles.categoryOrderToolbar}>
-        <div><strong>Category order</strong><span>The order here is used in expense forms and category lists.</span></div>
-        {canReorder ? <button className={styles.secondaryAction} type="button" onClick={() => setReordering(true)}>Reorder categories</button> : <Link className={styles.secondaryAction} href="/expenses/categories">Clear filters to reorder</Link>}
+      <div className={styles.compactCategoryOrder}>
+        {canReorder ? <button className={styles.secondaryAction} type="button" onClick={() => setReordering(true)}>Reorder</button> : <Link className={styles.secondaryAction} href="/expenses/categories">Clear filters to reorder</Link>}
       </div>
       {children}
     </>;

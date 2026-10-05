@@ -47,16 +47,13 @@ test("Expense and report pages distinguish recognition, settlement and simple op
   const paymentForm = readFileSync("src/components/expense-payment-form.tsx", "utf8");
   const drawerBalance = readFileSync("src/lib/expense/drawer-balance.ts", "utf8");
 
-  for (const source of [overview]) {
-    assert.match(source, /Simple Operating Balance/);
-    assert.match(source, /Payments in Period/);
-    assert.match(source, /Outstanding/);
-  }
-  assert.match(overview, /Recognition follows Expense Date/);
   const advanced = readFileSync("src/components/reports/advanced-details.tsx", "utf8");
   assert.match(reports, /Operating Balance/);
   assert.match(advanced, /Payments in Period/);
   assert.match(reports, /Outstanding/);
+  assert.match(overview, /money\(dashboard\.recorded\)/);
+  assert.match(overview, /money\(dashboard\.paid\)/);
+  assert.match(overview, /money\(dashboard\.unpaid\)/);
   assert.ok(reports.includes('money(Number(fromCents(dailySalesReport.summary.netSalesCents)) - Number(expenseSummary.recorded))'));
   assert.match(reports, /Expense settlement follows payment date and does not recognise spending again/);
   assert.match(detail, /ExpensePaymentForm/);
@@ -76,6 +73,6 @@ test("Expense and report pages distinguish recognition, settlement and simple op
   assert.match(drawerBalance, /openingFloat/);
   assert.match(drawerBalance, /paymentRefund\.groupBy/);
   assert.match(drawerBalance, /cashierShiftExpensePayout\.groupBy/);
-  assert.match(overview, /No Net Profit is inferred/);
+  assert.match(overview, /This is not accounting profit/);
   assert.match(reports, /Not accounting profit\./);
 });

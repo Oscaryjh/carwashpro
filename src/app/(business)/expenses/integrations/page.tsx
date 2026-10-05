@@ -9,6 +9,23 @@ import styles from "../expense.module.css";
 
 type Query = { message?: string; type?: string };
 
+const sourceNames: Record<string, string> = { CLAIM: "Staff Claims", PAYROLL: "Payroll Costs", INVENTORY_PURCHASE: "Inventory Purchases" };
+const issueDescriptions: Record<string, string> = {
+  MISSING_EXPENSE: "An expense is missing.",
+  DUPLICATE_ACTIVE_EXPENSE: "An expense appears more than once.",
+  STALE_SOURCE_EXPENSE: "An expense no longer matches its source.",
+  WRONG_AMOUNT: "An expense amount needs review.",
+  WRONG_BRANCH: "An expense branch needs review.",
+  WRONG_SOURCE_REVISION: "An expense needs the latest source information.",
+  WRONG_PAYMENT_STATE: "An expense payment status needs review.",
+  MISSING_SOURCE_SNAPSHOT: "Supporting expense information is missing.",
+  MISSING_SETTLEMENT_PROJECTION: "Expense payment information is missing.",
+  WRONG_PAID_AMOUNT: "An expense paid amount needs review.",
+  WRONG_OUTSTANDING_AMOUNT: "An expense outstanding amount needs review.",
+  SOURCE_AP_MATCH_ISSUE: "A supplier bill payment needs review.",
+  LEGACY_CONFIRMATION_REVISION_REQUIRED: "An older purchase needs review.",
+};
+
 export default async function ExpenseIntegrationsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const context = await requireBusinessUserForModule("EXPENSE", "MANAGE_EXPENSE_CATEGORY");
   await ensureStarterExpenseCategories(context.businessId);
@@ -22,21 +39,34 @@ export default async function ExpenseIntegrationsPage({ searchParams }: { search
   const claimsEnabled = modules.enabledModules.has("CLAIMS");
   const payrollEnabled = modules.enabledModules.has("PAYROLL");
   const inventoryEnabled = modules.enabledModules.has("INVENTORY");
-  return <section className="content">
-    <div className="page-header"><div><h1>Expense source integrations</h1><p>Explicit mappings and read-only health for Claims, finalized Payroll and confirmed Supplier Bills.</p></div><Link href="/expenses">Business spending</Link></div>
-    {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`}>{query.message}</p> : null}
-    <div className={styles.notice}><strong>Domain ownership</strong><div>Claims, Payroll and Supplier Bills remain canonical. Expense stores a read-only spending representation only. PO, Goods Receive, Supplier Payment and Stock Count never create Expense.</div></div>
-    <form action={saveExpenseIntegrationSettingsAction} className={`panel ${styles.form}`}>
+  const sources = [
+    { name: "claimDefaultCategoryId", title: "Staff Claims", description: "Approved staff claims will use this expense category.", enabled: claimsEnabled, unavailable: "Staff Claims is not enabled for this business.", value: setting?.claimDefaultCategoryId ?? "" },
+    { name: "payrollCategoryId", title: "Payroll Costs", description: "Payroll costs will use this expense category.", enabled: payrollEnabled, unavailable: "Payroll is not enabled for this business.", value: setting?.payrollCategoryId ?? "" },
+    { name: "inventoryPurchaseCategoryId", title: "Inventory Purchases", description: "Confirmed inventory purchases will use this expense category.", enabled: inventoryEnabled, unavailable: "Inventory is not enabled for this business.", value: setting?.inventoryPurchaseCategoryId ?? "" },
+  ];
+  return <section className={`content ${styles.expenseSourcesPage}`}>
+    <div className={`page-header ${styles.sourceHeader}`}><div><h1>Expense Sources</h1><p>Choose which category to use for expenses created from other Tetamu modules.</p></div><Link className={styles.sourceBackLink} href="/expenses">Back to Expenses</Link></div>
+    {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`}>{query.type === "error" ? "Unable to save expense source categories. Check your category selections, refresh the page and try again." : "Expense source categories updated."}</p> : null}
+    <form action={saveExpenseIntegrationSettingsAction} className={`panel ${styles.sourceMappings}`}>
       {setting ? <input type="hidden" name="expectedRevision" value={setting.revision} /> : null}
-      <label>Claims default category<select name="claimDefaultCategoryId" defaultValue={setting?.claimDefaultCategoryId ?? ""} required={claimsEnabled}><option value="">{claimsEnabled ? "Select explicit category" : "Claims module disabled"}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-      <label>Payroll cost category<select name="payrollCategoryId" defaultValue={setting?.payrollCategoryId ?? ""} required={payrollEnabled}><option value="">{payrollEnabled ? "Select explicit category" : "Payroll module disabled"}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-      <label>Inventory Purchase category<select name="inventoryPurchaseCategoryId" defaultValue={setting?.inventoryPurchaseCategoryId ?? ""} required={inventoryEnabled}><option value="">{inventoryEnabled ? "Select explicit category" : "Inventory module disabled"}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-      <div className={`${styles.full} ${styles.actions}`}><button>Save source mappings</button><span>Revision {setting?.revision ?? 0}</span></div>
+      {sources.map((source) => <section key={source.name} className={styles.sourceMappingRow} aria-labelledby={`${source.name}-heading`}>
+        <div><h2 id={`${source.name}-heading`}>{source.title}</h2><p>{source.description}</p>{!source.enabled ? <p id={`${source.name}-unavailable`}>{source.unavailable}</p> : null}
+          {!source.enabled && source.value && !categories.some((category) => category.id === source.value) ? <p>Reactivate the saved category in <Link href="/expenses/categories">Expense Categories</Link> before saving.</p> : null}
+        </div>
+        <label>Category<select name={source.name} defaultValue={source.value} required={source.enabled} disabled={!source.enabled} aria-describedby={!source.enabled ? `${source.name}-unavailable` : undefined}>
+          <option value="">Select category</option>
+          {source.value && !categories.some((category) => category.id === source.value) ? <option value={source.value}>Saved category (unavailable)</option> : null}
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select></label>
+        {/* Disabled selects are not submitted; preserve their saved mappings. */}
+        {!source.enabled ? <input type="hidden" name={source.name} value={source.value} /> : null}
+      </section>)}
+      <div className={styles.sourceSave}><button>Save changes</button></div>
     </form>
-    <div className="panel"><div className="section-header"><h2>Source health</h2><strong>{health.healthy ? "IN SYNC" : "RECONCILIATION REQUIRED"}</strong></div>
-      <p>Repair/backfill is an internal controlled workflow and is never an ordinary user button.</p>
-      {health.issues.length ? <div className={styles.stack}>{health.issues.slice(0, 25).map((issue, index) => <div className={styles.barRow} key={`${issue.sourceType}:${issue.sourceId}:${issue.code}:${index}`}><span>{issue.sourceType}</span><strong>{issue.code}</strong></div>)}</div> : <p className="empty-state">No missing, duplicate, stale, amount, branch, revision, settlement or snapshot mismatch detected.</p>}
-    </div>
-    <div className="panel"><h2>Module matrix</h2><p>Expense: enabled · Claims: {claimsEnabled ? "enabled" : "disabled"} · Payroll: {payrollEnabled ? "enabled" : "disabled"} · Inventory: {inventoryEnabled ? "enabled" : "disabled"}</p><p>Disabling a source module does not delete historical Expense representations. Re-enabling Expense allows controlled reconciliation to recover missing representations.</p></div>
+    {health.issues.length > 0 ? <aside className={styles.sourceWarning} role="status">
+      <strong>Expense sync needs attention</strong>
+      <p>Some expenses from another module could not be reflected correctly.</p>
+      <details><summary>View details</summary><ul>{health.issues.slice(0, 25).map((issue, index) => <li key={`${issue.sourceType}:${issue.sourceId}:${issue.code}:${index}`}>{sourceNames[issue.sourceType] ?? "Other expenses"}: {issueDescriptions[issue.code] ?? "An expense needs review."}</li>)}</ul></details>
+    </aside> : null}
   </section>;
 }

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { getAuditRequestContext } from "@/lib/audit";
 import { assertExpenseInMutationScope, resolveExpenseMutationBranch, resolveExpenseReadScope } from "@/lib/expense/access";
+import { resolveExpenseCreateBranch } from "@/lib/expense/create-branch";
+import { resolveRecurringExpenseCreateBranch } from "@/lib/expense/recurring-create-branch";
 import {
   confirmBusinessExpense,
   correctConfirmedBusinessExpense,
@@ -52,7 +54,7 @@ export async function createExpenseAction(formData: FormData) {
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/new", parsed.error.issues[0]?.message ?? "Invalid Expense.");
   try {
-    const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
+    const branchId = await resolveExpenseCreateBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     const file = formData.get("receipt");
     const receipt = file instanceof File && file.size > 0 ? { bytes: new Uint8Array(await file.arrayBuffer()), claimedMimeType: file.type, originalFileName: file.name } : null;
     const expense = await createBusinessExpense({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, cashierShiftId: parsed.data.cashierShiftId || null, categoryId: parsed.data.categoryId, description: parsed.data.description, desiredStatus: parsed.data.intent, expenseDate: parsed.data.expenseDate, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, paymentDate: parsed.data.paymentDate || null, paymentMethod: parsed.data.paymentMethod || null, paymentSource: parsed.data.paymentSource || null, paymentReference: parsed.data.paymentReference, paymentStatus: parsed.data.paymentStatus, receipt, documentScanId: parsed.data.documentScanId || null, duplicateOverride: parsed.data.duplicateOverride === "true", request: await getAuditRequestContext() });
@@ -162,29 +164,32 @@ export async function saveExpenseIntegrationSettingsAction(formData: FormData) {
       request: await getAuditRequestContext(),
     });
     refresh();
-    success("/expenses/integrations", "Claims, Payroll and Inventory Purchase source mappings saved.");
-  } catch (error) { actionFailure("/expenses/integrations", error); }
+    success("/expenses/integrations", "Expense source categories updated.");
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "digest" in error && String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
+    fail("/expenses/integrations", "Unable to save expense source categories. Check your category selections, refresh the page and try again.");
+  }
 }
 
 export async function createRecurringExpenseAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "MANAGE_EXPENSE_CATEGORY");
   const parsed = facts.omit({ expenseDate: true }).extend({ endDate: z.string().date().optional().or(z.literal("")), startDate: z.string().date() }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring template.");
+  if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring expense.");
   try {
-    const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
+    const branchId = await resolveRecurringExpenseCreateBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     await createRecurringExpenseTemplate({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, endDate: parsed.data.endDate || null, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, startDate: parsed.data.startDate, request: await getAuditRequestContext() });
-    refresh(); success("/expenses/recurring", "Monthly recurring Expense template created.");
+    refresh(); success("/expenses/recurring", "Recurring expense saved.");
   } catch (error) { actionFailure("/expenses/recurring", error); }
 }
 
 export async function updateRecurringExpenseAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "MANAGE_EXPENSE_CATEGORY");
   const parsed = facts.omit({ expenseDate: true }).extend({ active: z.string().optional(), endDate: z.string().date().optional().or(z.literal("")), expectedRevision: z.coerce.number().int().min(0), reason: z.string().trim().min(5).max(500), startDate: z.string().date(), templateId: z.string().uuid() }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring template revision.");
+  if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring expense revision.");
   try {
     const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     await updateRecurringExpenseTemplate({ active: parsed.data.active === "on", actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, endDate: parsed.data.endDate || null, expectedRevision: parsed.data.expectedRevision, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, reason: parsed.data.reason, startDate: parsed.data.startDate, templateId: parsed.data.templateId, request: await getAuditRequestContext() });
-    refresh(); success("/expenses/recurring", "Recurring template revised; generated history is unchanged.");
+    refresh(); success("/expenses/recurring", "Recurring expense updated; generated history is unchanged.");
   } catch (error) { actionFailure("/expenses/recurring", error); }
 }
 

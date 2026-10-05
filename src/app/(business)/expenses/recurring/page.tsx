@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { ExpenseCategoryDialog as ExpenseDialog, ExpenseCategoryDialogCancel as DialogCancel } from "@/components/expense-category-dialog";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { resolveExpenseReadScope } from "@/lib/expense/access";
 import { ensureStarterExpenseCategories } from "@/lib/expense/service";
@@ -46,78 +47,57 @@ export default async function RecurringExpensesPage({ searchParams }: { searchPa
   const templates = filteredTemplates.slice((page - 1) * pageSize, page * pageSize);
   const hasFilters = Boolean(keyword || branchId || categoryId || status || sort !== "name");
 
-  return <section className={`content ${styles.expensePage} ${styles.recurringPage}`}>
+
+  const createDialog = <ExpenseDialog label="+ Add Recurring Expense" title="Add Recurring Expense" primary>
+    <form action={createRecurringExpenseAction} className={styles.recurringModalForm}>
+      <input type="hidden" name="operationKey" value={`CREATE_RECURRING_EXPENSE:${randomUUID()}`} />
+      <fieldset className={styles.recurringFieldset}><legend>Expense</legend><div className={styles.form}>
+        <label>Payee<input name="payeeName" maxLength={160} placeholder="e.g. Landlord or software provider" /></label>
+        <label>Monthly amount (MYR) *<input name="amount" type="number" min="0.01" step="0.01" required inputMode="decimal" placeholder="0.00" /></label>
+        <label className={styles.full}>Category *<select name="categoryId" required>{categories.map(category => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
+        <label className={styles.full}>Description *<input name="description" required minLength={3} maxLength={500} placeholder="e.g. Monthly shop rental" /></label>
+      </div></fieldset>
+      <fieldset className={styles.recurringFieldset}><legend>Schedule</legend><div className={styles.form}>
+        <label>Start date *<input type="date" name="startDate" required defaultValue={`${currentPeriod}-01`} /></label>
+        <label>End date (optional)<input type="date" name="endDate" /></label>
+        {scope.branches.length > 1 ? <label className={styles.full}>Branch<select name="branchId" required={!scope.includeBusinessWide} defaultValue={defaultBranchId ?? ""}><option value="">{scope.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{scope.branches.map(branch => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : null}
+      </div></fieldset>
+      <details className={styles.recurringOptional}><summary>Optional details</summary><label>Internal note<textarea name="notes" maxLength={2000} placeholder="Visible to authorised team members only" /></label></details>
+      <footer className={styles.recurringModalActions}><DialogCancel /><button type="submit">Save Recurring Expense</button></footer>
+    </form>
+  </ExpenseDialog>;
+
+  return <section className={`content ${styles.expensePage} ${styles.simpleRecurringPage}`}>
     <header className={`page-header ${styles.pageHeader}`}>
-      <div className={styles.headerCopy}>
-        <span className={styles.eyebrow}>Expenses</span>
-        <h1>Recurring expenses</h1>
-        <p>Prepare regular monthly expenses without re-entering the same details every time.</p>
-      </div>
-      <div className={styles.heroActions}><Link className={styles.secondaryAction} href="/expenses">Back to overview</Link></div>
+      <div className={styles.headerCopy}><h1>Recurring Expenses</h1><p>Save regular monthly expenses so you don’t need to enter them again.</p><p>Nothing is created automatically. You choose when to create each month&apos;s expense.</p></div>
+      <div className={styles.heroActions}><Link className={styles.secondaryAction} href="/expenses">Back to Expenses</Link>{createDialog}</div>
     </header>
-
     {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`} role={query.type === "error" ? "alert" : "status"}>{query.message}</p> : null}
-
-    <section className={styles.recurringSafety} aria-label="How recurring expenses work">
-      <div><span>1</span><p><strong>Save the monthly details</strong><small>Create one reusable template for rent, subscriptions or other regular costs.</small></p></div>
-      <div><span>2</span><p><strong>Create a draft when due</strong><small>Choose the month yourself. Nothing is generated or paid automatically.</small></p></div>
-      <div><span>3</span><p><strong>Review before confirming</strong><small>Every generated expense starts as an Unpaid Draft and follows the normal approval flow.</small></p></div>
-    </section>
-
-    <details className={`panel ${styles.recurringCreateCard}`} open={allTemplates.length === 0}>
-      <summary className={styles.recurringCreateSummary}>
-        <span><span className={styles.eyebrow}>New template</span><strong>Add a recurring expense</strong><small>Set the usual amount and details. You can revise or deactivate it later.</small></span>
-        <span className={styles.recurringCreateToggle}>{allTemplates.length ? "Add template" : "Set up your first template"}</span>
-      </summary>
-      <form action={createRecurringExpenseAction} className={styles.recurringForm}>
-        <input type="hidden" name="operationKey" value={`CREATE_RECURRING_EXPENSE:${randomUUID()}`} />
-        <fieldset className={styles.recurringFieldset}>
-          <legend>Schedule & classification</legend>
-          <div className={styles.form}>
-            <label>Start date *<input type="date" name="startDate" required defaultValue={`${currentPeriod}-01`} /></label>
-            <label>End date <span className={styles.optionalLabel}>Optional</span><input type="date" name="endDate" /></label>
-            <label>Branch *<select name="branchId" required={!scope.includeBusinessWide} defaultValue={defaultBranchId ?? ""}><option value="">{scope.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{scope.branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select><small>Defaults to your current branch.</small></label>
-            <label>Category *<select name="categoryId" required>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
-          </div>
-        </fieldset>
-        <fieldset className={styles.recurringFieldset}>
-          <legend>Expense details</legend>
-          <div className={styles.form}>
-            <label>Payee<input name="payeeName" maxLength={160} placeholder="e.g. Landlord or software provider" /></label>
-            <label>Monthly amount (MYR) *<input name="amount" type="number" min="0.01" step="0.01" required inputMode="decimal" placeholder="0.00" /></label>
-            <label className={styles.full}>Description *<input name="description" required minLength={3} maxLength={500} placeholder="e.g. Monthly shop rental" /></label>
-            <label className={styles.full}>Internal note <span className={styles.optionalLabel}>Optional</span><textarea name="notes" maxLength={2000} placeholder="Visible to authorised team members only" /></label>
-          </div>
-        </fieldset>
-        <div className={styles.recurringCreateFooter}><p><strong>Safe by default</strong><span>This template will not create an expense until someone chooses a month and clicks Create draft expense.</span></p><button type="submit">Save recurring template</button></div>
-      </form>
-    </details>
-
-    <section className={styles.recurringTemplates} aria-labelledby="recurring-templates-heading">
-      <div className={styles.sectionTitle}>
-        <div><span className={styles.eyebrow}>Saved templates</span><h2 id="recurring-templates-heading">Your recurring expenses</h2><p className={styles.sectionDescription}>Create the monthly draft when each expense becomes due.</p></div>
-        <span>{activeCount} active · {allTemplates.length} total</span>
-      </div>
-
-      {allTemplates.length ? <form className={styles.recurringFilterGrid} aria-label="Filter recurring expenses">
-        <label className={styles.recurringSearch}>Search<input type="search" name="q" defaultValue={query.q ?? ""} placeholder="Template, payee, branch or category" /></label>
-        <label>Branch<select name="branchId" defaultValue={branchId}><option value="">All branches</option>{scope.branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label>
+    <section className={styles.recurringTemplates} aria-labelledby="recurring-expenses-heading">
+      <div className={styles.sectionTitle}><h2 id="recurring-expenses-heading">Your Recurring Expenses</h2><span>{allTemplates.length} recurring expenses{allTemplates.length ? ` · ${activeCount} active` : ""}</span></div>
+      {allTemplates.length ? <form className={styles.compactRecurringFilters} aria-label="Filter recurring expenses">
+        <label className={styles.recurringSearch}>Search<input type="search" name="q" defaultValue={query.q ?? ""} placeholder="Search recurring expenses" /></label>
+        {scope.branches.length > 1 ? <label>Branch<select name="branchId" defaultValue={branchId}><option value="">All branches</option>{scope.branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : branchId ? <input type="hidden" name="branchId" value={branchId} /> : null}
         <label>Category<select name="categoryId" defaultValue={categoryId}><option value="">All categories</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
         <label>Status<select name="status" defaultValue={status}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
         <label>Sort by<select name="sort" defaultValue={sort}><option value="name">Name</option><option value="amount-high">Amount: high to low</option><option value="amount-low">Amount: low to high</option><option value="newest">Newest</option></select></label>
         <div className={styles.recurringFilterActions}><button type="submit">Apply filters</button>{hasFilters ? <Link href="/expenses/recurring">Clear</Link> : null}</div>
       </form> : null}
 
-      {allTemplates.length ? <div className={styles.recurringResultSummary}><span>{filteredTemplates.length} matching template{filteredTemplates.length === 1 ? "" : "s"}</span><span>Page {page} of {pageCount}</span></div> : null}
 
-      {templates.length ? <div className={styles.recurringTemplateList}>{templates.map((template) => {
-        const generatedPeriods = template.expenses.map((expense) => expense.generatedPeriod).filter(Boolean) as string[];
-        const currentGenerated = generatedPeriods.includes(currentPeriod);
-        return <article className={styles.recurringTemplateCard} key={template.id}>
-          <header className={styles.recurringTemplateHeader}>
-            <div><span className={template.active ? styles.activeBadge : styles.inactiveBadge}>{template.active ? "Active" : "Inactive"}</span><h3>{template.defaultDescription}</h3><p>{template.payeeName ?? "No payee provided"}</p></div>
-            <div className={styles.recurringAmount}><strong>RM {template.amount.toFixed(2)}</strong><span>per month</span></div>
-          </header>
+      {templates.length ? <table className={styles.compactRecurringTable}>
+        <caption className={styles.srOnly}>Your recurring expenses</caption>
+        <thead><tr><th>Recurring Expense</th><th>Category</th><th>Monthly Amount</th><th>Period</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>{templates.map(template => {
+          const generatedPeriods = template.expenses.map(expense => expense.generatedPeriod).filter(Boolean) as string[];
+          const currentGenerated = generatedPeriods.includes(currentPeriod);
+          return <tr key={template.id}>
+            <td><strong>{template.payeeName || template.defaultDescription}</strong>{template.payeeName ? <small className={styles.tableMeta}>{template.defaultDescription}</small> : null}</td>
+            <td>{template.category.name}</td><td>RM {template.amount.toFixed(2)}</td>
+            <td>{template.endDate ? `${formatPeriod(iso(template.startDate).slice(0, 7))} – ${formatPeriod(iso(template.endDate).slice(0, 7))}` : `From ${formatPeriod(iso(template.startDate).slice(0, 7))}`}</td>
+            <td>{template.active ? <span className={styles.categoryActiveText}>Active</span> : <span className={styles.inactiveBadge}>Inactive</span>}</td>
+            <td><ExpenseDialog label="View" title={template.payeeName || template.defaultDescription}>
+            <div className={styles.recurringDetail}>
           <dl className={styles.recurringMeta}>
             <div><dt>Branch</dt><dd>{template.branch?.name ?? "Business-wide"}</dd></div>
             <div><dt>Category</dt><dd>{template.category.name}</dd></div>
@@ -130,10 +110,10 @@ export default async function RecurringExpensesPage({ searchParams }: { searchPa
             <input type="hidden" name="operationKey" value={`GENERATE_RECURRING:${template.id}:${currentPeriod}:${randomUUID()}`} />
             <label>Expense month<input type="month" name="period" defaultValue={currentPeriod} required /></label>
             <div><button type="submit">{currentGenerated ? "Open existing draft" : "Create draft expense"}</button><small>{currentGenerated ? `${formatPeriod(currentPeriod)} already has a draft.` : "Creates one Unpaid Draft for the selected month."}</small></div>
-          </form> : <p className={styles.inactiveTemplateNote}>This template is inactive and cannot create new drafts.</p>}
+          </form> : <p className={styles.inactiveTemplateNote}>This recurring expense is inactive and cannot create new drafts.</p>}
 
           <details className={styles.templateEditorDisclosure}>
-            <summary><span><strong>Edit template</strong><small>Change future defaults or deactivate it</small></span><span aria-hidden="true">+</span></summary>
+            <summary><span><strong>Edit recurring expense</strong><small>Change future defaults or deactivate it</small></span><span aria-hidden="true">+</span></summary>
             <form action={updateRecurringExpenseAction} className={styles.form}>
               <input type="hidden" name="templateId" value={template.id} /><input type="hidden" name="expectedRevision" value={template.revision} /><input type="hidden" name="operationKey" value={`UPDATE_RECURRING:${template.id}:${randomUUID()}`} />
               <label>Start date<input type="date" name="startDate" required defaultValue={iso(template.startDate)} /></label>
@@ -144,14 +124,17 @@ export default async function RecurringExpensesPage({ searchParams }: { searchPa
               <label>Monthly amount<input name="amount" type="number" min="0.01" step="0.01" required defaultValue={template.amount.toFixed(2)} /></label>
               <label className={styles.full}>Description<input name="description" required maxLength={500} defaultValue={template.defaultDescription} /></label>
               <label className={styles.full}>Internal note<textarea name="notes" maxLength={2000} defaultValue={template.notes ?? ""} /></label>
-              <label className={`${styles.full} ${styles.checkboxField}`}><input type="checkbox" name="active" defaultChecked={template.active} /><span><strong>Active template</strong><small>Allow new monthly drafts to be created.</small></span></label>
-              <label className={styles.full}>Reason for change<input name="reason" required minLength={5} maxLength={500} placeholder="Explain why this template is being changed" /></label>
-              <button className={styles.full}>Save template changes</button>
+              <label className={`${styles.full} ${styles.checkboxField}`}><input type="checkbox" name="active" defaultChecked={template.active} /><span><strong>Active</strong><small>Allow new monthly drafts to be created.</small></span></label>
+              <label className={styles.full}>Reason for change<input name="reason" required minLength={5} maxLength={500} placeholder="Explain why this recurring expense is being changed" /></label>
+              <button className={styles.full}>Save changes</button>
             </form>
           </details>
-        </article>;
-      })}</div> : <div className={styles.recurringEmpty}><span aria-hidden="true">↻</span><strong>{allTemplates.length ? "No matching templates" : "No recurring expenses yet"}</strong><p>{allTemplates.length ? "Try a different search, branch, category or status." : "Add your first regular monthly expense above. Nothing will be generated automatically."}</p>{allTemplates.length ? <Link href="/expenses/recurring">Clear filters</Link> : null}</div>}
 
+            </div>
+            </ExpenseDialog></td>
+          </tr>;
+        })}</tbody>
+      </table> : <div className={styles.recurringEmpty}><strong>{allTemplates.length ? "No matching recurring expenses" : "No recurring expenses yet"}</strong><p>{allTemplates.length ? "Try changing or clearing your filters." : "Save regular expenses like rent, subscriptions or utilities so you don’t need to enter them again."}</p>{allTemplates.length ? <Link href="/expenses/recurring">Clear filters</Link> : createDialog}</div>}
       {filteredTemplates.length > pageSize ? <nav className={styles.recurringPagination} aria-label="Recurring expense pages"><Link aria-disabled={page === 1} className={page === 1 ? styles.paginationDisabled : ""} href={pageHref(query, page - 1)}>Previous</Link><span>Page {page} of {pageCount}</span><Link aria-disabled={page === pageCount} className={page === pageCount ? styles.paginationDisabled : ""} href={pageHref(query, page + 1)}>Next</Link></nav> : null}
     </section>
   </section>;

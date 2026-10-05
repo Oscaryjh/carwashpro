@@ -42,7 +42,7 @@ export function ExpenseDocumentAutofillForm(props: {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [manualEntrySelected, setManualEntrySelected] = useState(false);
+  const [manualEntrySelected, setManualEntrySelected] = useState(!props.autofillEnabled);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [dateEditorExpanded, setDateEditorExpanded] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -247,12 +247,12 @@ export function ExpenseDocumentAutofillForm(props: {
   const descriptionIssue = reviewIssues.find((issue) => issue.key === "description");
   const branchIssue = reviewIssues.find((issue) => issue.key === "branch");
 
-  return <form action={createExpenseAction} className={`${styles.cardForm} ${styles.compactExpenseForm}`} onSubmit={submitGuard}>
+  return <form action={createExpenseAction} className={`${styles.cardForm} ${styles.compactExpenseForm} ${styles.addExpenseForm}`} onSubmit={submitGuard}>
     <input type="hidden" name="operationKey" value={props.operationKey} />
     <input type="hidden" name="documentScanId" value={scan?.id ?? ""} />
     <input type="hidden" name="duplicateOverride" value={duplicateOverride ? "true" : "false"} />
     <input type="hidden" name="expenseDate" value={expenseDate} />
-    <input type="hidden" name="branchId" value={branchId} />
+    {props.branches.length !== 1 ? <input type="hidden" name="branchId" value={branchId} /> : null}
     <input type="hidden" name="categoryId" value={categoryId} />
     <input type="hidden" name="payeeName" value={payeeName} />
     <input type="hidden" name="amount" value={amount} />
@@ -266,9 +266,9 @@ export function ExpenseDocumentAutofillForm(props: {
     <input type="hidden" name="notes" value={internalNotes} />
 
     <div className={styles.formCards}>
-      <section className={`panel ${styles.scanCard}`} aria-labelledby="receipt-autofill-heading">
+      {props.autofillEnabled ? <section className={`panel ${styles.scanCard}`} aria-labelledby="receipt-autofill-heading">
         {!scan && !scanning ? <>
-          <div className={styles.scanIntro}><div><span className={styles.eyebrow}>Receipt autofill</span><h2 id="receipt-autofill-heading">Add a receipt</h2><p>Take a photo or upload a receipt. Tetamu fills what it can; you review only what needs attention.</p></div></div>
+          <div className={styles.scanIntro}><div><h2 id="receipt-autofill-heading">Receipt autofill</h2></div></div>
           <div className={styles.scanActions}>
             {props.autofillEnabled ? <>
               <button type="button" onClick={() => void openCamera()}>Take photo</button>
@@ -276,7 +276,6 @@ export function ExpenseDocumentAutofillForm(props: {
             </> : null}
             <ManualEntryButton selected={manualEntrySelected} onClick={enterManually} />
           </div>
-          {!props.autofillEnabled ? <p className={styles.manualOnly}>Document autofill is disabled in this environment. Manual expense entry remains available.</p> : null}
         </> : null}
 
         {scan && !scanning ? <div className={styles.scanCompleteBar}>
@@ -292,7 +291,7 @@ export function ExpenseDocumentAutofillForm(props: {
         {scanError ? <div className={styles.aiFailureCard} role="alert"><div><strong>We couldn’t read this receipt automatically.</strong><p>{scanError} The selected file is still available for manual entry.</p></div><div>{lastDocumentFile ? <button type="button" className={styles.failureSecondaryButton} onClick={() => void scanDocument(lastDocumentFile)}>Try again</button> : null}<button type="button" className={styles.failurePrimaryButton} onClick={enterManually}>Enter details</button></div></div> : null}
 
         {cameraOpen ? <CameraDialog cameraCanvasRef={cameraCanvasRef} cameraError={cameraError} cameraReady={cameraReady} cameraVideoRef={cameraVideoRef} closeCamera={closeCamera} capturePhoto={capturePhoto} upload={() => { closeCamera(); uploadRef.current?.click(); }} /> : null}
-      </section>
+      </section> : null}
 
       {scan && automaticFailure ? <section className={`panel ${styles.aiFailureCard}`}><div><span className={styles.eyebrow}>Manual review required</span><h2>We couldn’t fill this receipt reliably</h2><p>The receipt is attached. Try the scan again, or continue by entering the details yourself.</p></div><div><button type="button" className={styles.failureSecondaryButton} onClick={() => lastDocumentFile && void scanDocument(lastDocumentFile)} disabled={!lastDocumentFile}>Try again</button><button type="button" className={styles.failurePrimaryButton} onClick={enterManually}>Enter details</button></div></section> : null}
 
@@ -308,7 +307,7 @@ export function ExpenseDocumentAutofillForm(props: {
 
         <dl className={styles.compactSummary}>
           <div><dt>Category</dt><dd>{selectedCategoryName}</dd><small>{acknowledged.category ? "Confirmed by you" : scan.suggested.categoryConfidence === "HIGH" ? "Auto classified" : scan.suggested.categoryConfidence === "MEDIUM" ? "AI suggestion · Review recommended" : "Review required"}</small></div>
-          <div><dt>Branch</dt><dd>{selectedBranchName}</dd></div>
+          {props.branches.length !== 1 ? <div><dt>Branch</dt><dd>{selectedBranchName}</dd></div> : null}
           <div><dt>Payment</dt><dd>{paymentSummary(paymentStatus, paymentMethod)}</dd>{paymentStatus === "PAID" && paymentDate ? <small>{humanDate(paymentDate)}{paymentReference ? ` · Ref ${paymentReference}` : ""}</small> : paymentReference ? <small>Ref {paymentReference}</small> : null}</div>
           <div><dt>Receipt</dt><dd>{scan.suggested.invoiceNumber ? `#${scan.suggested.invoiceNumber} · Attached` : "Attached ✓"}</dd></div>
         </dl>
@@ -348,26 +347,28 @@ export function ExpenseDocumentAutofillForm(props: {
       </section> : null}
 
       {(manualEntrySelected || detailsExpanded) && !routed ? <section id="expense-details-section" className={`panel ${styles.unifiedEditor}`} aria-labelledby="expense-details-heading">
-        <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{manualEntrySelected && !scan ? "Manual entry" : "Full details"}</span><h2 id="expense-details-heading">Edit expense details</h2><p>Every AI suggestion remains editable. Your final values are used when you save.</p></div>{scan ? <button type="button" className="secondary-button" onClick={() => setDetailsExpanded(false)}>Done editing</button> : null}</div>
+        <div className={styles.editorHeader}><h2 id="expense-details-heading">Expense details</h2>{scan ? <button type="button" className="secondary-button" onClick={() => setDetailsExpanded(false)}>Done editing</button> : null}</div>
 
-        <div className={styles.editorGroup}><h3>Expense</h3><div className={styles.fieldGrid}>
+        <div className={styles.editorGroup}><div className={styles.fieldGrid}>
           <label>Expense Date <Required /><input ref={expenseDateRef} type="date" required value={expenseDate} onChange={(event) => { setExpenseDate(event.target.value); acknowledge("date"); }} /></label>
-          <label>Branch <Required /><select required={!props.includeBusinessWide} value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">{props.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
           <label>Category <Required /><select required value={categoryId} onChange={(event) => { setCategoryId(event.target.value); acknowledge("category"); }}><option value="" disabled>Select category</option>{props.categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.requiresReceipt ? " · Receipt required" : ""}</option>)}</select></label>
           <label>Payee<input maxLength={160} placeholder="e.g. Sabah Electricity or Landlord" value={payeeName} onChange={(event) => setPayeeName(event.target.value)} /></label>
           <label>Amount (MYR) <Required /><div className={styles.moneyInput}><span>RM</span><input aria-label="Amount in MYR" type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" placeholder="0.00" required value={amount} onChange={(event) => setAmount(event.target.value)} /></div></label>
           <label className={styles.full}>Description <Required /><input minLength={3} maxLength={500} placeholder="What was this expense for?" required value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+          {props.branches.length !== 1 ? <label>Branch <Required /><select required={!props.includeBusinessWide} value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">{props.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
         </div></div>
 
         <div className={styles.editorGroup}><h3>Payment</h3><div className={styles.fieldGrid}>
-          <label>Payment Status <Required /><select value={paymentStatus} onChange={(event) => changePaymentStatus(event.target.value as PaymentStatus)}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select><small>AI suggestions never override Tetamu’s payment evidence rules.</small></label>
-          <label>Paid from / payment account<select required={paymentStatus === "PAID"} value={expensePaymentAccountValue(paymentMethod, paymentSource)} onChange={(event) => changePaymentAccount(event.target.value)}><PaymentAccountOptions cashierShiftsEnabled={props.cashierShiftsEnabled ?? true} canUsePosDrawer={selectedOpenShifts.length > 0} /></select><small>Tetamu records the matching method automatically. Only POS drawer cash reduces Shift Closing expected cash.</small></label>
+          <label className={styles.full}>Payment Status <Required /><select value={paymentStatus} onChange={(event) => changePaymentStatus(event.target.value as PaymentStatus)}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
+          {paymentStatus === "PAID" ? <>
+          <label>Payment account<select required value={expensePaymentAccountValue(paymentMethod, paymentSource)} onChange={(event) => changePaymentAccount(event.target.value)}><PaymentAccountOptions cashierShiftsEnabled={props.cashierShiftsEnabled ?? true} canUsePosDrawer={selectedOpenShifts.length > 0} /></select></label>
           {paymentStatus === "PAID" && paymentSource === "POS_DRAWER" ? automaticOpenShift ? <AutomaticOpenShift shift={automaticOpenShift} /> : <label>Which open POS shift?<select required value={cashierShiftId} onChange={(event) => setCashierShiftId(event.target.value)}><option value="">Select open shift</option>{selectedOpenShifts.map((shift) => <option key={shift.id} value={shift.id}>{openShiftLabel(shift)}</option>)}</select><small>More than one drawer is open. Choose the drawer that is paying this expense.</small></label> : null}
           <label>Payment Date<input required={paymentStatus === "PAID"} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></label>
-          <label>Payment Reference<input maxLength={160} placeholder="Bank reference or receipt number" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} /></label>
+          <label className={styles.full}>Payment Reference<input maxLength={160} placeholder="Bank reference or receipt number" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} /></label>
+          </> : <p className={styles.full}>Payment can be recorded later.</p>}
         </div>{paymentStatus === "PAID" && paymentSource === "POS_DRAWER" ? <DrawerBalanceNotice amount={amount} shift={selectedDrawerShift} /> : null}</div>
 
-        <div className={styles.editorGroup}><h3>Receipt & note</h3>{scan ? <div className={styles.attachmentReady}><span aria-hidden="true">✓</span><div><strong>Receipt attached</strong><small>The scanned receipt will be saved with this expense.</small></div><button type="button" className={styles.compactTextAction} onClick={() => uploadRef.current?.click()}>Replace</button></div> : <label className={styles.full}>Receipt / Attachment<input ref={manualReceiptRef} className={styles.fileInput} name="receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /><small>JPG, PNG, WebP or PDF · maximum 10MB · stored privately.</small></label>}
+        <div className={styles.editorGroup}><h3>Optional details</h3>{scan ? <div className={styles.attachmentReady}><span aria-hidden="true">✓</span><div><strong>Receipt attached</strong><small>The scanned receipt will be saved with this expense.</small></div><button type="button" className={styles.compactTextAction} onClick={() => uploadRef.current?.click()}>Replace</button></div> : <label className={styles.full}>Receipt<input ref={manualReceiptRef} className={styles.fileInput} name="receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /><small>JPG, PNG, WebP or PDF · Max 10 MB</small></label>}
           {notesExpanded ? <label className={styles.noteEditor}>Internal Notes<textarea maxLength={2000} rows={4} value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Optional notes for your team" /><button type="button" className={styles.compactTextAction} onClick={() => setNotesExpanded(false)}>Done</button></label> : <button type="button" className={styles.noteToggle} onClick={() => setNotesExpanded(true)}>{internalNotes ? "✓ Internal note added · Edit" : "+ Add internal note"}</button>}
         </div>
 

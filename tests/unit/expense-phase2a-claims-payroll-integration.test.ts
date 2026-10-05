@@ -46,10 +46,12 @@ test("System source UX is read-only with source filters, source cards and no pro
   assert.match(detail, /expense\.sourceType === "MANUAL"/);
   assert.match(detail, /Read-only representation/);
   assert.match(detail, /Available in Claims \(not copied\)/);
-  assert.match(dashboard, /All sources/);
-  assert.match(dashboard, /Spending by source/);
-  assert.match(dashboard, /No Net Profit is inferred/);
-  assert.match(settings, /Repair\/backfill is an internal controlled workflow/);
+  const filters = readFileSync("src/app/(business)/expenses/expense-home-filters.tsx", "utf8");
+  assert.match(filters, /All sources/);
+  assert.match(dashboard, /Where your expenses came from/);
+  assert.match(dashboard, /This is not accounting profit/);
+  assert.match(settings, /Expense sync needs attention/);
+  assert.doesNotMatch(settings, /Repair\/backfill is an internal controlled workflow/);
   assert.doesNotMatch(dashboard, />Net Profit</);
 });
 

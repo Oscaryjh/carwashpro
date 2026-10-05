@@ -26,9 +26,9 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
       ? scope.branches[0].id
       : null;
 
-  return <section className={`content ${styles.expensePage}`}>
+  return <section className={`content ${styles.expensePage} ${styles.addExpensePage}`}>
     <header className={`page-header ${styles.pageHeader}`}>
-      <div className={styles.headerCopy}><span className={styles.eyebrow}>Expenses</span><h1>Add Business Expense</h1><p>Scan a receipt or enter manually.</p></div>
+      <div className={styles.headerCopy}><h1>Add Expense</h1><p>Record a business expense.</p></div>
       <Link className="secondary-link-button" href="/expenses">Back to overview</Link>
     </header>
 

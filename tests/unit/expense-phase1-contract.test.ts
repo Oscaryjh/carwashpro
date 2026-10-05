@@ -30,14 +30,12 @@ test("Expense service does not create Claim, Payroll, PO, Goods Receive, Invento
   assert.match(service, /recurringTemplateId: template\.id/);
 });
 
-test("Expense dashboard uses recorded-spending wording and never claims accounting profit", () => {
+test("Expense dashboard explains operational scope without claiming accounting profit", () => {
   const page = readFileSync("src/app/(business)/expenses/page.tsx", "utf8");
-  assert.match(page, /Recorded Business Spending/);
-  assert.match(page, /Business spending/);
+  assert.match(page, /Total Expenses/);
+  assert.match(page, /Track and manage your business expenses/);
   assert.doesNotMatch(page, /Accounting Profit|Official P&L/);
-  assert.match(page, /No Net Profit is inferred/);
-  assert.match(page, /approved Claim obligations, and finalized Payroll employer cost/);
-  assert.match(page, /PO, Goods Receive, Stock Count, unconfirmed supplier bills, COGS/);
+  assert.match(page, /Operational spending only\. This is not accounting profit/);
 });
 
 test("Expense overview and history have labelled filters, clear hierarchy and mobile records", () => {
@@ -45,11 +43,12 @@ test("Expense overview and history have labelled filters, clear hierarchy and mo
   const history = readFileSync("src/app/(business)/expenses/history/page.tsx", "utf8");
   const detail = readFileSync("src/app/(business)/expenses/[expenseId]/page.tsx", "utf8");
   const styles = readFileSync("src/app/(business)/expenses/expense.module.css", "utf8");
-  assert.match(dashboard, /aria-label="Filter business spending"/);
-  assert.match(dashboard, /What is included in Business spending\?/);
-  assert.match(dashboard, /Spending at a glance/);
+  const filters = readFileSync("src/app/(business)/expenses/expense-home-filters.tsx", "utf8");
+  assert.match(filters, /aria-label="Filter business spending"/);
+  assert.match(dashboard, /aria-label="About expenses"/);
+  assert.match(dashboard, /aria-label="Expense summary"/);
   assert.match(dashboard, /styles\.mobileList/);
-  assert.match(history, /aria-label="Filter expense history"/);
+  assert.match(readFileSync("src/app/(business)/expenses/history/history-filters.tsx", "utf8"), /aria-label="Filter expense history"/);
   assert.match(history, /Clear filters/);
   assert.match(history, /StatusBadge/);
   assert.match(detail, /aria-label="Expense summary"/);
@@ -70,7 +69,7 @@ test("Add Expense uses a card workflow without changing canonical form facts", (
   const actions = readFileSync("src/app/(business)/expenses/actions.ts", "utf8");
   const form = readFileSync("src/components/expense-document-autofill-form.tsx", "utf8");
   const styles = readFileSync("src/app/(business)/expenses/expense.module.css", "utf8");
-  for (const section of ["Receipt autofill", "Ready to confirm", "Edit expense details", "Payment", "Receipt & note"]) assert.match(form, new RegExp(section));
+  for (const section of ["Receipt autofill", "Ready to confirm", "Expense details", "Payment", "Optional details"]) assert.match(form, new RegExp(section));
   for (const fact of ["expenseDate", "branchId", "categoryId", "amount", "paymentStatus", "paymentMethod", "paymentDate", "paymentReference", "receipt", "intent"]) assert.match(form, new RegExp(`name=\\"${fact}\\"`));
   assert.match(form, /value="CONFIRMED"/);
   assert.match(form, /value="DRAFT"/);
@@ -103,7 +102,7 @@ test("Expense receipt autofill uses compact exception-based review without weake
   assert.match(form, /compactReady/);
   assert.match(form, /buildReviewIssues/);
   assert.match(form, /BLOCKING/);
-  assert.match(form, /NEEDS attention|Needs attention/i);
+  assert.match(form, /Only the items below need your attention/);
   assert.match(form, /manualEntrySelected \|\| detailsExpanded/);
   assert.match(form, /Confirm Expense/);
   assert.match(form, /suggested\.paymentReference \?\? ""/);
@@ -146,9 +145,9 @@ test("Expense Categories separates creation, discovery and on-demand editing", (
   const reorder = readFileSync("src/components/expense-category-reorder.tsx", "utf8");
   const service = readFileSync("src/lib/expense/service.ts", "utf8");
   const styles = readFileSync("src/app/(business)/expenses/expense.module.css", "utf8");
-  for (const section of ["Category summary", "Add a category", "Manage categories", "Filter expense categories"]) assert.match(page, new RegExp(section));
+  for (const section of ["Category summary", "Add Category", "Manage categories", "Filter expense categories"]) assert.match(page, new RegExp(section));
   for (const fact of ["name", "code", "group", "sortOrder", "description", "requiresReceipt"]) assert.match(page, new RegExp(`name=\\"${fact}\\"`));
-  assert.match(page, /<details className=\{styles\.categoryCard\}/);
+  assert.match(page, /ExpenseCategoryDialog label="Edit"/);
   assert.match(page, /Used categories are kept for historical reporting and are never hard deleted/);
   assert.match(actions, /requireBusinessUserForModule\("EXPENSE", "MANAGE_EXPENSE_CATEGORY"\)/);
   assert.match(actions, /reorderExpenseCategoriesAction/);
@@ -183,14 +182,13 @@ test("Expense Server Actions preserve Next redirect control flow and the 390px l
   assert.match(styles, /width: 100%/);
   assert.match(recurringExpense, /scope\.branches\.some\(\(branch\) => branch\.id === context\.user\.branchId\)/);
   assert.match(recurringExpense, /defaultValue=\{defaultBranchId \?\? ""\}/);
-  assert.match(recurringExpense, /Recurring expenses/);
-  assert.match(recurringExpense, /Create a draft when due/);
-  assert.match(recurringExpense, /Nothing is generated or paid automatically/);
-  assert.match(recurringExpense, /Save recurring template/);
+  assert.match(recurringExpense, /Recurring Expenses/);
+  assert.match(recurringExpense, /Nothing is created automatically/);
+  assert.match(recurringExpense, /Save Recurring Expense/);
   assert.match(recurringExpense, /Create draft expense/);
   assert.match(recurringExpense, /aria-label="Filter recurring expenses"/);
   assert.match(recurringExpense, /pageSize = 10/);
-  assert.match(recurringExpense, /No matching templates/);
-  assert.match(recurringExpense, /open=\{allTemplates\.length === 0\}/);
+  assert.match(recurringExpense, /No matching recurring expenses/);
+  assert.match(recurringExpense, /ExpenseDialog label="\+ Add Recurring Expense"/);
   assert.doesNotMatch(recurringExpense, /Recurring Expense foundation|Create Monthly Template|Generate Due Expense/);
 });
