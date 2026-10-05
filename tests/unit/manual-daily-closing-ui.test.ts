@@ -2,19 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {renderClosingPanel,renderClosingFixture} from "../helpers/closing-ui-fixture";
 
+type MutableHistoryPayload = {
+ branch?: unknown;
+ report: { paymentMethods?: unknown[] };
+ closedBy?: unknown;
+ timezone?: unknown;
+ generatedAt?: unknown;
+};
+
 test("shift mode OFF hides operational shift controls without reviving daily closing",async()=>{
  const {html}=await renderClosingFixture({cashierShiftsEnabled:false});
  assert.match(html,/Cashier shifts are disabled/);
  assert.doesNotMatch(html,/Start shift|End shift|Your shift|Confirm daily closing|name="openingFloat"/);
  const history=await renderClosingFixture({cashierShiftsEnabled:false,snapshot:"valid",searchParams:{date:"2026-10-02"}});
- assert.match(history.html,/Original closer/);
+ assert.match(history.html,/Cashier shifts are disabled/);
+ assert.match(history.html,/\/closing\/history/);
+ assert.doesNotMatch(history.html,/<form|Original closer|name="openingFloat"/);
+ assert.ok(!history.queries.includes("snapshot"));
 });
 
 test("incomplete or invalid frozen history is unavailable, never a crash or live fallback",async()=>{
  for(const mutatePayload of [
-  (p:any)=>{delete p.branch;}, (p:any)=>{p.report={};}, (p:any)=>{delete p.closedBy;},
-  (p:any)=>{p.timezone="broken-zone";}, (p:any)=>{p.generatedAt="invalid";},
-  (p:any)=>{p.report.paymentMethods=[{}];},
+  (p:MutableHistoryPayload)=>{delete p.branch;}, (p:MutableHistoryPayload)=>{p.report={};}, (p:MutableHistoryPayload)=>{delete p.closedBy;},
+  (p:MutableHistoryPayload)=>{p.timezone="broken-zone";}, (p:MutableHistoryPayload)=>{p.generatedAt="invalid";},
+  (p:MutableHistoryPayload)=>{p.report.paymentMethods=[{}];},
  ]) {
   const {html,queries}=await renderClosingFixture({snapshot:"valid",searchParams:{date:"2026-10-02"},mutatePayload});
   assert.match(html,/Frozen report cannot be displayed/);

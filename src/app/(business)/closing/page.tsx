@@ -94,7 +94,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
       cashierShiftsEnabled: true,
     },
   });
-  if (!businessTimeSettings.cashierShiftsEnabled && !explicitDate) {
+  if (!businessTimeSettings.cashierShiftsEnabled) {
     return <section className="content"><div className="panel">
       <h1>Shift Closing</h1><p>Cashier shifts are disabled for this business.</p>
       <p>Collections do not require a cashier shift.</p>

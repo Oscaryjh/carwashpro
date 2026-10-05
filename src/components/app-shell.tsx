@@ -55,7 +55,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     ? await Promise.all([
         prisma.business.findUnique({
           where: { id: user.businessId },
-          select: { name: true, logoUrl: true, industryType: true },
+          select: { name: true, logoUrl: true, industryType: true, cashierShiftsEnabled: true },
         }),
         loadBusinessModuleContext(user.businessId),
       ])
@@ -293,7 +293,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && moduleEnabled("POS") && !isGroupManager && canSee("CLOSING")
+    ...(isStoreUser && moduleEnabled("POS") && !isGroupManager && canSee("CLOSING") && business?.cashierShiftsEnabled
       ? [
           {
             href: "/closing",

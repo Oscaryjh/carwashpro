@@ -198,6 +198,8 @@ export async function endShiftAction(formData: FormData) {
     await runClosingSerializableTransaction(
       prisma,
       async (tx) => {
+        const shiftSettings = await readCashierShiftSettings(tx, businessId);
+        if (!shiftSettings.cashierShiftsEnabled) throw new CashierShiftsDisabledError();
         const canonicalShift = await tx.cashierShift.findFirst({
           where: { businessId, cashierId: user.userId, id: shift.id, status: "OPEN" },
           select: { branchId: true, openingFloat: true, startedAt: true },
@@ -291,6 +293,9 @@ export async function endShiftAction(formData: FormData) {
       },
     );
   } catch (error) {
+    if (error instanceof CashierShiftsDisabledError) {
+      redirect(`/closing?type=error&message=${encodeURIComponent(error.message)}`);
+    }
     if (error instanceof ShiftAlreadyClosedError) {
       redirect(
         `/closing?type=error&message=${encodeURIComponent(
@@ -361,6 +366,8 @@ export async function resolveStaleShiftAction(formData: FormData) {
 
   try {
     await runClosingSerializableTransaction(prisma, async (tx) => {
+      const shiftSettings = await readCashierShiftSettings(tx, businessId);
+      if (!shiftSettings.cashierShiftsEnabled) throw new CashierShiftsDisabledError();
       await acquireCashierOpenShiftLock(tx, { businessId, cashierId: source.cashierId });
       const [shift, settings] = await Promise.all([
         tx.cashierShift.findFirst({
