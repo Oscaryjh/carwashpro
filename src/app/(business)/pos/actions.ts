@@ -143,6 +143,7 @@ async function recordPayment(formData: FormData) {
           items: {
             create: workOrder.items.map((item, index) => ({
               businessId,
+              kind: "SERVICE",
               serviceId: item.serviceId,
               name: item.name,
               quantity: item.quantity,
@@ -420,6 +421,7 @@ async function usePackagePayment(formData: FormData) {
           items: {
             create: workOrder.items.map((item, index) => ({
               businessId,
+              kind: "SERVICE",
               serviceId: item.serviceId,
               name: item.name,
               quantity: item.quantity,
@@ -642,6 +644,7 @@ async function recordPackagePurchasePayment(formData: FormData) {
           create: {
             businessId,
             serviceId: customerPackage.package.serviceId,
+            kind: "PACKAGE_PURCHASE",
             name: customerPackage.package.name,
             quantity: 1,
             unitPrice: fromCents(toCents(packageTax.subtotal)),

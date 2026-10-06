@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { getRefundableCents } from "@/lib/refunds/rules";
 import { formatTaxLabel } from "@/lib/tax/format";
 import { WalletRefundForm } from "@/components/wallet/wallet-refund-form";
+import styles from "./invoice-detail.module.css";
 
 type InvoiceDetailsPageProps = {
   params: Promise<{
@@ -159,12 +160,9 @@ export default async function InvoiceDetailsPage({
     const appointment = invoice.appointment;
     return (
       <>
-        <section className="content invoice-detail-layout">
+        <section className={`content invoice-detail-layout ${styles.layout}`}>
           {walletControls}
-          <div className="page-header">
-            <div><h1>Invoice</h1></div>
-            <BackButton fallbackHref="/invoices" />
-          </div>
+          <InvoicePageHeader invoiceNumber={invoice.invoiceNumber} status={invoice.status} />
           <div className="pos-receipt-panel panel">
             <div className="invoice-receipt-actions">
               <Link
@@ -183,7 +181,7 @@ export default async function InvoiceDetailsPage({
               <SendWhatsAppButton
                 className="button-link invoice-action-button"
                 invoiceId={invoice.id}
-                label="Send Invoice WhatsApp"
+                label="Send via WhatsApp"
                 messageType="INVOICE_SENT"
               />
             </div>
@@ -209,14 +207,11 @@ export default async function InvoiceDetailsPage({
                 <strong>{appointment.scheduledAt.toLocaleDateString("en-MY")}</strong>
                 <small>{appointment.scheduledAt.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}</small>
               </div>
-              <span className={`payment-state ${invoice.status.toLowerCase()}`}>
-                {formatStatus(invoice.status)}
-              </span>
             </div>
             <div className="pos-customer-strip">
-              <div><span>Customer</span><strong>{appointment.customer.name}</strong></div>
-              <div><span>Phone</span><strong>{appointment.customer.phone}</strong></div>
-              <div><span>Staff</span><strong>{appointment.assignedStaff?.name ?? "Unassigned"}</strong></div>
+              <div><span>Customer</span><strong>{appointment.customer.name || "—"}</strong></div>
+              <div><span>Phone</span><strong>{appointment.customer.phone || "—"}</strong></div>
+              <div><span>Staff</span><strong>{appointment.assignedStaff?.name || "—"}</strong></div>
             </div>
             <div className="pos-receipt-items">
               <div className="pos-receipt-row pos-receipt-head">
@@ -224,7 +219,7 @@ export default async function InvoiceDetailsPage({
               </div>
               {invoice.items.map((item) => (
                 <div className="pos-receipt-row" key={item.id}>
-                  <div><strong>{item.name}</strong><small>RM{Number(item.unitPrice).toFixed(2)}</small></div>
+                  <div><strong>{item.name}</strong><small>RM{Number(item.unitPrice).toFixed(2)} each</small></div>
                   <span>{item.quantity}</span>
                   <strong>RM{Number(item.lineTotal).toFixed(2)}</strong>
                 </div>
@@ -343,13 +338,14 @@ export default async function InvoiceDetailsPage({
             </div>
           ) : null}
           <div className="panel">
-            <div className="section-header">
+            <div className={`section-header ${styles.linkedHeader}`}>
               <div>
-                <h2>{context.industry.orderLabel}</h2>
-                <p className="muted">Payment does not change the service status.</p>
+                <h2>Linked Appointment</h2>
+                <p className="muted">{appointment.scheduledAt.toLocaleDateString("en-MY")} · {appointment.scheduledAt.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}</p>
+                <p>{appointment.assignedStaff?.name || "—"}</p>
               </div>
               <Link className="secondary-link-button" href={`/appointments/${appointment.id}`}>
-                Open appointment
+                View appointment →
               </Link>
             </div>
           </div>
@@ -384,12 +380,9 @@ export default async function InvoiceDetailsPage({
       packageItems.length === 1 ? packageItems[0].name : `${packageCount} packages`;
     return (
       <>
-        <section className="content invoice-detail-layout">
+        <section className={`content invoice-detail-layout ${styles.layout}`}>
           {walletControls}
-          <div className="page-header">
-            <div><h1>Invoice</h1></div>
-            <BackButton fallbackHref="/invoices" />
-          </div>
+          <InvoicePageHeader invoiceNumber={invoice.invoiceNumber} status={invoice.status} />
           <div className="pos-receipt-panel panel">
             <div className="invoice-receipt-actions">
               <Link className="secondary-link-button invoice-action-button" href={`/invoices/${invoice.id}/pdf?format=receipt`} target="_blank">Print</Link>
@@ -402,9 +395,8 @@ export default async function InvoiceDetailsPage({
             <div className="pos-receipt-header">
               <div><span>Invoice No.</span><strong className="pos-receipt-number">{formatInvoiceNumber(invoice.invoiceNumber)}</strong><small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small></div>
               <div><span>{isStandalonePackagePurchase ? "Package" : "Sale"}</span><strong>{packageName}</strong><small>{isStandalonePackagePurchase ? "Package purchase" : "Direct sale"}</small></div>
-              <span className={`payment-state ${invoice.status.toLowerCase()}`}>{formatStatus(invoice.status)}</span>
             </div>
-            <div className="pos-customer-strip"><div><span>Customer</span><strong>{invoice.customer?.name ?? "-"}</strong></div><div><span>Phone</span><strong>{invoice.customer?.phone ?? "-"}</strong></div></div>
+            <div className="pos-customer-strip"><div><span>Customer</span><strong>{invoice.customer?.name || "—"}</strong></div><div><span>Phone</span><strong>{invoice.customer?.phone || "—"}</strong></div></div>
             <div className="pos-receipt-items">
               <div className="pos-receipt-row pos-receipt-head"><span>Item</span><span>Qty</span><span>Total</span></div>
               {packageItems.map((item) => (
@@ -558,14 +550,9 @@ export default async function InvoiceDetailsPage({
 
   return (
     <>
-      <section className="content invoice-detail-layout">
+      <section className={`content invoice-detail-layout ${styles.layout}`}>
         {walletControls}
-        <div className="page-header">
-          <div>
-            <h1>Invoice</h1>
-          </div>
-          <BackButton fallbackHref="/invoices" />
-        </div>
+        <InvoicePageHeader invoiceNumber={invoice.invoiceNumber} status={invoice.status} />
 
         <div className="pos-receipt-panel panel">
           <div className="invoice-receipt-actions">
@@ -585,7 +572,7 @@ export default async function InvoiceDetailsPage({
             <SendWhatsAppButton
               className="button-link invoice-action-button"
               invoiceId={invoice.id}
-              label="Send Invoice WhatsApp"
+              label="Send via WhatsApp"
               messageType="INVOICE_SENT"
             />
           </div>
@@ -618,19 +605,16 @@ export default async function InvoiceDetailsPage({
                 <small>{vehicleDetails(invoice.workOrder.vehicle)}</small>
               </div>
             ) : null}
-            <span className={`payment-state ${invoice.status.toLowerCase()}`}>
-              {formatStatus(invoice.status)}
-            </span>
           </div>
 
           <div className="pos-customer-strip">
             <div>
               <span>Customer</span>
-              <strong>{invoice.workOrder.customer.name}</strong>
+              <strong>{invoice.workOrder.customer.name || "—"}</strong>
             </div>
             <div>
               <span>Phone</span>
-              <strong>{invoice.workOrder.customer.phone}</strong>
+              <strong>{invoice.workOrder.customer.phone || "—"}</strong>
             </div>
           </div>
 
@@ -644,7 +628,7 @@ export default async function InvoiceDetailsPage({
               <div className="pos-receipt-row" key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
-                  <small>RM{Number(item.unitPrice).toFixed(2)}</small>
+                  <small>RM{Number(item.unitPrice).toFixed(2)} each</small>
                 </div>
                 <span>{item.quantity}</span>
                 <strong>RM{Number(item.lineTotal).toFixed(2)}</strong>
@@ -866,6 +850,19 @@ function formatStatus(status: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function InvoicePageHeader({ invoiceNumber, status }: { invoiceNumber: string; status: string }) {
+  const number = formatInvoiceNumber(invoiceNumber);
+  return (
+    <div className={`page-header ${styles.header}`}>
+      <div className={styles.identity}>
+        <h1 title={`Invoice #${number}`}>Invoice #{number}</h1>
+        <span className={`payment-state ${status.toLowerCase()}`}>{formatStatus(status)}</span>
+      </div>
+      <BackButton fallbackHref="/invoices">Back to Invoices</BackButton>
+    </div>
+  );
+}
+
 function InvoiceSettlementRows({
   balanceClassName,
   outstanding,
@@ -889,7 +886,7 @@ function InvoiceSettlementRows({
   return (
     <>
       <div>
-        <span>Settled</span>
+        <span>Paid</span>
         <strong>RM{settled.toFixed(2)}</strong>
       </div>
       {showPackageBreakdown && summary.hasPackageVoucher ? (
@@ -921,7 +918,7 @@ function InvoiceSettlementRows({
         </>
       ) : null}
       <div className={balanceClassName}>
-        <span>Outstanding</span>
+        <span>Balance Due</span>
         <strong>RM{outstanding.toFixed(2)}</strong>
       </div>
     </>

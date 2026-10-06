@@ -19,6 +19,7 @@ import { readWalletActivity } from "@/lib/reports/wallet-activity";
 import { financialReadSnapshot } from "@/lib/reports/financial-read-snapshot";
 import { readSalonPerformance } from "./salon-performance";
 import { resolveSalonPerformanceScope, type SalonAccess } from "./salon-scope";
+import { readBusinessTopServices } from "./top-services";
 
 export type PerformanceRange = "today" | "7days" | "yesterday" | "this_week" | "last_week" | "month" | "last_month" | "custom";
 
@@ -27,7 +28,7 @@ export type PerformanceReadModel = Awaited<ReturnType<typeof getBusinessPerforma
 type ReadDatabase = Pick<Prisma.TransactionClient,
   "business" | "branch" | "invoice" | "payment" | "paymentRefund" | "invoiceItem" |
   "product" | "productStock" | "businessExpense" | "expenseSourceSettlement" |
-  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement" | "walletTransaction" | "appointment" | "user">;
+  "supplierBill" | "employeeClaim" | "payrollRun" | "businessModuleEntitlement" | "walletTransaction" | "appointment" | "user" | "service">;
 type SalesInvoiceRow = { branchId: string | null; issuedAt: Date; total: unknown; tipAmount: unknown; discountAmount: unknown; loyaltyDiscountAmount: unknown; payments: Array<{ amount: unknown }> };
 type SalesPaymentRow = { amount: unknown; branchId: string | null; paidAt: Date; purpose?: Purpose; method?: Method };
 type SalesRefundRow = { amount: unknown; branchId: string | null; refundedAt: Date; method?: Method; payment?: { purpose: Purpose; method: Method } };
@@ -114,8 +115,13 @@ async function readBusinessPerformanceReadModel(input: {
       : branchFilter,
       fromDate: periods.current.fromDate, toDateExclusive: periods.current.toDateExclusive }, database)
     : null;
+  const canonicalTopServices = enabled.has("POS") && business.industryType === "SALON_BEAUTY" && input.salonAccess
+    ? await readBusinessTopServices({ businessId: input.businessId, salonAccess: input.salonAccess,
+      fromDate: periods.current.fromDate, toDateExclusive: periods.current.toDateExclusive }, database)
+    : [];
   return {
     salonPerformance,
+    canonicalTopServices,
     scope: { businessId: business.id, businessName: business.name, branchIds, selectedBranchId },
     walletActivity: enabled.has("POS") ? await readWalletActivity(database, {
       businessId: input.businessId, branchIds,
@@ -132,7 +138,9 @@ async function readBusinessPerformanceReadModel(input: {
     accountsPayable: accountsPayable ? { totalOutstanding: accountsPayable.totalOutstanding.toFixed(2), dueSoon: accountsPayable.dueSoon.length,
       overdue: accountsPayable.overdue.length, openBills: accountsPayable.bills.length } : null,
     branchPerformance,
-    topServices: topLines.filter((row) => row.serviceId).slice(0, 5).map(lineRow),
+    topServices: business.industryType === "SALON_BEAUTY"
+      ? canonicalTopServices.slice(0, 5).map(row => ({ serviceId: row.serviceId, name: row.name, quantity: row.quantity, sales: row.salesAmount }))
+      : topLines.filter((row) => row.serviceId).slice(0, 5).map(lineRow),
     topProducts: topLines.filter((row) => row.productId).slice(0, 5).map(lineRow),
     coverage: {
       sales: enabled.has("POS"), recordedSpending: enabled.has("EXPENSE"), inventory: enabled.has("INVENTORY"),

@@ -1,0 +1,49 @@
+.header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.identity h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.header > button {
+  flex-shrink: 0;
+}
+
+.layout :global(.pos-customer-strip) strong {
+  overflow-wrap: anywhere;
+}
+
+.linkedHeader {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.linkedHeader > div {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.linkedHeader > a {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+@media (max-width: 800px) {
+  .header {
+    flex-wrap: wrap;
+  }
+}

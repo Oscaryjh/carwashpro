@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { readSalonPerformance } from "@/lib/business-performance/salon-performance";
-import { resolveSalonPerformanceScope, type SalonAccess } from "@/lib/business-performance/salon-scope";
+import { readBusinessTopServices, type TopServiceRow } from "@/lib/business-performance/top-services";
+import type { SalonAccess } from "@/lib/business-performance/salon-scope";
 import { SalesOverview, DailyTransactions, CollectedPayments, TransactionPagination } from "@/components/reports/daily-transactions";
 import styles from "./reports.module.css";
 import { AdvancedReportDetails, hasAdvancedReportDetails } from "@/components/reports/advanced-details";
@@ -38,6 +38,7 @@ import {
   normalizeReportDateRange,
 } from "@/lib/reports/presentation";
 import { requireBusinessContext } from "@/lib/tenant";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { fromCents, toCents } from "@/lib/validation/pos";
 
 type ReportsPageProps = {
@@ -78,6 +79,9 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   if (!context.businessId) {
     throw new Error("Business context is required.");
   }
+
+  const canViewDashboard = hasBusinessCapability(context.access, "VIEW_DASHBOARD") &&
+    (context.access.source !== "DIRECT_BUSINESS" || hasStaffPermission(context.user, "DASHBOARD"));
 
   const businessId = context.businessId;
   const params = await searchParams;
@@ -433,7 +437,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       ? await getSalonReportData({
           salonAccess: { access: context.access, requestedBranchId: params.branchId === "" ? undefined : params.branchId },
           businessId,
-          branchId: selectedBranchId,
           fromDate,
           toDateExclusive,
         })
@@ -456,7 +459,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             <h1>Reports</h1>
             <p>
               {context.industryType === "SALON_BEAUTY"
-                ? "Appointments, service, staff, and revenue performance for "
+                ? "Review sales, payments, refunds and business expenses for "
                 : "Sales, jobs, invoices, packages, and service performance for "}
               {selectedBranch ? selectedBranch.name : business.name}.
             </p>
@@ -479,7 +482,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           baseHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays })} />
         <CollectedPayments report={dailySalesReport}
           baseHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays })} />
-        {salonReport ? <SalonReportSections data={salonReport} /> : null}
+        {salonReport && !canViewDashboard ? <SalonReportSections data={salonReport} /> : null}
         {expenseSummary ? <ReportCard title="Business Performance">
           <MetricList items={[
             { label: "Business Expenses", value: money(expenseSummary.recorded) },
@@ -913,83 +916,41 @@ function PaymentMethodDrawer({
 }
 
 type SalonServiceReportRow = {
+  serviceId: string;
   name: string;
   quantity: number;
   amount: number;
 };
 
-type SalonStaffReportRow = {
-  id: string;
-  name: string;
-  appointments: number;
-  amount: number;
-};
-
-type SalonStatusReportRow = {
-  status: string;
-  appointments: number;
-};
-
 type SalonReportData = {
-  totalAppointments: number;
-  completedAppointments: number;
-  cancelledAppointments: number;
-  noShowAppointments: number;
-  repeatCustomers: number;
+  canonicalTopServices: TopServiceRow[];
   serviceSales: SalonServiceReportRow[];
-  staffSales: SalonStaffReportRow[];
-  statusRows: SalonStatusReportRow[];
 };
 
 async function getSalonReportData({
   businessId,
-  branchId,
   fromDate,
   toDateExclusive,
   salonAccess,
 }: {
   businessId: string;
-  branchId: string | null;
   fromDate: Date;
   toDateExclusive: Date;
   salonAccess?: SalonAccess;
 }): Promise<SalonReportData> {
-  const performanceFilter = salonAccess
-    ? await resolveSalonPerformanceScope(businessId, salonAccess)
-    : branchWhere(branchId);
-  const { sourceInvoices: performanceInvoices, ...performance } = await readSalonPerformance({
-    businessId, branchFilter: performanceFilter, fromDate, toDateExclusive,
-  });
-  // Top Services is outside the historical Staff/Appointment scope alignment.
-  const sourceInvoices = JSON.stringify(performanceFilter) === JSON.stringify(branchWhere(branchId))
-    ? performanceInvoices
-    : await prisma.invoice.findMany({
-        where: { businessId, ...branchWhere(branchId), status: { not: "VOID" },
-          OR: [{ appointmentId: { not: null } }, { workOrderId: { not: null } }],
-          issuedAt: { gte: fromDate, lt: toDateExclusive } },
-        select: { items: { select: { name: true, quantity: true, lineTotal: true } } },
-      });
-  // Reports Top Services retains its own aggregation; Dashboard Top Services is unchanged.
-  const serviceMap = new Map<string, { quantity: number; amount: number }>();
-  for (const invoice of sourceInvoices) {
-    for (const item of invoice.items) {
-      const serviceEntry = serviceMap.get(item.name) ?? { quantity: 0, amount: 0 };
-      serviceEntry.quantity += item.quantity;
-      serviceEntry.amount += Number(item.lineTotal);
-      serviceMap.set(item.name, serviceEntry);
-    }
-  }
+  // Top Services has its own business invoice eligibility, not Staff attribution.
+  // Missing verified access denies this reader rather than borrowing finance scope.
+  const canonicalTopServices = salonAccess
+    ? await readBusinessTopServices({ businessId, salonAccess, fromDate, toDateExclusive })
+    : [];
   return {
-    ...performance,
-    serviceSales: Array.from(serviceMap.entries())
-      .map(([name, row]) => ({ name, ...row }))
-      .sort((left, right) => right.amount - left.amount)
-      .slice(0, 10),
+    canonicalTopServices,
+    serviceSales: canonicalTopServices.slice(0, 10).map(row => ({ serviceId: row.serviceId, name: row.name, quantity: row.quantity, amount: Number(row.salesAmount) })),
   };
 }
 
 function SalonReportSections({ data }: { data: SalonReportData }) {
-  const services = data.serviceSales.filter(row => row.amount !== 0 || row.quantity > 0);
+  const services = data.serviceSales;
   if (!services.length) return null;
   return (
         <ReportCard title="Top Services">
@@ -1003,7 +964,7 @@ function SalonReportSections({ data }: { data: SalonReportData }) {
               </thead>
               <tbody>
                 {services.map((row) => (
-                  <tr key={row.name}>
+                  <tr key={row.serviceId}>
                     <td>{row.name}</td>
                     <td>{row.quantity}</td>
                     <td>{money(row.amount)}</td>

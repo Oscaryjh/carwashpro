@@ -7,6 +7,12 @@ export type SalonAccess = {
   requestedBranchId?: string;
 };
 
+export function hasBroadSalonPerformanceAccess(access: ResolvedBusinessAccess) {
+  return access.granted && (access.effectiveBusinessRole === "BUSINESS_OWNER" ||
+    (access.source === "GROUP_ACCESS" && access.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY") ||
+    (access.source === "DIRECT_BUSINESS" && access.effectiveBusinessRole === "STAFF" && access.permissions.includes("ALL_BRANCHES")));
+}
+
 // Historical reading only. Never use this scope for operational mutations or
 // other Dashboard/Reports domains. ACTIVE governs selectors, not history.
 export async function resolveSalonPerformanceScope(
@@ -16,9 +22,7 @@ export async function resolveSalonPerformanceScope(
 ): Promise<{ branchId?: string | { in: string[] } }> {
   const denied = { branchId: { in: [] as string[] } };
   if (!access.granted || access.businessId !== businessId) return denied;
-  const broad = access.effectiveBusinessRole === "BUSINESS_OWNER" ||
-    (access.source === "GROUP_ACCESS" && access.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY") ||
-    (access.source === "DIRECT_BUSINESS" && access.effectiveBusinessRole === "STAFF" && access.permissions.includes("ALL_BRANCHES"));
+  const broad = hasBroadSalonPerformanceAccess(access);
   const explicit = requestedBranchId !== undefined;
   const branchId = explicit ? requestedBranchId.trim() : broad ? null : access.branchId;
   if (!branchId) return broad && !explicit ? {} : denied;

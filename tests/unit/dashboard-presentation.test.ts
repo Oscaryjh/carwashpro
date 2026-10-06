@@ -3,7 +3,7 @@ import test, { before, after, beforeEach } from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactElement } from "react";
+import { isValidElement, type ReactElement } from "react";
 
 const require = createRequire(import.meta.url);
 const { JSDOM } = require("jsdom");
@@ -22,7 +22,7 @@ function fixture() {
     coverage: { unallocatedBusinessWideSpending: "0.00", enabledModules: ["POS", "EXPENSE", "INVENTORY", "WALLET"] },
     reconciliationHealth: { status: "HEALTHY", issues: 0, domains: { sales: "CANONICAL", expense: "MATCH", inventory: "MATCH", ap: "BALANCED" } },
     salonPerformance: { staffSales: [{ id: "u", name: "Unassigned", appointments: 1, amount: 25 }], totalAppointments: 1, completedAppointments: 1, cancelledAppointments: 0, noShowAppointments: 0, repeatCustomers: 0, statusRows: [] },
-    topServices: [{ name: "Service", quantity: 1, sales: "25.00" }], topProducts: [],
+    topServices: [{ serviceId: "service", name: "Service", quantity: 1, sales: "25.00" }], topProducts: [],
   };
 }
 let model = fixture();
@@ -55,6 +55,94 @@ async function documentFor() {
   const document: Document = dom.window.document;
   return { dom, document };
 }
+
+test('canonical Services with identical names render separately and use identity keys', async () => {
+  model.topServices = [{ serviceId: 'service-a', name: 'Haircut', quantity: 2, sales: '20.00' }, { serviceId: 'service-b', name: 'Haircut', quantity: 1, sales: '15.00' }];
+  const tree = await page({ searchParams: Promise.resolve({}) });
+  function descendants(value: unknown): ReactElement<Record<string, unknown>>[] {
+    if (Array.isArray(value)) return value.flatMap(descendants);
+    if (!isValidElement<Record<string, unknown>>(value)) return [];
+    return [value, ...descendants(value.props.children)];
+  }
+  const ranking = descendants(tree).find(element => typeof element.type === 'function' && element.type.name === 'Ranking' && element.props.title === 'Top Services');
+  assert.ok(ranking);
+  const component = ranking.type as (props: Record<string, unknown>) => ReactElement;
+  const keys = descendants(component(ranking.props)).filter(element => element.type === 'li').map(element => element.key);
+  assert.deepEqual(keys, ['service-a', 'service-b']);
+  const { dom, document: d } = await documentFor();
+  try {
+    const services = [...d.querySelectorAll('section[aria-label="Performance"] li')].filter(row => row.textContent?.includes('Haircut'));
+    assert.equal(services.length, 2); assert.match(services[0].textContent!, /2 sold.*20.00/); assert.match(services[1].textContent!, /1 sold.*15.00/);
+  } finally { dom.window.close(); }
+});
+
+for (const range of ['today', 'yesterday', 'this_week', 'last_week', 'month', 'last_month']) {
+  test(`${range} hides date inputs but preserves resolved period and Custom access`, async () => {
+    model.dateRange = { ...model.dateRange, range, from: '2026-10-01', to: '2026-10-06' };
+    const { dom, document: d } = await documentFor();
+    try {
+      assert.equal(d.querySelectorAll('input[type="date"]').length, 0);
+      assert.match(d.querySelector('.performance-period')!.textContent!, /2026-10-01 — 2026-10-06.*Asia\/Kuching.*02:00/);
+      assert.equal([...d.querySelectorAll('nav a')].find(e => e.textContent === 'Custom')?.getAttribute('href'), '/dashboard?range=custom');
+      assert.equal(d.querySelector('input[name="range"]')?.getAttribute('value'), range);
+    } finally { dom.window.close(); }
+  });
+}
+test('Custom exposes the existing GET dates without changing the resolved DTO', async () => {
+  model.dateRange = { ...model.dateRange, range: 'custom', from: '2026-10-01', to: '2026-10-06' };
+  const before = JSON.stringify(model);
+  const { dom, document: d } = await documentFor();
+  try {
+    assert.equal(d.querySelector('form')?.getAttribute('action'), '/dashboard');
+    assert.equal(d.querySelector('input[name="from"]')?.getAttribute('value'), '2026-10-01');
+    assert.equal(d.querySelector('input[name="to"]')?.getAttribute('value'), '2026-10-06');
+    assert.equal(JSON.stringify(model), before);
+  } finally { dom.window.close(); }
+});
+test('compact Trend keeps bar scaling, values and previous comparison; Services belongs to Performance', async () => {
+  const { dom, document: d } = await documentFor();
+  try {
+    const trend = d.querySelector('.performance-trend');
+    assert.ok(trend?.classList.contains('compactTrend'));
+    assert.match(trend!.textContent!, /RM 100.00.*10-05/);
+    assert.match(trend!.querySelector('.performance-trend-point > div')!.getAttribute('style')!, /130px/);
+    assert.match(trend!.parentElement!.textContent!, /Previous comparable period:.*RM 100.00/);
+    const performance = d.querySelector('section[aria-label="Performance"]')!;
+    assert.match(performance.textContent!, /Top Services.*Service.*1 sold.*RM 25.00/);
+    assert.deepEqual([...performance.querySelectorAll('th')].map(e => e.textContent), ['Staff', 'Appointments', 'Attributed Sales', 'View']);
+    assert.equal(performance.querySelector('a[aria-label="View Unassigned performance"]')?.textContent, 'View →');
+  } finally { dom.window.close(); }
+});
+test('Appointments uses DTO total, active group and preserves other statuses and repeat customer count', async () => {
+  Object.assign(model.salonPerformance, { totalAppointments: 90, completedAppointments: 66, cancelledAppointments: 5, noShowAppointments: 5, repeatCustomers: 28, statusRows: [{ status: 'SCHEDULED', appointments: 13 }, { status: 'CONVERTED_TO_JOB', appointments: 1 }] });
+  const { dom, document: d } = await documentFor();
+  try {
+    const performance = d.querySelector('section[aria-label="Performance"]')!;
+    assert.match(performance.textContent!, /90 total/);
+    for (const [label, value] of [['Active appointments', '13'], ['Completed', '66'], ['Cancelled', '5'], ['No-show', '5'], ['Repeat customers', '28'], ['Converted to job', '1']]) {
+      const row = [...performance.querySelectorAll('dl > div')].find(e => e.querySelector('dt')?.textContent === label);
+      assert.equal(row?.querySelector('dd')?.textContent, value);
+    }
+  } finally { dom.window.close(); }
+});
+
+test('service-only Salon activity remains grouped with the discoverable empty state', async () => {
+  Object.assign(model.salonPerformance, { staffSales: [], totalAppointments: 0, completedAppointments: 0, repeatCustomers: 0 });
+  const { dom, document: d } = await documentFor();
+  try {
+    const performance = d.querySelector('[aria-label="Performance"]')!;
+    assert.match(performance.textContent!, /No staff activity today.*View this month.*Top Services.*1 sold/);
+    assert.equal(performance.querySelector('table'), null);
+  } finally { dom.window.close(); }
+});
+test('non-Salon service rankings remain available without manufacturing Salon Performance', async () => {
+  Object.assign(model, { salonPerformance: null });
+  const { dom, document: d } = await documentFor();
+  try {
+    assert.equal(d.querySelector('[aria-label="Performance"]'), null);
+    assert.match(d.body.textContent!, /Top Services.*Service.*1 sold.*RM 25.00/);
+  } finally { dom.window.close(); }
+});
 
 test("primary has exactly four unchanged sales values; spending is secondary and details closed", async () => {
   const { dom, document: d } = await documentFor();

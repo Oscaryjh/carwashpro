@@ -238,10 +238,10 @@ test("invoice refund presentation separates settlement, refunds, net collection 
     "utf8",
   );
 
-  assert.match(invoicePage, /<span>Settled<\/span>/);
+  assert.match(invoicePage, /<span>Paid<\/span>/);
   assert.match(invoicePage, /<span>Refunded<\/span>/);
   assert.match(invoicePage, /<span>Net collected<\/span>/);
-  assert.match(invoicePage, /<span>Outstanding<\/span>/);
+  assert.match(invoicePage, /<span>Balance Due<\/span>/);
   assert.match(invoicePage, /Partially refunded/);
   assert.match(invoicePage, /Fully refunded/);
   assert.match(invoiceModal, /<span>Settled<\/span>/);

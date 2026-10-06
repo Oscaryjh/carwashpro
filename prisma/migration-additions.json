@@ -22,5 +22,9 @@
   {
     "name": "20261003000000_cashier_shifts_default_off",
     "hash": "f6ddea8e87113303e5eaca002f1d80bf926e5a225104111426baa12d56f182e9"
+  },
+  {
+    "name": "20261006000000_invoice_item_explicit_kind",
+    "hash": "846837c841bcf8aa85352ff487e4b658726f2b73a6cf3cf9f83956a1327afb7b"
   }
 ]

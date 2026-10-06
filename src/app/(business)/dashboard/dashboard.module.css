@@ -1,4 +1,12 @@
 .secondary { border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; background: #fff; }
+.filters:global(.performance-filter-form) { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.filters > label { flex: 0 1 240px; }
+.filters > button { width: auto; padding-inline: 20px; }
+.compactTrend:global(.performance-trend) { height: 132px; padding-top: 12px; }
+.compactTrend :global(.performance-trend-point) { gap: 4px; }
+.compactTrend :global(.performance-trend-point) > div { zoom: .6; }
+.ranking:global(.performance-ranking) strong { overflow-wrap: anywhere; }
+.ranking:global(.performance-ranking) li { padding: 10px 0; }
 .secondary h2 { margin: 0 0 10px; font-size: 17px; }
 .secondary p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .metrics { display: flex; flex-wrap: wrap; gap: 16px 32px; }

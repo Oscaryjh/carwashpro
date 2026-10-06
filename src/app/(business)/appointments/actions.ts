@@ -1477,6 +1477,7 @@ export async function recordSalonAppointmentPaymentAction(
           items: {
             create: saleLines.map((line, index) => ({
               businessId,
+              kind: line.kind === "service" ? "SERVICE" : line.kind === "product" ? "PRODUCT" : "PACKAGE_PURCHASE",
               serviceId: line.kind === "service" ? line.id : line.serviceId ?? null,
               productId: line.kind === "product" ? line.id : null,
               customerPackageId:

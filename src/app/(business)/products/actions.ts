@@ -416,6 +416,7 @@ export async function sellProductAction(formData: FormData) {
             create: stocks.map(({ product, quantity }, index) => ({
               businessId,
               productId: product.id,
+              kind: "PRODUCT",
               name: product.name,
               quantity,
               unitPrice: product.price,

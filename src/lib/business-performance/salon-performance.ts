@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { salonInvoiceWhere, attributedLineTotal } from "./salon-attribution";
 
 // Existing Salon Reports contract. Callers supply their already-authorized scope
 // and resolved period. This is not receipt/contribution-based Team Performance.
@@ -25,12 +26,6 @@ export async function readSalonPerformance({
     ...appointmentWhere,
     status: { notIn: ["CANCELLED", "NO_SHOW"] },
   };
-  const salonInvoiceLink = {
-    OR: [
-      { appointmentId: { not: null } },
-      { workOrderId: { not: null } },
-    ],
-  } satisfies Prisma.InvoiceWhereInput;
 
   const [
     appointmentsByStatus,
@@ -50,13 +45,7 @@ export async function readSalonPerformance({
       _count: true,
     }),
     database.invoice.findMany({
-      where: {
-        businessId,
-        ...branchFilter,
-        ...salonInvoiceLink,
-        status: { not: "VOID" },
-        issuedAt: { gte: fromDate, lt: toDateExclusive },
-      },
+      where: salonInvoiceWhere({ businessId, branchFilter, fromDate, toDateExclusive }),
       select: {
         items: {
           select: { name: true, quantity: true, lineTotal: true },
@@ -94,9 +83,7 @@ export async function readSalonPerformance({
       invoice.appointment?.assignedStaff?.name ?? staffNames.get(staffId) ?? "Unassigned";
     const staffEntry = staffAmountMap.get(staffId) ?? { name: staffName, amount: 0 };
 
-    for (const item of invoice.items) {
-      staffEntry.amount += Number(item.lineTotal);
-    }
+    staffEntry.amount = attributedLineTotal(invoice.items, staffEntry.amount);
 
     staffAmountMap.set(staffId, staffEntry);
   }

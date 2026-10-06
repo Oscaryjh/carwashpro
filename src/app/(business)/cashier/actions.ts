@@ -783,6 +783,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             create: [
               ...stocks.map(({ product, quantity }, index) => ({
                 businessId,
+                kind: "PRODUCT" as const,
                 productId: product.id,
                 commissionMembershipId:
                   assignedStaff?.employeeBusinessMembershipId ?? null,
@@ -802,6 +803,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               })),
               ...packageUnits.map((packageDefinition, index) => ({
                 businessId,
+                kind: "PACKAGE_PURCHASE" as const,
                 customerPackageId: customerPackages[index].id,
                 serviceId: packageDefinition.serviceId,
                 commissionMembershipId:
@@ -824,6 +826,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               })),
               ...serviceLines.map(({ service, quantity }, index) => ({
                 businessId,
+                kind: "SERVICE" as const,
                 serviceId: service.id,
                 commissionMembershipId:
                   assignedStaff?.employeeBusinessMembershipId ?? null,

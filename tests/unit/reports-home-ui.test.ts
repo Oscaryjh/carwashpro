@@ -86,7 +86,7 @@ test("Salon has standalone services without duplicated staff/appointments; Walle
   const code = await transform(`import {formatReportMoney as money} from './src/lib/reports/presentation';${page.slice(performanceStart, performanceEnd)};export {SalonReportSections};`, {loader:'tsx',format:'cjs',jsx:'automatic'});
   const compiled = {exports:{} as {SalonReportSections:(props:{data:object})=>ReactElement|null}};
   new Function('require','module','exports',code.code)(createRequire(`${process.cwd()}/package.json`),compiled,compiled.exports);
-  const data = {serviceSales:[{name:'Haircut',quantity:2,amount:45},{name:'Empty',quantity:0,amount:0}],staffSales:[{id:'u',name:'Unassigned',appointments:2,amount:45}],totalAppointments:3,completedAppointments:1,cancelledAppointments:1,noShowAppointments:1,repeatCustomers:1,statusRows:[]};
+  const data = {serviceSales:[{serviceId:'haircut',name:'Haircut',quantity:2,amount:45}]};
   const html = renderToStaticMarkup(createElement(compiled.exports.SalonReportSections,{data}));
   assert.match(html, /Top Services/);
   assert.match(html, /Haircut/); assert.match(html, /RM45\.00/); assert.match(html, /<td>2<\/td>/);

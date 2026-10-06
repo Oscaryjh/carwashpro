@@ -10,13 +10,34 @@ import { PrismaClient } from "@prisma/client";
 import { createEmbeddedPostgres, ensureDatabaseExists } from "../../scripts/embedded-postgres-utils.mjs";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
+import { assertMigrationHistory } from "../../scripts/lib/canonical-migration-history.mjs";
+
+const foundationMigration = "20261002010000_optional_cashier_shifts";
+const defaultOffMigration = "20261003000000_cashier_shifts_default_off";
+// Pin the historical target schema, not today's schema with later additions.
+const defaultOffRevision = "78cb25468ac9ab247cbff96c64e4cac24d45be12";
+
+export function optionalShiftMigrationChain(names: string[], baseline: string[]) {
+  assert.deepEqual(names, [...names].sort(), "Migration order must remain chronological");
+  assert.equal(new Set(names).size, names.length, "Duplicate migration names");
+  const chain = [...baseline, foundationMigration, defaultOffMigration];
+  assert.deepEqual(names.slice(0, chain.length), chain, "Optional Shift migrations must follow the immutable baseline without gaps or insertions");
+  return chain;
+}
 
 export async function verifyOptionalShiftsUpgrade() {
-  const root=process.cwd(),temp=await mkdtemp(join(tmpdir(),'tetamu-optional-shifts-'));
+  const root=process.cwd();
   const names=(await readdir('prisma/migrations',{withFileTypes:true})).filter(x=>x.isDirectory()).map(x=>x.name).sort();
-  assert.equal(names.length,228);
   // Pinned canonical226 revision: execution HEAD may already contain227.
   const baselineRevision='ff6ee704866eafdfa730b072e2d3ce4aec038ab1';
+  const baselineNames=execFileSync('git',['ls-tree','-d','--name-only',`${baselineRevision}:prisma/migrations`],{encoding:'utf8'}).trim().split(/\r?\n/).sort();
+  const targetChain=optionalShiftMigrationChain(names,baselineNames);
+  const targetSchema=execFileSync('git',['show',`${defaultOffRevision}:prisma/schema.prisma`],{encoding:'utf8',maxBuffer:4_000_000});
+  for(const migration of [foundationMigration,defaultOffMigration]) {
+    const file=`prisma/migrations/${migration}/migration.sql`;
+    assert.deepEqual(await readFile(file),execFileSync('git',['show',`${defaultOffRevision}:${file}`]),`Historical Shift SQL changed: ${migration}`);
+  }
+  const temp=await mkdtemp(join(tmpdir(),'tetamu-optional-shifts-'));
   const baseline=execFileSync('git',['show',`${baselineRevision}:prisma/schema.prisma`],{encoding:'utf8',maxBuffer:4_000_000});
   // A 226 schema must be seeded with its pinned posting contract, not the new
   // Phase2 service which correctly requires the 227 setting column. This test
@@ -34,7 +55,7 @@ export async function verifyOptionalShiftsUpgrade() {
   await mkdir(join(temp,'migrations'));
   await writeFile(join(temp,'schema.prisma'),baseline);
   await cp('prisma/migrations/migration_lock.toml',join(temp,'migrations/migration_lock.toml'));
-  for(const n of names.slice(0,226)){
+  for(const n of baselineNames){
     const file=`prisma/migrations/${n}/migration.sql`;
     assert.deepEqual(await readFile(file),execFileSync('git',['show',`${baselineRevision}:${file}`]),`Historical SQL changed: ${n}`);
     await cp(join(root,'prisma/migrations',n),join(temp,'migrations',n),{recursive:true});
@@ -48,7 +69,7 @@ export async function verifyOptionalShiftsUpgrade() {
     await ensureDatabaseExists(pg,name);created=true;
     await prisma(['migrate','deploy','--schema',join(temp,'schema.prisma')]);
     client=pg.getPgClient(name,'127.0.0.1');await client.connect();
-    assert.equal(Number((await client.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count),226);
+    assert.equal(Number((await client.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count),baselineNames.length);
     db=new PrismaClient({datasources:{db:{url}}});
     // Seed only the pre-227 Business columns: the new Prisma Client sends its
     // new default even with select:{id:true}. Old-schema fixture must not use it.
@@ -85,7 +106,7 @@ export async function verifyOptionalShiftsUpgrade() {
     const fk=()=>client.query("SELECT oid,conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='wallet_top_ups'::regclass AND conname<>'wallet_top_ups_shift_id_not_null' ORDER BY oid").then((r:{rows:unknown[]})=>r.rows);
     const indexes=()=>client.query("SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='wallet_top_ups' ORDER BY indexname").then((r:{rows:unknown[]})=>r.rows);
     const oldFK=await fk(),oldIndexes=await indexes();
-    await cp(join(root,'prisma/migrations',names[226]),join(temp,'migrations',names[226]),{recursive:true});
+    await cp(join(root,'prisma/migrations',foundationMigration),join(temp,'migrations',foundationMigration),{recursive:true});
     await prisma(['migrate','deploy','--schema',join(temp,'schema.prisma')]);
     assert.deepEqual(await facts(true),before,'Every old column of every old row remains unchanged');
     assert.deepEqual(await fk(),oldFK);assert.deepEqual(await indexes(),oldIndexes);
@@ -95,7 +116,9 @@ export async function verifyOptionalShiftsUpgrade() {
     await db.$executeRaw`INSERT INTO businesses(id,name,slug,industry_type,updated_at,cashier_shifts_enabled) VALUES(${offId}::uuid,'Existing OFF',${randomUUID()},'SALON_BEAUTY',now(),false)`;
     const businesses227=await client.query('SELECT to_jsonb(t)::text AS value FROM businesses t ORDER BY value');
     const facts227=await facts(true);
-    await prisma(['migrate','deploy']);
+    await cp(join(root,'prisma/migrations',defaultOffMigration),join(temp,'migrations',defaultOffMigration),{recursive:true});
+    await writeFile(join(temp,'schema.prisma'),targetSchema);
+    await prisma(['migrate','deploy','--schema',join(temp,'schema.prisma')]);
     assert.deepEqual(await client.query('SELECT to_jsonb(t)::text AS value FROM businesses t ORDER BY value').then((r:{rows:unknown[]})=>r.rows),businesses227.rows,'228 must not change any existing Business column');
     assert.deepEqual(await facts(true),facts227,'228 must not change any historical table facts');
     assert.equal((await db.business.findUniqueOrThrow({where:{id:b.id}})).cashierShiftsEnabled,true);
@@ -134,12 +157,18 @@ export async function verifyOptionalShiftsUpgrade() {
     const sameId=await insertTopUp(shift.id);
     assert.equal((await db.walletTopUp.findUniqueOrThrow({where:{id:sameId}})).shiftId,shift.id);
     assert.deepEqual(await db.walletTopUp.findUniqueOrThrow({where:{id:result.topUpId}}),beforeTopUp);
-    const migrations=(await client.query('SELECT migration_name,checksum FROM _prisma_migrations WHERE finished_at IS NOT NULL ORDER BY migration_name')).rows;
-    assert.equal(migrations.length,228);
-    for(const r of migrations) assert.equal(r.checksum,createHash('sha256').update(await readFile(`prisma/migrations/${r.migration_name}/migration.sql`)).digest('hex'));
+    const history=()=>client.query('SELECT migration_name,checksum,finished_at,rolled_back_at FROM _prisma_migrations ORDER BY migration_name').then((r:{rows:unknown[]})=>r.rows);
+    const expectedHistory=async (chain:string[])=>Promise.all(chain.map(async migration=>({name:migration,checksum:createHash('sha256').update(await readFile(`prisma/migrations/${migration}/migration.sql`)).digest('hex')})));
+    assertMigrationHistory(await expectedHistory(targetChain),await history());
+    await prisma(['validate','--schema',join(temp,'schema.prisma')]);
+    await prisma(['migrate','diff','--from-url',url,'--to-schema-datamodel',join(temp,'schema.prisma'),'--exit-code']);
+    // Only after the historical Shift contract passes, verify today's complete
+    // append-only chain. Later additive migrations never enter the 228 assertions.
+    await prisma(['migrate','deploy']);
+    assertMigrationHistory(await expectedHistory(names),await history());
     await prisma(['validate']);
     await prisma(['migrate','diff','--from-url',url,'--to-schema-datamodel','prisma/schema.prisma','--exit-code']);
-    console.log(`PASS 226 -> 227 -> 228, existing ON/OFF preserved, ${tables.length} table hashes preserved, real TopUp chain unchanged, null allowed, foreign/dangling rejected, FK/index identities unchanged, drift CLEAN, 228 checksums MATCH`);
+    console.log(`PASS historical Optional Shift chain through ${defaultOffMigration}, existing ON/OFF preserved, ${tables.length} table hashes preserved, real TopUp chain unchanged, null allowed, foreign/dangling rejected, FK/index identities unchanged, drift CLEAN, ${names.length} checksums MATCH`);
   }finally{
     await db?.$disconnect();await client?.end();
     if(created){const cleanup=pg.getPgClient('postgres','127.0.0.1');try{await cleanup.connect();await cleanup.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()',[name]);await cleanup.query(`DROP DATABASE ${cleanup.escapeIdentifier(name)}`);}finally{await cleanup.end();}}

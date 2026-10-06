@@ -6925,6 +6925,7 @@ model Invoice {
 }
 
 model InvoiceItem {
+  kind                   InvoiceItemKind?
   id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId             String                      @map("business_id") @db.Uuid
   invoiceId              String                      @map("invoice_id") @db.Uuid
@@ -8259,6 +8260,13 @@ enum PayrollCorrectionStatus {
   APPROVED
   APPLIED
   CANCELLED
+}
+
+enum InvoiceItemKind {
+  SERVICE
+  PACKAGE_PURCHASE
+  PRODUCT
+  OTHER
 }
 
 enum CommissionSourceType {

@@ -53,17 +53,17 @@ export default async function RecurringExpensesPage({ searchParams }: { searchPa
       <input type="hidden" name="operationKey" value={`CREATE_RECURRING_EXPENSE:${randomUUID()}`} />
       <fieldset className={styles.recurringFieldset}><legend>Expense</legend><div className={styles.form}>
         <label>Payee<input name="payeeName" maxLength={160} placeholder="e.g. Landlord or software provider" /></label>
-        <label>Monthly amount (MYR) *<input name="amount" type="number" min="0.01" step="0.01" required inputMode="decimal" placeholder="0.00" /></label>
+        <label>Monthly amount *<input name="amount" type="number" min="0.01" step="0.01" required inputMode="decimal" placeholder="0.00" /></label>
         <label className={styles.full}>Category *<select name="categoryId" required>{categories.map(category => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
         <label className={styles.full}>Description *<input name="description" required minLength={3} maxLength={500} placeholder="e.g. Monthly shop rental" /></label>
       </div></fieldset>
-      <fieldset className={styles.recurringFieldset}><legend>Schedule</legend><div className={styles.form}>
-        <label>Start date *<input type="date" name="startDate" required defaultValue={`${currentPeriod}-01`} /></label>
-        <label>End date (optional)<input type="date" name="endDate" /></label>
+      <fieldset className={styles.recurringFieldset}><legend>Recurring period</legend><p>This expense repeats monthly during this period.</p><div className={styles.form}>
+        <label>Starts on *<input type="date" name="startDate" required defaultValue={`${currentPeriod}-01`} /></label>
+        <label>Ends on (optional)<input type="date" name="endDate" /><small>Leave blank to continue until you stop it.</small></label>
         {scope.branches.length > 1 ? <label className={styles.full}>Branch<select name="branchId" required={!scope.includeBusinessWide} defaultValue={defaultBranchId ?? ""}><option value="">{scope.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{scope.branches.map(branch => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : null}
       </div></fieldset>
-      <details className={styles.recurringOptional}><summary>Optional details</summary><label>Internal note<textarea name="notes" maxLength={2000} placeholder="Visible to authorised team members only" /></label></details>
-      <footer className={styles.recurringModalActions}><DialogCancel /><button type="submit">Save Recurring Expense</button></footer>
+      <details className={styles.recurringOptional}><summary>More details</summary><label>Internal note<textarea name="notes" maxLength={2000} placeholder="Visible to authorised team members only" /></label></details>
+      <footer className={styles.recurringModalActions}><DialogCancel /><button type="submit">Save recurring expense</button></footer>
     </form>
   </ExpenseDialog>;
 

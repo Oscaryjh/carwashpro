@@ -697,6 +697,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
             create: purchaseLines.map(({ packageDefinition }, index) => ({
               businessId,
               customerPackageId: customerPackages[index].id,
+              kind: "PACKAGE_PURCHASE",
               serviceId: packageDefinition.serviceId,
               name: packageDefinition.name,
               quantity: 1,

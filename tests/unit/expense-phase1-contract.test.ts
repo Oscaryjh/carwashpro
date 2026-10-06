@@ -184,7 +184,7 @@ test("Expense Server Actions preserve Next redirect control flow and the 390px l
   assert.match(recurringExpense, /defaultValue=\{defaultBranchId \?\? ""\}/);
   assert.match(recurringExpense, /Recurring Expenses/);
   assert.match(recurringExpense, /Nothing is created automatically/);
-  assert.match(recurringExpense, /Save Recurring Expense/);
+  assert.match(recurringExpense, /Save recurring expense/);
   assert.match(recurringExpense, /Create draft expense/);
   assert.match(recurringExpense, /aria-label="Filter recurring expenses"/);
   assert.match(recurringExpense, /pageSize = 10/);

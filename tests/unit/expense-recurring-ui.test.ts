@@ -50,7 +50,17 @@ test('recurring defaults to list/empty CTA with create dialog hidden, note colla
   const doc = await document(); assert.equal(doc.querySelector('h1')?.textContent, 'Recurring Expenses');
   assert.ok(!doc.querySelector('.recurringSafety')); assert.ok(!doc.querySelector('dialog[open]'));
   const create = doc.querySelector('dialog')!; assert.ok(create);
-  assert.deepEqual([...create.querySelectorAll('legend')].map(n => n.textContent), ['Expense', 'Schedule']);
+  assert.deepEqual([...create.querySelectorAll('legend')].map(n => n.textContent), ['Expense', 'Recurring period']);
+  assert.equal(create.querySelector('[name="amount"]')?.closest('label')?.firstChild?.textContent, 'Monthly amount *');
+  assert.equal(create.querySelector('[name="startDate"]')?.closest('label')?.firstChild?.textContent, 'Starts on *');
+  assert.equal(create.querySelector('[name="endDate"]')?.closest('label')?.firstChild?.textContent, 'Ends on (optional)');
+  assert.match(create.textContent ?? '', /This expense repeats monthly during this period\./);
+  assert.equal(create.querySelector('[name="endDate"]')?.closest('label')?.querySelector('small')?.textContent, 'Leave blank to continue until you stop it.');
+  assert.equal(create.querySelector('details summary')?.textContent, 'More details');
+  assert.equal(create.querySelector('button[type="submit"]')?.textContent, 'Save recurring expense');
+  assert.ok(create.querySelector('input[name="startDate"][type="date"][required]'));
+  assert.ok(create.querySelector('input[name="endDate"][type="date"]:not([required])'));
+  assert.ok(!create.querySelector('select[name="frequency"]'));
   assert.ok(create.querySelector('details:not([open]) textarea[name="notes"]'));
   assert.ok(!create.querySelector('[name="branchId"]')); assert.doesNotMatch(create.textContent ?? '', /Business-wide/);
   assert.doesNotMatch(doc.body.textContent ?? '', /template|Safe by default|above/i);
