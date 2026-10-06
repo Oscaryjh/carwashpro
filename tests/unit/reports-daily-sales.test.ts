@@ -236,7 +236,7 @@ test("I: all-branches scope combines all authorized branches", () => {
   assert.equal(report.summary.netSalesCents, 60_000);
 });
 
-test("J: unauthorized branch request is constrained to the staff branch", () => {
+test("J: explicit unauthorized branch request fails closed instead of becoming the staff branch", () => {
   assert.deepEqual(
     resolveReportBranchScope({
       canViewAllBranches: false,
@@ -245,11 +245,36 @@ test("J: unauthorized branch request is constrained to the staff branch", () => 
       activeBranchIds: ["branch-1", "branch-2"],
     }),
     {
-      branchId: "branch-1",
-      hasAccess: true,
+      branchId: null,
+      hasAccess: false,
       includesAllBranches: false,
     },
   );
+});
+
+for (const canViewAllBranches of [false, true]) {
+  for (const requestedBranchId of ["nonexistent", "cross-business", "", "   "]) {
+    test(`explicit invalid Reports branch fails closed: broad=${canViewAllBranches}, branch=${JSON.stringify(requestedBranchId)}`, () => {
+      assert.deepEqual(resolveReportBranchScope({ canViewAllBranches, requestedBranchId,
+        staffBranchId: "branch-1", activeBranchIds: ["branch-1", "branch-2"] }),
+      { branchId: null, hasAccess: false, includesAllBranches: false });
+    });
+  }
+}
+
+test("Reports no-param and explicitly authorized scopes retain their defaults", () => {
+  assert.deepEqual(resolveReportBranchScope({ canViewAllBranches: false,
+    staffBranchId: "branch-1", activeBranchIds: ["branch-1", "branch-2"] }),
+  { branchId: "branch-1", hasAccess: true, includesAllBranches: false });
+  assert.deepEqual(resolveReportBranchScope({ canViewAllBranches: false, requestedBranchId: "branch-1",
+    staffBranchId: "branch-1", activeBranchIds: ["branch-1", "branch-2"] }),
+  { branchId: "branch-1", hasAccess: true, includesAllBranches: false });
+  assert.deepEqual(resolveReportBranchScope({ canViewAllBranches: true,
+    staffBranchId: "branch-1", activeBranchIds: ["branch-1", "branch-2"] }),
+  { branchId: null, hasAccess: true, includesAllBranches: true });
+  assert.deepEqual(resolveReportBranchScope({ canViewAllBranches: true, requestedBranchId: "branch-2",
+    staffBranchId: "branch-1", activeBranchIds: ["branch-1", "branch-2"] }),
+  { branchId: "branch-2", hasAccess: true, includesAllBranches: false });
 });
 
 test("K: business-day cutoff classifies after-midnight events correctly", () => {

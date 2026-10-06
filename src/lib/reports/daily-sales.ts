@@ -149,6 +149,16 @@ export function resolveReportBranchScope(input: {
   activeBranchIds: readonly string[];
 }) {
   const activeIds = new Set(input.activeBranchIds);
+  if (input.requestedBranchId !== undefined) {
+    const requested = input.requestedBranchId.trim();
+    const authorized = activeIds.has(requested) &&
+      (input.canViewAllBranches || requested === input.staffBranchId);
+    return {
+      branchId: authorized ? requested : null,
+      hasAccess: authorized,
+      includesAllBranches: false,
+    };
+  }
   if (!input.canViewAllBranches) {
     return {
       branchId:
@@ -162,11 +172,10 @@ export function resolveReportBranchScope(input: {
     };
   }
 
-  const requested = input.requestedBranchId?.trim();
   return {
-    branchId: requested && activeIds.has(requested) ? requested : null,
+    branchId: null,
     hasAccess: true,
-    includesAllBranches: !(requested && activeIds.has(requested)),
+    includesAllBranches: true,
   };
 }
 

@@ -29,7 +29,7 @@ const aggregate = async () => ({ _count: 0, _sum: { amount: 0, packageUses: 0, p
 const emptyRows = async () => [];
 const database = {
   business: { findUnique: async () => ({ id: "business", name: "Local Salon", timezone: "Asia/Singapore", businessDayCutoffTime: "02:00", industryType: state.industry }) },
-  branch: { findMany: async () => [{ id: "branch", businessId: "business", name: "Local branch", status: "ACTIVE" }] },
+  branch: { findMany: async () => [{ id: "branch", businessId: "business", name: "Local branch", status: "ACTIVE" }, { id: "other-branch", businessId: "business", name: "Other branch", status: "ACTIVE" }] },
   payment: { aggregate, findMany: emptyRows }, paymentRefund: { aggregate, findMany: emptyRows },
   workOrder: { groupBy: emptyRows }, invoice: { groupBy: emptyRows, aggregate, findMany: async (args: { select?: Record<string, unknown> }) => {
     if (args.select?.items) state.reads.linkedInvoices++;
@@ -42,7 +42,7 @@ const database = {
   service: { findMany: async () => [{ id: "service", name: "Balayage Highlights" }] },
 };
 const globals = globalThis as typeof globalThis & { __reportsFallback?: { state: typeof state; database: typeof database } };
-let page: (props: { searchParams: Promise<{ range: string }> }) => Promise<ReactElement>;
+let page: (props: { searchParams: Promise<{ range: string; branchId?: string }> }) => Promise<ReactElement>;
 before(async () => {
   globals.__reportsFallback = { state, database };
   // Real page, capability checks, Staff guard and canonical reader. Only
@@ -50,7 +50,7 @@ before(async () => {
   const stubs: Record<string, string> = {
     "@/lib/prisma": `export const prisma=globalThis.__reportsFallback.database;`,
     "@/lib/tenant": `export const requireBusinessContext=async()=>{const s=globalThis.__reportsFallback.state;return {businessId:'business',industryType:s.industry,access:s.access,user:s.user}};`,
-    "next/navigation": `export function redirect(){throw Error('REDIRECT')};export function useRouter(){throw Error('unexpected drawer navigation')};`,
+    "next/navigation": `export function redirect(){throw Error('REDIRECT')};export function notFound(){throw Error('NOT_FOUND')};export function useRouter(){throw Error('unexpected drawer navigation')};`,
     "next/link": `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)};`,
     "@/lib/branches": `export const getActiveBranches=async()=>globalThis.__reportsFallback.database.branch.findMany();export const branchWhere=id=>id?{branchId:id}:{};`,
     "@/lib/modules/entitlements": `export const loadBusinessModuleContext=async()=>({enabledModules:new Set(['POS','EXPENSE'])});`,
@@ -70,15 +70,34 @@ before(async () => {
 });
 after(() => { delete globals.__reportsFallback; });
 
-async function render(access = owner, industry = "SALON_BEAUTY", userPermissions?: string[]) {
+async function render(access = owner, industry = "SALON_BEAUTY", userPermissions?: string[], branchId?: string) {
   state.access = access;
   state.industry = industry;
   state.services = true;
   state.reads = { appointmentGroups: 0, linkedInvoices: 0, staffLookups: 0, canonicalItems: 0 };
   state.user = { role: access.granted ? access.identityRole : "STAFF", permissions: userPermissions ?? (access.granted ? access.permissions : []), branchId: "branch" };
-  return renderToStaticMarkup(await page({ searchParams: Promise.resolve({ range: "month" }) }));
+  return renderToStaticMarkup(await page({ searchParams: Promise.resolve({ range: "month", branchId }) }));
 }
 const staff = (permissions: string[]): ResolvedBusinessAccess => ({ ...owner, identityRole: "STAFF", actorRole: "STAFF", effectiveBusinessRole: "STAFF", permissions });
+test("Reports-only explicit own branch retains canonical fallback and valid financial results", async () => {
+  const implicit = await render(staff(["REPORTS"]));
+  const explicit = await render(staff(["REPORTS"]), "SALON_BEAUTY", undefined, "branch");
+  assert.equal(explicit, implicit);
+  assert.match(explicit, /Top Services/);
+  assert.match(explicit, /Balayage Highlights/);
+  assert.match(explicit, /RM6,250\.00/);
+});
+for (const branchId of ["nonexistent", "other-branch", "cross-business", "", "   "]) {
+  test(`Reports-only tampered branch cannot render own-branch financial data: ${JSON.stringify(branchId)}`, async () => {
+    await assert.rejects(render(staff(["REPORTS"]), "SALON_BEAUTY", undefined, branchId), /NOT_FOUND/);
+    assert.equal(state.reads.canonicalItems, 0);
+  });
+}
+for (const industry of ["SALON_BEAUTY", "CAR_WASH"]) {
+  test(`broad Reports access cannot turn nonexistent explicit branch into Business-wide scope: ${industry}`, async () => {
+    await assert.rejects(render(owner, industry, undefined, "cross-business"), /NOT_FOUND/);
+  });
+}
 for (const access of [owner, staff(["REPORTS"])]) test(`Salon Reports reads canonical services without orphaned Staff/Appointment queries: ${access.granted ? access.effectiveBusinessRole : "denied"}`, async () => {
   const html = await render(access);
   assert.deepEqual(state.reads, { appointmentGroups: 0, linkedInvoices: 0, staffLookups: 0, canonicalItems: 1 });

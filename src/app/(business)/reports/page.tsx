@@ -4,7 +4,7 @@ import type { SalonAccess } from "@/lib/business-performance/salon-scope";
 import { SalesOverview, DailyTransactions, CollectedPayments, TransactionPagination } from "@/components/reports/daily-transactions";
 import styles from "./reports.module.css";
 import { AdvancedReportDetails, hasAdvancedReportDetails } from "@/components/reports/advanced-details";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { PaymentMethod } from "@prisma/client";
 import { ReportDrawerShell } from "@/components/report-drawer-shell";
 import {
@@ -153,6 +153,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     staffBranchId: context.user.branchId,
     activeBranchIds: branches.map((branch) => branch.id),
   });
+  if (params.branchId !== undefined && !branchScope.hasAccess) notFound();
   const selectedBranchId = branchScope.hasAccess
     ? branchScope.branchId
     : NO_BRANCH_ACCESS_ID;
