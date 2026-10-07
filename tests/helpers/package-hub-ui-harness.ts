@@ -13,7 +13,7 @@ export const event = { activityId: "a1", occurredAt: new Date("2026-10-07T02:00:
   paymentId: "pay1", paymentRefundId: null, originalUseActivityId: null, additionalSourceRefs: null, reason: null,
   historyMayBeIncomplete: true, purchasePrice: "119.00", initialTotalUses: 10, status: "ACTIVE" as const, remainingUses: 5 };
 export const fixture = {
-  overview: { current: { activePackages: 7, currentlyUsedUp: 2 }, period: { packagesSold: 13, packageUses: 29, restoredUses: 3 }, fromDate: new Date("2026-10-01Z"), toDateExclusive: new Date("2026-11-01Z") },
+  overview: { current: { activePackages: 7, usesLeft: 27, currentlyUsedUp: 2 }, period: { packagesSold: 13, packageUses: 29, restoredUses: 3 }, fromDate: new Date("2026-10-01Z"), toDateExclusive: new Date("2026-11-01Z") },
   activity: { rows: [event], pageSize: 20 as const, nextCursor: "next-real-cursor" },
   sales: { rows: [{ ...event, eventType: "PURCHASED" as const, usesChanged: 10, remainingBefore: 0, remainingAfter: 10 }], pageSize: 20 as const, nextCursor: null },
   customers: { rows: [{ customerPackageId: "cp1", customerId: "c1", customerName: "Alice", packageId: "p1", packageName: "Haircut bundle", remainingUses: 5, totalUses: 10, status: "ACTIVE" as const, purchasedAt: event.occurredAt, branchId, branchName: "Local", serviceBalances: [{ balanceId: "b1", serviceId: "s1", serviceName: "Haircut", remainingUses: 3, totalUses: 4 }], lastActivityAt: event.occurredAt, historyMayBeIncomplete: true }], pageSize: 20 as const, nextCursor: null },

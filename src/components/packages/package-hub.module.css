@@ -19,7 +19,7 @@
 .dates { display:flex; gap:8px; align-items:end; flex:1 0 100%; }
 .dates label { flex:0 1 170px; }
 .context { font-size:.75rem; color:var(--muted,#526577); }
-.summary { display:grid; grid-template-columns:2fr 3fr; gap:12px; min-width:0; }
+.summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
 .summary h2 { font-size:.82rem; margin-bottom:6px; }.summary h2 small { font-size:.7rem; color:var(--muted,#526577); font-weight:400; margin-left:6px; }
 .metrics { display:flex; gap:6px; }
 .metric { flex:1 1 0; min-width:0; padding:10px 12px; background:white; border:1px solid var(--border,#d7e1ea); border-radius:7px; display:grid; gap:4px; }

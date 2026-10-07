@@ -24,7 +24,10 @@ test("Owner POS scope allows inactive history and rejects staff, wrong Business,
   assert.equal((await resolvePackageHubScope(f.ctx, db)).businessId, f.business.id);
   await db.branch.update({ where: { id: f.branch.id }, data: { status: "INACTIVE" } });
   assert.equal((await resolvePackageHubScope({ ...f.ctx, branchId: f.branch.id }, db)).branchId, f.branch.id);
-  for (const branchId of ["tampered", foreign.branch.id, randomUUID()]) await assert.rejects(readPackageHubActivity({ ...f.ctx, branchId }, window, db));
+  for (const branchId of ["tampered", foreign.branch.id, randomUUID()]) {
+    await assert.rejects(readPackageHubActivity({ ...f.ctx, branchId }, window, db));
+    await assert.rejects(readPackageHubOverview({ ...f.ctx, branchId }, window, db));
+  }
   await assert.rejects(readPackageHubOverview({ ...f.ctx, businessId: foreign.business.id }, window, db));
   await db.user.update({ where: { id: f.actor.id }, data: { role: "STAFF", permissions: ["ALL_BRANCHES"] } });
   await assert.rejects(readPackageHubOverview(f.ctx, window, db));
@@ -47,6 +50,45 @@ test("legacy zero-history current state is visible; period does not change curre
   assert.deepEqual(empty.current, all.current);
   assert.equal((await readPackageHubCustomerPackages(f.ctx, { status: "CANCELLED" }, db)).rows.length, 1);
   assert.equal((await readPackageHubCustomerPackages({ ...f.ctx, branchId: f.branch.id }, {}, db)).rows.length, 0);
+});
+
+test("Overview Uses Left is zero without current entitlements", async () => {
+  const f = await walletFixture(db);
+  const result = await readPackageHubOverview({ businessId: f.business.id, user: { userId: f.actor.id } }, window, db);
+  assert.deepEqual(result.current, { activePackages: 0, usesLeft: 0, currentlyUsedUp: 0 });
+});
+
+test("Overview aggregates authoritative ACTIVE/USED_UP balances, independently of period and legacy history", async () => {
+  const f = await fixture(), foreign = await fixture();
+  const secondBranch = await db.branch.create({ data: { businessId: f.business.id, name: "Second branch", status: "INACTIVE" } });
+  for (const [status, remainingUses, branchId] of [
+    ["ACTIVE", 3, f.branch.id], ["ACTIVE", 4, secondBranch.id],
+    ["USED_UP", 0, f.branch.id], ["PENDING_PAYMENT", 5, f.branch.id], ["CANCELLED", 6, f.branch.id],
+  ] as const) await db.customerPackage.create({ data: { businessId: f.business.id, customerId: f.customer.id,
+    packageId: f.pkg.id, purchasePrice: 1, totalUses: 10, remainingUses, status, branchId } });
+  const service = await db.service.create({ data: { businessId: f.business.id, name: "Legacy service", price: 1 } });
+  await db.customerPackageServiceBalance.create({ data: { businessId: f.business.id, customerPackageId: f.legacy.id, serviceId: service.id, totalUses: 99, remainingUses: 99 } });
+  await db.package.update({ where: { id: f.pkg.id }, data: { totalUses: 999 } });
+  assert.equal(await db.customerPackageActivity.count({ where: { businessId: f.business.id } }), 0);
+  for (const [from, to] of [["2026-10-07", "2026-10-08"], ["2026-10-01", "2026-11-01"],
+    ["2026-09-01", "2026-10-01"], ["1999-01-03", "1999-04-09"]]) {
+    const result = await readPackageHubOverview(f.ctx, { fromDate: new Date(from), toDateExclusive: new Date(to) }, db);
+    assert.deepEqual(result.current, { activePackages: 3, usesLeft: 9, currentlyUsedUp: 1 });
+    assert.deepEqual(result.period, { packagesSold: 0, packageUses: 0, restoredUses: 0 });
+  }
+  assert.deepEqual((await readPackageHubOverview({ ...f.ctx, branchId: f.branch.id }, window, db)).current,
+    { activePackages: 1, usesLeft: 3, currentlyUsedUp: 1 });
+  assert.deepEqual((await readPackageHubOverview({ ...f.ctx, branchId: secondBranch.id }, window, db)).current,
+    { activePackages: 1, usesLeft: 4, currentlyUsedUp: 0 });
+  assert.equal((await readPackageHubOverview(foreign.ctx, window, db)).current.usesLeft, 2);
+  assert.equal((await db.customerPackage.findUniqueOrThrow({ where: { id: f.legacy.id } })).remainingUses, 2);
+});
+
+test("Overview rejects a negative current balance even when another positive balance masks its sum", async () => {
+  const f = await fixture();
+  await db.customerPackage.create({ data: { businessId: f.business.id, customerId: f.customer.id,
+    packageId: f.pkg.id, purchasePrice: 1, totalUses: 3, remainingUses: -1, status: "ACTIVE" } });
+  await assert.rejects(readPackageHubOverview(f.ctx, window, db), /remaining uses/i);
 });
 
 test("business-subset Group Manager cannot inherit Owner-only Package Hub access", async () => {

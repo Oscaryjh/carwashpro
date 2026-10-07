@@ -74,7 +74,16 @@ export async function readPackageHubOverview(ctx: PackageHubContext, input: Pack
   return snapshot(db, async tx => {
     const scope = await resolvePackageHubScope(ctx, tx);
     const entitlement = { ...cpWhere(scope.businessId, filtersSchema.parse({})), ...(scope.branchId ? { branchId: scope.branchId } : {}) };
-    const current = await tx.customerPackage.groupBy({ by: ["status"], where: entitlement, _count: { _all: true } });
+    const current = await tx.customerPackage.groupBy({ by: ["status"],
+      where: { ...entitlement, status: { in: ["ACTIVE", "USED_UP"] } },
+      _count: { _all: true }, _sum: { remainingUses: true }, _min: { remainingUses: true } });
+    // Validate the minimum too: a positive aggregate must not hide a corrupt
+    // negative entitlement. Only the two DB-aggregated status rows are summed.
+    const remainingUses = z.number().int().nonnegative("Invalid current package remaining uses.");
+    const usesLeft = remainingUses.parse(current.reduce((sum, row) => {
+      remainingUses.parse(row._min.remainingUses ?? 0);
+      return sum + remainingUses.parse(row._sum.remainingUses ?? 0);
+    }, 0));
     const activity: Prisma.CustomerPackageActivityWhereInput = { businessId: scope.businessId,
       customerPackage: cpWhere(scope.businessId, filtersSchema.parse({})),
       ...(scope.branchId ? { branchId: scope.branchId } : {}), occurredAt: { gte: window.fromDate, lt: window.toDateExclusive } };
@@ -83,7 +92,7 @@ export async function readPackageHubOverview(ctx: PackageHubContext, input: Pack
     const sold = await tx.customerPackageActivity.count({ where: { ...activity, eventType: "PURCHASED" } });
     const used = await tx.customerPackageActivity.aggregate({ where: { ...activity, eventType: "USED" }, _sum: { usesDelta: true } });
     const restored = await tx.customerPackageActivity.aggregate({ where: { ...activity, eventType: "RESTORED", usesDelta: { gt: 0 } }, _sum: { usesDelta: true } });
-    return { current: { activePackages: current.find(row => row.status === "ACTIVE")?._count._all ?? 0,
+    return { current: { activePackages: current.find(row => row.status === "ACTIVE")?._count._all ?? 0, usesLeft,
       currentlyUsedUp: current.find(row => row.status === "USED_UP")?._count._all ?? 0 },
       period: { packagesSold: sold, packageUses: -(used._sum.usesDelta ?? 0) || 0, restoredUses: restored._sum.usesDelta ?? 0 }, ...window };
   });

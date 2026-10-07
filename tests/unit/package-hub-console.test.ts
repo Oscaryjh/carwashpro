@@ -6,9 +6,10 @@ import { packageHubHarness } from "../helpers/package-hub-ui-harness";
 
 type TestWindow = Window & { close(): void; Event: typeof Event; KeyboardEvent: typeof KeyboardEvent; MouseEvent: typeof MouseEvent };
 const { JSDOM } = createRequire(import.meta.url)("jsdom") as { JSDOM: new (html: string, options: object) => { window: TestWindow } };
-async function mount(view: string, restricted = false) {
+async function mount(view: string, restricted = false, query: Record<string, string> = {}, emptyCurrent = false) {
   const h = await packageHubHarness(); h.state.links = !restricted;
-  const props = (await h.api.Page({ searchParams: Promise.resolve({ view }) })).props; h.close();
+  const props = { ...(await h.api.Page({ searchParams: Promise.resolve({ view, ...query }) })).props }; h.close();
+  if (emptyCurrent && props.overview) props.overview = { ...props.overview, current: { activePackages: 0, usesLeft: 0, currentlyUsedUp: 0 } };
   const before = JSON.stringify(props);
   const built = await build({ stdin: { contents: `import React from 'react';import{createRoot}from'react-dom/client';import{flushSync}from'react-dom';import{PackageHub}from'./src/components/packages/package-hub';HTMLDialogElement.prototype.showModal=function(){this.open=true};HTMLDialogElement.prototype.close=function(){this.open=false};flushSync(()=>createRoot(document.getElementById('root')).render(<PackageHub {...window.props}/>));`, resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic", plugins: [{ name: "ui-boundaries", setup(b) {
     b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "stub" }));
@@ -22,6 +23,26 @@ async function until(check: () => boolean) {
   for (let i = 0; i < 100 && !check(); i++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.ok(check(), "UI update completes");
 }
+for (const range of ["today", "month", "last-month", "custom"]) test(`Overview ${range}: compact current metrics preserve period-independent Uses Left`, async () => {
+  const { dom, doc, props, before } = await mount("overview", false, { range, from: "2026-08-01", to: "2026-08-09" });
+  try {
+    const sections = [...doc.querySelectorAll("section")];
+    const current = sections.find(section => section.querySelector(":scope > h2")?.textContent === "Current state")!;
+    const period = sections.find(section => section.querySelector(":scope > h2")?.textContent?.startsWith("Period activity"))!;
+    assert.deepEqual([...current.querySelectorAll(".metric span")].map(el => el.textContent), ["Active packages", "Uses Left", "Used-up packages"]);
+    assert.deepEqual([...current.querySelectorAll(".metric strong")].map(el => el.textContent), ["7", "27", "2"]);
+    assert.deepEqual([...period.querySelectorAll(".metric span")].map(el => el.textContent), ["Packages sold", "Uses", "Uses restored"]);
+    assert.deepEqual([...period.querySelectorAll(".metric strong")].map(el => el.textContent), ["13", "29", "3"]);
+    assert.equal(JSON.stringify(props), before);
+  } finally { dom.window.close(); }
+});
+test("Overview empty current state displays integer zero Uses Left", async () => {
+  const { dom, doc } = await mount("overview", false, {}, true);
+  try {
+    const metric = [...doc.querySelectorAll(".metric")].find(el => el.querySelector("span")?.textContent === "Uses Left");
+    assert.ok(metric); assert.equal(metric.querySelector("strong")?.textContent, "0");
+  } finally { dom.window.close(); }
+});
 for (const [view, labels] of [
   ["sales", ["Total Uses", "Uses Left"]],
   ["customers", ["Uses Left"]],

@@ -43,7 +43,7 @@ export function PackageHub(props: PackageHubProps) {
     </div>
     {showBranch ? <p className={styles.context}>{branches.find(b => b.id === q.branchId)?.name ?? "All branches"}</p> : null}
     {q.view === "overview" && overview ? <div className={styles.summary}>
-      <section><h2>Current state</h2><div className={styles.metrics}><Metric label="Active packages" value={overview.current.activePackages} /><Metric label="Used-up packages" value={overview.current.currentlyUsedUp} /></div></section>
+      <section><h2>Current state</h2><div className={styles.metrics}><Metric label="Active packages" value={overview.current.activePackages} /><Metric label="Uses Left" value={overview.current.usesLeft} /><Metric label="Used-up packages" value={overview.current.currentlyUsedUp} /></div></section>
       <section><h2>Period activity{q.range === "custom" ? <small>{period.label}</small> : null}</h2><div className={styles.metrics}><Metric label="Packages sold" value={overview.period.packagesSold} /><Metric label="Uses" value={overview.period.packageUses} /><Metric label="Uses restored" value={overview.period.restoredUses} /></div></section>
     </div> : null}
     {q.view !== "customers" ? <Panel title={q.view === "overview" ? "Recent Package Activity" : viewLabels[q.view]}>
