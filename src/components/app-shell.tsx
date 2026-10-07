@@ -62,6 +62,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     : [null, null];
   const moduleEnabled = (moduleKey: ModuleKey) =>
     moduleKey === "CORE" || Boolean(moduleContext?.enabledModules.has(moduleKey));
+  const packageHubVisible = Boolean(grantedAccess && !isPlatformAdmin && user.businessId &&
+    grantedAccess.businessId === user.businessId && isBusinessOwner && moduleEnabled("POS"));
   const isSalonBusiness = business?.industryType === "SALON_BEAUTY";
   const operationalIndustryEnabled = isSalonBusiness
     ? moduleEnabled("SALON")
@@ -104,7 +106,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("SERVICES", "VIEW_CATALOG")
       ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
       : []),
-    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
+    ...(isStoreUser && !packageHubVisible && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_CATALOG")
@@ -261,6 +263,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             icon: "cashier" as const,
           },
         ]
+      : []),
+    ...(packageHubVisible
+      ? [{ href: "/package-hub", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
     ...(isStoreUser && operationalIndustryEnabled &&
     canSeeCapability("APPOINTMENTS", "VIEW_APPOINTMENTS")

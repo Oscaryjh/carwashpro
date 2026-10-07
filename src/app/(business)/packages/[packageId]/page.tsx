@@ -85,7 +85,7 @@ export default async function PackageDetailsPage({
           />
           <Info label="Status" value={packagePlan.status} />
           <Info label="Package price" value={formatCents(parseMoneyToCents(packagePlan.price.toString()) ?? 0)} />
-          <Info label={isSalonBusiness ? "Total uses" : "Total washes"} value={packagePlan.totalUses} />
+          <Info label="Total Uses" value={packagePlan.totalUses} />
           <Info label="Sold" value={packagePlan._count.customerPackages} />
         </div>
 

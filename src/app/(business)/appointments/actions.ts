@@ -1,4 +1,5 @@
 "use server";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 
 import { FinancialOperationType, type Payment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -1131,6 +1132,9 @@ export async function recordSalonAppointmentPaymentAction(
     operationType: FinancialOperationType.SALON_APPOINTMENT_PAYMENT,
     payload: { ...financialPayload, ...performanceFingerprint(formData), ...(additionalTipCents ? { additionalTipCents } : {}) },
     execute: async (tx) => {
+    const activityOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+      businessId_operationType_operationKey: { businessId, operationType: "SALON_APPOINTMENT_PAYMENT", operationKey: operationId },
+    } });
     const businessSst = await tx.business.findUniqueOrThrow({
       where: { id: businessId },
       select: { sstEnabled: true, sstLabel: true, sstRate: true },
@@ -1514,6 +1518,7 @@ export async function recordSalonAppointmentPaymentAction(
 
       for (const serviceBalance of customerPackages) {
         const nextServiceRemainingUses = serviceBalance.remainingUses - 1;
+        const before = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: serviceBalance.customerPackageId });
         const updatedBalance = await tx.customerPackageServiceBalance.updateMany({
           where: {
             id: serviceBalance.id,
@@ -1558,6 +1563,11 @@ export async function recordSalonAppointmentPaymentAction(
             reference: `${serviceBalance.customerPackage.package.name} - ${serviceBalance.service.name}`,
           },
         }));
+        await tx.customerPackage.updateMany({ where: { id: serviceBalance.customerPackageId, businessId, remainingUses: 0, status: "ACTIVE" }, data: { status: "USED_UP" } });
+        await appendCustomerPackageActivity(tx, before, { eventType: "USED", sourceType: "CHECKOUT", financialOperationId: activityOperation.id,
+          actorUserId: user.userId, branchId: appointment.branchId, invoiceId: invoice.id, appointmentId: appointment.id,
+          assignedStaffId: appointment.assignedStaffId, paymentId: packagePayments.at(-1)!.id,
+          customerPackageServiceBalanceId: serviceBalance.id, serviceId: serviceBalance.serviceId });
       }
 
       await tx.customerPackage.updateMany({
@@ -1688,6 +1698,10 @@ export async function recordSalonAppointmentPaymentAction(
           },
           select: { id: true, totalUses: true },
         });
+        const purchaseCaptures = new Map();
+        for (const customerPackage of [...pendingCustomerPackages].sort((a, b) => a.id.localeCompare(b.id))) {
+          purchaseCaptures.set(customerPackage.id, await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id }));
+        }
         await tx.customerPackage.updateMany({
           where: {
             id: { in: pendingCustomerPackages.map((item) => item.id) },
@@ -1706,6 +1720,14 @@ export async function recordSalonAppointmentPaymentAction(
               data: { remainingUses: customerPackage.totalUses },
             });
             await activateCustomerPackageServiceBalances(tx, customerPackage.id);
+            const item = invoice!.items.find(item => item.customerPackageId === customerPackage.id)!;
+            await appendCustomerPackageActivity(tx, purchaseCaptures.get(customerPackage.id), {
+              eventType: "PURCHASED", sourceType: "CHECKOUT", financialOperationId: activityOperation.id,
+              actorUserId: user.userId, branchId: appointment.branchId, invoiceId: invoice!.id, appointmentId: appointment.id,
+              assignedStaffId: appointment.assignedStaffId, paymentId: payment.id,
+              additionalSourceRefs: { paymentIds: [...invoice!.payments, ...createdPayments].map(p => p.id), refundIds: [] },
+              purchaseSourceMapping: { customerPackageId: customerPackage.id, invoiceId: invoice!.id, invoiceItemId: item.id },
+            });
           }),
         );
       }

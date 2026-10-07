@@ -117,7 +117,7 @@ export function PackageBuilder({
               packagePlan?.name ?? (isSalonBusiness ? "" : "10 Wash Package")
             }
             placeholder={
-              isSalonBusiness ? "e.g. Hair Wash 5 Sessions" : "e.g. 10 Wash Package"
+              isSalonBusiness ? "e.g. Hair Wash 5 Uses" : "e.g. Car Wash 10 Uses"
             }
             required
           />
@@ -139,7 +139,7 @@ export function PackageBuilder({
         {!isSalonBusiness ? (
           <>
             <label>
-              <span>Total washes</span>
+              <span>Total Uses</span>
               <input
                 name="totalUses"
                 type="number"

@@ -77,7 +77,7 @@ export function AppointmentPackagePurchaseForm({
       {selectedPackage ? (
         <div className="appointment-package-summary">
           <div>
-            <span>Package uses</span>
+            <span>Total Uses</span>
             <strong>{selectedPackage.totalUses}</strong>
           </div>
           <div>

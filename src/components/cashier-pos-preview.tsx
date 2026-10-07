@@ -23,9 +23,9 @@ const catalog: CatalogItem[] = [
   { id: "p4", type: "product", name: "Gloss Styling Wax", category: "Hair Styling", price: 36, detail: "100 in stock" },
   { id: "p5", type: "product", name: "Vitamin C Face Serum", category: "Skin Care", price: 68, detail: "100 in stock" },
   { id: "p6", type: "product", name: "Cuticle Oil", category: "Nail Care", price: 25, detail: "100 in stock" },
-  { id: "k1", type: "package", name: "Hair Wash 5 Sessions", category: "Hair Packages", price: 150, detail: "5 total uses" },
-  { id: "k2", type: "package", name: "Acne Care 5 Sessions", category: "Skin Packages", price: 500, detail: "5 total uses" },
-  { id: "k3", type: "package", name: "Relaxation Massage 5 Sessions", category: "Wellness", price: 500, detail: "5 total uses" },
+  { id: "k1", type: "package", name: "Hair Wash 5 Uses", category: "Hair Packages", price: 150, detail: "5 Uses" },
+  { id: "k2", type: "package", name: "Acne Care 5 Uses", category: "Skin Packages", price: 500, detail: "5 Uses" },
+  { id: "k3", type: "package", name: "Relaxation Massage 5 Uses", category: "Wellness", price: 500, detail: "5 Uses" },
 ];
 
 const previewCustomer = {

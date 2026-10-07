@@ -66,7 +66,7 @@ export function CustomerPackageSelector({
               />
               <span>{packagePlan.name}</span>
               <strong>RM{packagePlan.price.toFixed(2)}</strong>
-              <small>{packagePlan.totalUses} uses</small>
+              <small>{packagePlan.totalUses} {packagePlan.totalUses === 1 ? "Use" : "Uses"}</small>
             </label>
           ))}
         </div>

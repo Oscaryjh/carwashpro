@@ -8,6 +8,7 @@ datasource db {
 }
 
 model Business {
+  packageActivities CustomerPackageActivity[]
   cashierShiftsEnabled Boolean @default(false) @map("cashier_shifts_enabled")
   walletAccounts WalletAccount[]
   walletOffers WalletTopUpOffer[]
@@ -627,6 +628,7 @@ model CommercialAuditEvent {
 }
 
 model Branch {
+  packageActivities CustomerPackageActivity[]
   walletTopUps WalletTopUp[]
   walletTransactions WalletTransaction[]
   @@unique([businessId, id], map: "branches_wallet_scope_key")
@@ -724,6 +726,8 @@ model Branch {
 }
 
 model User {
+  packageActivitiesActed CustomerPackageActivity[] @relation("PackageActivityActor")
+  packageActivitiesAssigned CustomerPackageActivity[] @relation("PackageActivityStaff")
   walletTopUps WalletTopUp[]
   walletReversals WalletTopUpReversal[]
   walletTransactions WalletTransaction[]
@@ -4082,6 +4086,7 @@ model ServiceCategory {
 }
 
 model Service {
+  packageActivities CustomerPackageActivity[]
   id               String                          @id @default(uuid()) @db.Uuid
   businessId       String                          @map("business_id") @db.Uuid
   name             String
@@ -6091,6 +6096,7 @@ model CatalogDiscount {
 }
 
 model CustomerPackage {
+  packageActivities CustomerPackageActivity[]
   id                  String                          @id @default(uuid()) @db.Uuid
   businessId          String                          @map("business_id") @db.Uuid
   customerId          String                          @map("customer_id") @db.Uuid
@@ -6121,7 +6127,80 @@ model CustomerPackage {
   @@map("customer_packages")
 }
 
+enum CustomerPackageActivityType {
+  PURCHASED
+  USED
+  RESTORED
+  CANCELLED
+}
+
+enum CustomerPackageActivitySource {
+  CHECKOUT
+  PAYMENT_REFUND
+  INVOICE_VOID
+}
+
+model CustomerPackageActivity {
+  id                              String                        @id @default(uuid()) @db.Uuid
+  businessId                      String                        @map("business_id") @db.Uuid
+  customerPackageId               String                        @map("customer_package_id") @db.Uuid
+  sequence                        Int
+  eventType                       CustomerPackageActivityType   @map("event_type")
+  sourceType                      CustomerPackageActivitySource @map("source_type")
+  totalUsesSnapshot               Int                           @map("total_uses_snapshot")
+  remainingBefore                 Int                           @map("remaining_before")
+  remainingAfter                  Int                           @map("remaining_after")
+  usesDelta                       Int                           @map("uses_delta")
+  requestedUses                   Int?                          @map("requested_uses")
+  statusBefore                    CustomerPackageStatus         @map("status_before")
+  statusAfter                     CustomerPackageStatus         @map("status_after")
+  customerPackageServiceBalanceId String?                       @map("customer_package_service_balance_id") @db.Uuid
+  serviceId                       String?                       @map("service_id") @db.Uuid
+  serviceChanges                  Json                          @map("service_changes")
+  invoiceId                       String?                       @map("invoice_id") @db.Uuid
+  invoiceItemId                   String?                       @map("invoice_item_id") @db.Uuid
+  paymentId                       String?                       @map("payment_id") @db.Uuid
+  paymentRefundId                 String?                       @map("payment_refund_id") @db.Uuid
+  appointmentId                   String?                       @map("appointment_id") @db.Uuid
+  workOrderId                     String?                       @map("work_order_id") @db.Uuid
+  originalUseActivityId           String?                       @map("original_use_activity_id") @db.Uuid
+  additionalSourceRefs            Json?                         @map("additional_source_refs")
+  financialOperationId            String                        @map("financial_operation_id") @db.Uuid
+  entryKey                        String                        @map("entry_key") @db.VarChar(160)
+  actorUserId                     String                        @map("actor_user_id") @db.Uuid
+  assignedStaffId                 String?                       @map("assigned_staff_id") @db.Uuid
+  branchId                        String?                       @map("branch_id") @db.Uuid
+  reason                          String?
+  occurredAt                      DateTime                      @map("occurred_at")
+  createdAt                       DateTime                      @default(now()) @map("created_at")
+  contractVersion                 Int                           @default(1) @map("contract_version")
+
+  business           Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  customerPackage    CustomerPackage                @relation(fields: [customerPackageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  serviceBalance     CustomerPackageServiceBalance? @relation(fields: [customerPackageServiceBalanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  service            Service?                       @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice            Invoice?                       @relation(fields: [invoiceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoiceItem        InvoiceItem?                   @relation(fields: [invoiceItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  payment            Payment?                       @relation(fields: [businessId, paymentId], references: [businessId, id], onDelete: Restrict, onUpdate: Restrict)
+  paymentRefund      PaymentRefund?                 @relation(fields: [businessId, paymentRefundId], references: [businessId, id], onDelete: Restrict, onUpdate: Restrict)
+  appointment        Appointment?                   @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  workOrder          WorkOrder?                     @relation(fields: [workOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  originalUse        CustomerPackageActivity?       @relation("PackageActivityRestoration", fields: [originalUseActivityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  restorations       CustomerPackageActivity[]      @relation("PackageActivityRestoration")
+  financialOperation FinancialOperation             @relation(fields: [businessId, financialOperationId], references: [businessId, id], onDelete: Restrict, onUpdate: Restrict)
+  actor              User                           @relation("PackageActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignedStaff      User?                          @relation("PackageActivityStaff", fields: [assignedStaffId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch             Branch?                        @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([customerPackageId, sequence], map: "package_activity_package_sequence_key")
+  @@unique([businessId, financialOperationId, entryKey], map: "package_activity_operation_entry_key")
+  @@index([businessId, occurredAt, id], map: "package_activity_business_time_idx")
+  @@index([businessId, branchId, occurredAt, id], map: "package_activity_branch_time_idx")
+  @@map("customer_package_activities")
+}
+
 model CustomerPackageServiceBalance {
+  packageActivities CustomerPackageActivity[]
   id                String          @id @default(uuid()) @db.Uuid
   businessId        String          @map("business_id") @db.Uuid
   customerPackageId String          @map("customer_package_id") @db.Uuid
@@ -6142,6 +6221,7 @@ model CustomerPackageServiceBalance {
 }
 
 model WorkOrder {
+  packageActivities CustomerPackageActivity[]
   id               String               @id @default(uuid()) @db.Uuid
   businessId       String               @map("business_id") @db.Uuid
   customerId       String               @map("customer_id") @db.Uuid
@@ -6183,6 +6263,7 @@ model WorkOrder {
 }
 
 model Appointment {
+  packageActivities CustomerPackageActivity[]
   id                 String               @id @default(uuid()) @db.Uuid
   businessId         String               @map("business_id") @db.Uuid
   branchId           String?              @map("branch_id") @db.Uuid
@@ -6296,6 +6377,7 @@ model WorkOrderItem {
 }
 
 model Payment {
+  packageActivities CustomerPackageActivity[]
   purpose PaymentPurpose @default(LEGACY)
   walletTopUps WalletTopUp[]
   walletTransactions WalletTransaction[]
@@ -6386,6 +6468,7 @@ model BusinessPaymentMethod {
 }
 
 model PaymentRefund {
+  packageActivities CustomerPackageActivity[]
   walletReversals WalletTopUpReversal[]
   walletTransactions WalletTransaction[]
   @@unique([businessId, id], map: "refunds_wallet_scope_key")
@@ -6435,6 +6518,7 @@ model PaymentRefund {
 }
 
 model FinancialOperation {
+  packageActivities CustomerPackageActivity[]
   walletTopUps WalletTopUp[]
   walletReversals WalletTopUpReversal[]
   walletTransactions WalletTransaction[]
@@ -6868,6 +6952,7 @@ model ClosingWhatsAppSendAttempt {
 }
 
 model Invoice {
+  packageActivities CustomerPackageActivity[]
   performanceAttributions PerformanceAttribution[]
   performanceReceipts PerformanceReceipt[]
   id                       String                     @id @default(uuid()) @db.Uuid
@@ -6925,6 +7010,7 @@ model Invoice {
 }
 
 model InvoiceItem {
+  packageActivities CustomerPackageActivity[]
   kind                   InvoiceItemKind?
   id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId             String                      @map("business_id") @db.Uuid

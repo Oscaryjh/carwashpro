@@ -82,7 +82,7 @@ export function PackageServiceBenefitsField({
       <div className="package-benefits-header">
         <div>
           <legend>Included services</legend>
-          <p>{createMode ? "Choose the services included in this package and how many times each can be redeemed." : "Set the number of uses included for each service."}</p>
+          <p>{createMode ? "Choose the services included in this package and the uses included for each." : "Set the number of uses included for each service."}</p>
         </div>
         {!createMode ? <button className="button-secondary" type="button" onClick={addRow}>
           + Add service
@@ -174,7 +174,7 @@ export function PackageServiceBenefitsField({
         {!canAddRow ? <small>Select a service before adding another.</small> : null}
       </div> : null}
       {createMode ? <p className="package-benefits-summary">
-        {createMode ? `Total included uses: ${rows.reduce((sum, row) => sum + (validServiceIds.has(row.serviceId) ? includedUses(row.totalUses) || 0 : 0), 0)}` : `Total ${rows.reduce((sum, row) => sum + (includedUses(row.totalUses) || 0), 0)} uses`}
+        {createMode ? `Total Uses: ${rows.reduce((sum, row) => sum + (validServiceIds.has(row.serviceId) ? includedUses(row.totalUses) || 0 : 0), 0)}` : `Total Uses: ${rows.reduce((sum, row) => sum + (includedUses(row.totalUses) || 0), 0)}`}
       </p> : null}
     </fieldset>
   );

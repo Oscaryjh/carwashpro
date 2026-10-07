@@ -1442,7 +1442,7 @@ export function CashierUnifiedSaleForm({
                                 <small>{option.serviceName}</small>
                                 <small>{customerPackageDateLabels.get(option.id)}</small>
                               </span>
-                              <b>{option.remainingUses}/{option.totalUses} uses</b>
+                              <b>{option.remainingUses} / {option.totalUses} Uses Left</b>
                             </button>
                           );
                         })}

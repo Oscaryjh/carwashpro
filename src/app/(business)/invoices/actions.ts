@@ -11,6 +11,7 @@ import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { makeCreditNoteNumber } from "@/lib/invoices/credit-note-number";
 import { compensateNormalRefundLoyalty } from "@/lib/loyalty/normal-refund";
 import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
 import {
   getRefundableCents,
@@ -289,6 +290,8 @@ export async function refundPaymentAction(
         }
 
         let packageUsesRestored = 0;
+        const restoreCapture = payment.method === "PACKAGE" && payment.customerPackage && payment.packageUses > 0
+          ? await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: payment.customerPackage.id }) : null;
 
           if (
             payment.method === "PACKAGE" &&
@@ -363,7 +366,25 @@ export async function refundPaymentAction(
           });
         }
 
+        if (restoreCapture) {
+          const operation = await tx.financialOperation.findUniqueOrThrow({ where: {
+            businessId_operationType_operationKey: { businessId, operationType: "PAYMENT_REFUND", operationKey: operationId },
+          } });
+          const originalUse = await tx.customerPackageActivity.findFirst({ where: { businessId, customerPackageId: restoreCapture.customerPackageId, eventType: "USED", paymentId: payment.id } });
+          const appointment = invoice.appointmentId ? await tx.appointment.findFirst({ where: { id: invoice.appointmentId, businessId }, select: { assignedStaffId: true } }) : null;
+          await appendCustomerPackageActivity(tx, restoreCapture, { eventType: "RESTORED", sourceType: "PAYMENT_REFUND", financialOperationId: operation.id,
+            actorUserId: user.userId, branchId: refundBranchId, invoiceId: invoice.id, appointmentId: invoice.appointmentId,
+            workOrderId: invoice.workOrderId, assignedStaffId: appointment?.assignedStaffId,
+            paymentId: payment.id, paymentRefundId: refund.id, customerPackageServiceBalanceId: payment.customerPackageServiceBalanceId,
+            serviceId: payment.customerPackageServiceBalance?.serviceId, requestedUses: payment.packageUses,
+            originalUseActivityId: originalUse?.id, reason: input.reason });
+        }
+
         if (!invoice.workOrder && !invoice.appointmentId && purchasedPackages.length) {
+          const captures = [];
+          for (const customerPackage of [...purchasedPackages].sort((a, b) => a.id.localeCompare(b.id))) {
+            captures.push(await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id }));
+          }
           await tx.customerPackage.updateMany({
             where: { id: { in: purchasedPackages.map((item) => item.id) } },
             data: {
@@ -375,6 +396,20 @@ export async function refundPaymentAction(
               tx,
               purchasedPackages.map((customerPackage) => customerPackage.id),
             );
+            const operation = await tx.financialOperation.findUniqueOrThrow({ where: {
+              businessId_operationType_operationKey: { businessId, operationType: "PAYMENT_REFUND", operationKey: operationId },
+            } });
+            for (const capture of captures) {
+              const lines = invoice.items.filter(item => item.customerPackageId === capture.customerPackageId);
+              await appendCustomerPackageActivity(tx, capture, {
+                eventType: "CANCELLED", sourceType: "PAYMENT_REFUND", financialOperationId: operation.id,
+                actorUserId: user.userId, branchId: refundBranchId, invoiceId: invoice.id,
+                paymentId: payment.id, paymentRefundId: refund.id, reason: input.reason,
+                ...(lines.length === 1 ? { purchaseSourceMapping: {
+                  customerPackageId: capture.customerPackageId, invoiceId: invoice.id, invoiceItemId: lines[0].id,
+                } } : {}),
+              });
+            }
           }
 
         await compensateNormalRefundLoyalty(tx, {
@@ -667,47 +702,67 @@ export async function voidInvoiceAction(
         reason: `Invoice void: ${voidReason}`,
       });
 
-      for (const payment of activePayments) {
-          if (
-            payment.method === "PACKAGE" &&
-            payment.customerPackage &&
-          payment.packageUses > 0
-        ) {
-          const nextRemainingUses = Math.min(
-            payment.customerPackage.totalUses,
-            payment.customerPackage.remainingUses + payment.packageUses,
-          );
-
-            await tx.customerPackage.update({
-            where: { id: payment.customerPackage.id },
-            data: {
-              remainingUses: nextRemainingUses,
-              status:
-                payment.customerPackage.status === "USED_UP"
-                  ? "ACTIVE"
-                  : payment.customerPackage.status,
-              },
-            });
-
-            if (payment.customerPackageServiceBalance) {
-              const serviceBalance = payment.customerPackageServiceBalance;
-              await tx.customerPackageServiceBalance.update({
-                where: { id: serviceBalance.id },
-                data: {
-                  remainingUses: Math.min(
-                    serviceBalance.totalUses,
-                    serviceBalance.remainingUses + payment.packageUses,
-                  ),
-                },
-              });
-            }
-          }
-      }
-
+      // Loyalty validates ACTIVE sources; complete that existing compensation
+      // before marking each restored source VOID for its activity validation.
       await compensateInvoiceVoidLoyalty(tx, {
         businessId, invoiceId: invoice.id, paymentIds: activePayments.map(payment => payment.id),
         operationKey: operationId.data, actorUserId: user.userId,
       });
+      const restoreOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+        businessId_operationType_operationKey: { businessId, operationType: "INVOICE_VOID", operationKey: operationId.data },
+      } });
+      for (const payment of [...activePayments].sort((a, b) => (a.customerPackageId ?? "").localeCompare(b.customerPackageId ?? "") || a.id.localeCompare(b.id))) {
+        if (
+          payment.method === "PACKAGE" &&
+          payment.customerPackage &&
+          payment.packageUses > 0
+        ) {
+          const before = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: payment.customerPackage.id });
+          // Read our prior restores, not the payment snapshots from before this
+          // loop. Serializable ORM writes retain the existing conflict retries.
+          const customerPackage = await tx.customerPackage.findFirstOrThrow({
+            where: { id: payment.customerPackage.id, businessId },
+          });
+          const nextRemainingUses = Math.min(
+            customerPackage.totalUses,
+            customerPackage.remainingUses + payment.packageUses,
+          );
+
+          await tx.customerPackage.update({
+            where: { id: customerPackage.id },
+            data: {
+              remainingUses: nextRemainingUses,
+              status:
+                customerPackage.status === "USED_UP"
+                  ? "ACTIVE"
+                  : customerPackage.status,
+            },
+          });
+
+          if (payment.customerPackageServiceBalance) {
+            const serviceBalance = await tx.customerPackageServiceBalance.findFirstOrThrow({
+              where: { id: payment.customerPackageServiceBalance.id, businessId },
+            });
+            await tx.customerPackageServiceBalance.update({
+              where: { id: serviceBalance.id },
+              data: {
+                remainingUses: Math.min(
+                  serviceBalance.totalUses,
+                  serviceBalance.remainingUses + payment.packageUses,
+                ),
+              },
+            });
+          }
+          await tx.payment.update({ where: { id: payment.id }, data: { status: "VOID", voidedAt: new Date(), voidReason } });
+          const originalUse = await tx.customerPackageActivity.findFirst({ where: { businessId, customerPackageId: customerPackage.id, eventType: "USED", paymentId: payment.id } });
+          await appendCustomerPackageActivity(tx, before, { eventType: "RESTORED", sourceType: "INVOICE_VOID", financialOperationId: restoreOperation.id,
+            actorUserId: user.userId, branchId: payment.branchId ?? invoice.branchId, invoiceId: invoice.id,
+            appointmentId: invoice.appointmentId, workOrderId: invoice.workOrderId, assignedStaffId: invoice.appointment?.assignedStaffId,
+            paymentId: payment.id, customerPackageServiceBalanceId: payment.customerPackageServiceBalanceId,
+            serviceId: payment.customerPackageServiceBalance?.serviceId, requestedUses: payment.packageUses,
+            originalUseActivityId: originalUse?.id, reason: voidReason });
+        }
+      }
 
       await tx.payment.updateMany({
         where: {

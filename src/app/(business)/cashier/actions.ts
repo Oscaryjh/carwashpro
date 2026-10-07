@@ -1,4 +1,5 @@
 "use server";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 import { awardWalletInvoiceLoyalty } from "@/lib/loyalty/wallet-settlement";
 
 import { FinancialOperationType, type Payment } from "@prisma/client";
@@ -854,7 +855,11 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         include: { items: true },
       });
       const packagePayments: Payment[] = [];
-      for (const balance of redeemedPackageBalances) {
+      const activityOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+        businessId_operationType_operationKey: { businessId, operationType: "CASHIER_CHECKOUT", operationKey: operationId },
+      } });
+      for (const balance of [...redeemedPackageBalances].sort((a, b) => a.customerPackageId.localeCompare(b.customerPackageId) || a.id.localeCompare(b.id))) {
+        const before = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: balance.customerPackageId });
         const updatedBalance = await tx.customerPackageServiceBalance.updateMany({
           where: {
             id: balance.id,
@@ -897,6 +902,12 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             reference: `${balance.customerPackage.package.name} - ${balance.service.name}`,
           },
         }));
+        await tx.customerPackage.updateMany({ where: { id: balance.customerPackageId, businessId, remainingUses: 0, status: "ACTIVE" }, data: { status: "USED_UP" } });
+        await appendCustomerPackageActivity(tx, before, { eventType: "USED", sourceType: "CHECKOUT", financialOperationId: activityOperation.id,
+          actorUserId: user.userId, branchId, invoiceId: invoice.id, appointmentId: effectiveAppointmentId,
+          assignedStaffId: effectiveAppointmentId ? assignedStaff?.id : null, paymentId: packagePayments.at(-1)!.id,
+          customerPackageServiceBalanceId: balance.id, serviceId: balance.serviceId,
+          invoiceItemId: invoice.items.find(item => item.kind === "SERVICE" && item.serviceId === balance.serviceId)?.id });
       }
 
       await tx.customerPackage.updateMany({
@@ -970,8 +981,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           })),
       });
 
-      await Promise.all(
-        customerPackages.map(async (customerPackage, index) => {
+      for (const { customerPackage, index } of customerPackages.map((customerPackage, index) => ({ customerPackage, index })).sort((a, b) => a.customerPackage.id.localeCompare(b.customerPackage.id))) {
+          const before = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id });
           await tx.customerPackage.update({
             where: { id: customerPackage.id },
             data: {
@@ -980,8 +991,14 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             },
           });
           await activateCustomerPackageServiceBalances(tx, customerPackage.id);
-        }),
-      );
+          const item = invoice.items.find(item => item.customerPackageId === customerPackage.id && item.kind === "PACKAGE_PURCHASE")!;
+          await appendCustomerPackageActivity(tx, before, { eventType: "PURCHASED", sourceType: "CHECKOUT", financialOperationId: activityOperation.id,
+            actorUserId: user.userId, branchId, invoiceId: invoice.id, appointmentId: effectiveAppointmentId,
+            assignedStaffId: effectiveAppointmentId ? assignedStaff?.id : null,
+            paymentId: cashPayment?.id ?? walletPayment?.id,
+            additionalSourceRefs: { paymentIds: createdPayments.map(p => p.id), refundIds: [] },
+            purchaseSourceMapping: { customerPackageId: customerPackage.id, invoiceId: invoice.id, invoiceItemId: item.id } });
+      }
 
       if (customer && !isTrainingComplimentary) {
       if (loyaltyPointsRedeemed > 0 && loyaltyDiscountCents > 0 && payment) {

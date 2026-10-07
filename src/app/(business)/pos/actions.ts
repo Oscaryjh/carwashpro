@@ -1,4 +1,5 @@
 "use server";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 
 import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -441,6 +442,7 @@ async function usePackagePayment(formData: FormData) {
         },
       }));
 
+    const activityBefore = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id });
     await tx.customerPackage.update({
       where: { id: customerPackage.id },
       data: {
@@ -472,6 +474,12 @@ async function usePackagePayment(formData: FormData) {
       },
     });
 
+    const activityOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+      businessId_operationType_operationKey: { businessId, operationType: "PACKAGE_REDEMPTION", operationKey: operationId },
+    } });
+    await appendCustomerPackageActivity(tx, activityBefore, { eventType: "USED", sourceType: "CHECKOUT", financialOperationId: activityOperation.id,
+      actorUserId: user.userId, branchId: workOrder.branchId, invoiceId: invoice.id, workOrderId: workOrder.id,
+      paymentId: payment.id, customerPackageServiceBalanceId: serviceBalance?.id, serviceId: serviceBalance?.serviceId });
     await tx.workOrder.update({
       where: { id: workOrder.id },
       data: {
@@ -655,6 +663,7 @@ async function recordPackagePurchasePayment(formData: FormData) {
           },
         },
       },
+      include: { items: true },
     });
 
     const payment = await tx.payment.create({
@@ -683,6 +692,7 @@ async function recordPackagePurchasePayment(formData: FormData) {
       createdById: user.userId,
     });
 
+    const purchaseBefore = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id });
     await tx.customerPackage.update({
       where: { id: customerPackage.id },
       data: {
@@ -691,6 +701,12 @@ async function recordPackagePurchasePayment(formData: FormData) {
       },
     });
     await activateCustomerPackageServiceBalances(tx, customerPackage.id);
+    const purchaseOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+      businessId_operationType_operationKey: { businessId, operationType: "PACKAGE_PURCHASE", operationKey: operationId },
+    } });
+    await appendCustomerPackageActivity(tx, purchaseBefore, { eventType: "PURCHASED", sourceType: "CHECKOUT", financialOperationId: purchaseOperation.id,
+      actorUserId: user.userId, branchId: customerPackage.branchId, invoiceId: invoice.id, paymentId: payment.id,
+      purchaseSourceMapping: { customerPackageId: customerPackage.id, invoiceId: invoice.id, invoiceItemId: invoice.items[0].id } });
 
     await writeAuditLog(
       {

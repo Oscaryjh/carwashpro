@@ -19,7 +19,7 @@ test('edit page renders five saved summary facts and retains separate save/delet
   try {
     const doc = dom.window.document;
     for (let i = 0; i < 100 && !doc.querySelector('textarea'); i++) await new Promise(r => setTimeout(r, 20));
-    assert.deepEqual([...doc.querySelectorAll('.package-edit-summary .metric > span')].map((n: any) => n.textContent), ['Category', 'Status', 'Package price', 'Total uses', 'Sold']);
+    assert.deepEqual([...doc.querySelectorAll('.package-edit-summary .metric > span')].map((n: any) => n.textContent), ['Category', 'Status', 'Package price', 'Total Uses', 'Sold']);
     assert.deepEqual([...doc.querySelectorAll('.package-edit-summary .metric > strong')].map((n: any) => n.textContent.replace(/\u00a0/g, ' ')), ['Facial', 'ACTIVE', 'RM 280.00', '4', '3']);
     const footer = doc.querySelector('.package-edit-actions');
     assert.equal(footer.firstElementChild.tagName, 'FORM');

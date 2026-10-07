@@ -97,6 +97,10 @@ for (const split of [false, true]) for (const enabled of [false, true]) {
       assert.equal(restored.paidBalance.toFixed(2), "1000.00"); assert.equal(restored.bonusBalance.toFixed(2), "100.00");
       const cancelled = await db.customerPackage.findUniqueOrThrow({ where: { id: entitlement.id } });
       assert.equal(cancelled.status, "CANCELLED"); assert.equal(cancelled.remainingUses, 0);
+      const events = await db.customerPackageActivity.findMany({ where: { customerPackageId: entitlement.id }, orderBy: { sequence: "asc" } });
+      assert.deepEqual(events.map(row => row.eventType), ["PURCHASED", "CANCELLED"]);
+      assert.deepEqual(new Set((events[1].additionalSourceRefs as { paymentIds: string[] }).paymentIds), new Set(payments.map(p => p.id)));
+      assert.deepEqual(new Set((events[1].additionalSourceRefs as { refundIds: string[] }).refundIds), new Set(refunds.map(r => r.id)));
       assert.equal((await db.customerPackageServiceBalance.findFirstOrThrow({ where: { customerPackageId: entitlement.id } })).remainingUses, 0);
       assert.equal((await db.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).status, "REFUNDED");
       assert.equal((await db.customerMembership.findFirstOrThrow({ where: { businessId: f.business.id, customerId: f.customer.id } })).pointsBalance, 0);

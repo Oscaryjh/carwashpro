@@ -295,6 +295,8 @@ function isActiveNavItem(
   const [pathAndQuery] = href.split("#", 1);
   const [targetPath = href, targetQuery = ""] = pathAndQuery.split("?", 2);
 
+  if (targetPath === "/package-hub" && (pathname === "/packages" || pathname.startsWith("/packages/"))) return true;
+
   // Offer management belongs to Catalog; keep its existing CRM URL compatible.
   if (targetPath === "/crm" &&
     (pathname === "/crm/wallet/offers" || pathname.startsWith("/crm/wallet/offers/"))) {

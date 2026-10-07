@@ -293,7 +293,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     })),
     ...appointmentPackages.map((packageDefinition) => ({
       category: packageDefinition.packageCategory?.name ?? null,
-      description: `${packageDefinition.totalUses} total uses`,
+      description: `${packageDefinition.totalUses} ${packageDefinition.totalUses === 1 ? "Use" : "Uses"}`,
       id: packageDefinition.id,
       name: packageDefinition.name,
       price: Number(packageDefinition.price),

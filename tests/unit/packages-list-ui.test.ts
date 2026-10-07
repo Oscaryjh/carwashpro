@@ -33,7 +33,7 @@ test('package list presents linked names, numeric columns, two services and comp
     const row = f.doc.querySelector('tbody tr');
     assert.equal(row.querySelector('td:nth-child(3) a').getAttribute('href'), '/packages/p1');
     assert.equal(row.querySelector('td:nth-child(3) a').textContent, 'Facial bundle');
-    assert.deepEqual([...f.doc.querySelectorAll('thead .packages-numeric')].map((n: any) => n.textContent), ['Price', 'Uses', 'Sold']);
+    assert.deepEqual([...f.doc.querySelectorAll('thead .packages-numeric')].map((n: any) => n.textContent), ['Price', 'Total Uses', 'Sold']);
     assert.deepEqual([...row.querySelectorAll('.packages-numeric')].map((n: any) => n.textContent), ['RM200.00', '5', '3']);
     assert.equal(row.querySelector('.packages-services-text').textContent, 'First × 1, Second × 1');
     assert.equal(row.querySelector('.packages-services-more').textContent, '+2 more');

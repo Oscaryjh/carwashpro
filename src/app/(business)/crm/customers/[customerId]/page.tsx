@@ -204,8 +204,8 @@ export default async function CustomerDetailsPage({
             value={isSalonBusiness ? appointmentCount : customer.vehicles.length}
           />
           <InfoCard
-            label="Package balance"
-            value={`${activePackageBalance} ${isSalonBusiness ? "uses" : "washes"}`}
+            label="Uses Left"
+            value={`${activePackageBalance} ${activePackageBalance === 1 ? "Use" : "Uses"}`}
           />
           <InfoCard label="Total spent" value={formatCurrency(totalSpent)} />
           <div className="customer-info-card customer-loyalty-summary">
@@ -390,7 +390,7 @@ export default async function CustomerDetailsPage({
                       <strong>
                         {customerPackage.remainingUses}/{customerPackage.totalUses}
                       </strong>
-                      <span>{isSalonBusiness ? "uses left" : "washes left"}</span>
+                      <span>Uses Left</span>
                     </div>
                       <small>
                         RM{Number(customerPackage.purchasePrice).toFixed(2)} /{" "}

@@ -1,4 +1,5 @@
 "use server";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 import { rejectWalletOutsideCashier } from "@/lib/wallet/unsupported-payment";
 
 import { FinancialOperationType } from "@prisma/client";
@@ -742,8 +743,11 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
         createdById: user.userId,
       });
 
-      await Promise.all(
-        customerPackages.map(async (customerPackage, index) => {
+      const activityOperation = await tx.financialOperation.findUniqueOrThrow({ where: {
+        businessId_operationType_operationKey: { businessId, operationType: "PACKAGE_PURCHASE", operationKey: operationId },
+      } });
+      for (const { customerPackage, index } of customerPackages.map((customerPackage, index) => ({ customerPackage, index })).sort((a, b) => a.customerPackage.id.localeCompare(b.customerPackage.id))) {
+          const before = await captureCustomerPackageActivityBefore(tx, { businessId, customerPackageId: customerPackage.id });
           await tx.customerPackage.update({
             where: { id: customerPackage.id },
             data: {
@@ -752,8 +756,11 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
             },
           });
           await activateCustomerPackageServiceBalances(tx, customerPackage.id);
-        }),
-      );
+          const item = await tx.invoiceItem.findFirstOrThrow({ where: { businessId, invoiceId: invoice.id, customerPackageId: customerPackage.id } });
+          await appendCustomerPackageActivity(tx, before, { eventType: "PURCHASED", sourceType: "CHECKOUT",
+            financialOperationId: activityOperation.id, actorUserId: user.userId, branchId, invoiceId: invoice.id,
+            paymentId: payment.id, purchaseSourceMapping: { customerPackageId: customerPackage.id, invoiceId: invoice.id, invoiceItemId: item.id } });
+      }
 
       const packageSummary = packageDefinitions.map((packageDefinition) => ({
         packageId: packageDefinition.id,

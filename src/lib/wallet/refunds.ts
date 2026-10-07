@@ -17,6 +17,7 @@ import type { WalletContext } from "./authorization";
 import { requireWalletRefundOwner } from "./refund-authorization";
 import { WalletRefundRejected } from "./refund-errors";
 import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
+import { captureCustomerPackageActivityBefore, appendCustomerPackageActivity } from "@/lib/packages/activity";
 
 const requestSchema = z.object({operationKey:financialOperationKeySchema,invoiceId:z.string().uuid(),reason:z.string().trim().min(3).max(500),
   legs:z.array(z.object({paymentId:z.string().uuid(),amountCents:z.number().int().positive().max(MAX_PAYMENT_CENTS),
@@ -126,11 +127,25 @@ export async function refundWalletSale(ctx:WalletContext, raw:WalletRefundInput,
       // Only revoke the purchase after every source has been refunded; any later failure
       // also rolls back every refund, wallet restoration and entitlement change.
       if (packageIds.length) {
+        const captures = [];
+        for (const customerPackageId of [...packageIds].sort()) {
+          captures.push(await captureCustomerPackageActivityBefore(tx, { businessId: ctx.businessId, customerPackageId }));
+        }
         await tx.customerPackage.updateMany({
           where: { businessId: ctx.businessId, id: { in: packageIds } },
           data: { status: "CANCELLED", remainingUses: 0 },
         });
         await clearCustomerPackageServiceBalances(tx, packageIds);
+        for (const capture of captures) {
+          const items = invoice.items.filter(item => item.customerPackageId === capture.customerPackageId);
+          await appendCustomerPackageActivity(tx, capture, { eventType: "CANCELLED", sourceType: "PAYMENT_REFUND",
+            financialOperationId: op.id, actorUserId: ctx.user.userId, branchId: invoice.branchId, invoiceId: invoice.id,
+            appointmentId: invoice.appointmentId, workOrderId: invoice.workOrderId,
+            paymentId: legs[0].payment.id, paymentRefundId: refundIds[0],
+            additionalSourceRefs: { paymentIds: legs.map(leg => leg.payment.id), refundIds }, reason: input.reason,
+            ...(items.length === 1 ? { purchaseSourceMapping: { customerPackageId: capture.customerPackageId, invoiceId: invoice.id, invoiceItemId: items[0].id } } : {}),
+          });
+        }
       }
       // One balance adjustment for this entire operation, after every refund leg exists.
       await refundWalletInvoiceLoyalty(tx,{businessId:ctx.businessId,invoiceId:invoice.id,refundId:refundIds[0],actorUserId:ctx.user.userId});

@@ -178,7 +178,7 @@ export function PackagePurchaseCardPreview() {
                       type="button"
                     >
                       <PreviewIcon label="P" tone="orange" />
-                      <span><strong>{item.name}</strong><small>{item.totalUses} total uses</small></span>
+                      <span><strong>{item.name}</strong><small>{item.totalUses} {item.totalUses === 1 ? "Use" : "Uses"}</small></span>
                       <span className={styles.packagePrice}>RM{item.price.toFixed(2)}</span>
                     </button>
                   ))}
@@ -194,7 +194,7 @@ export function PackagePurchaseCardPreview() {
                 <div className={styles.paymentSummary}>
                   <span>Customer<strong>{customer.name}</strong></span>
                   <span>Package<strong>{selectedPackage.name}</strong></span>
-                  <span>Package uses<strong>{selectedPackage.totalUses}</strong></span>
+                  <span>Total Uses<strong>{selectedPackage.totalUses}</strong></span>
                   <span className={styles.totalRow}>Total<strong>RM{selectedPackage.price.toFixed(2)}</strong></span>
                 </div>
                 <h3>Payment method</h3>
@@ -214,7 +214,7 @@ export function PackagePurchaseCardPreview() {
                     </button>
                   ))}
                 </div>
-                <p>Full payment activates all {selectedPackage.totalUses} package uses.</p>
+                <p>Full payment activates {selectedPackage.totalUses} {selectedPackage.totalUses === 1 ? "Use" : "Uses"}.</p>
                 <button className={styles.payButton} type="button">Pay RM{selectedPackage.price.toFixed(2)}</button>
               </section>
             </div>
@@ -276,7 +276,7 @@ function PackageModePreview({
 
       {selectedPackage ? (
         <section className={styles.packageSummary}>
-          <div><span>Package uses</span><strong>{selectedPackage.totalUses}</strong></div>
+          <div><span>Total Uses</span><strong>{selectedPackage.totalUses}</strong></div>
           <div><span>Purchase price</span><strong>RM{selectedPackage.price.toFixed(2)}</strong></div>
           <p>This is a package-only sale. No job will be created.</p>
         </section>

@@ -134,7 +134,7 @@ test("create keeps its original service reference and total uses presentation", 
     assert.ok(f.doc.querySelector('.package-create-form'));
     assert.equal(f.doc.querySelector('.package-edit-form'), null);
     assert.match(f.doc.querySelector('.package-service-value').textContent, /× 1 =/);
-    assert.match(f.doc.querySelector('.package-benefits-summary').textContent, /Total included uses: 1/);
+    assert.match(f.doc.querySelector('.package-benefits-summary').textContent, /Total Uses: 1/);
     assert.equal(f.doc.querySelector('.package-benefit-value'), null);
   } finally { f.close(); }
 });

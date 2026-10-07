@@ -26,5 +26,9 @@
   {
     "name": "20261006000000_invoice_item_explicit_kind",
     "hash": "846837c841bcf8aa85352ff487e4b658726f2b73a6cf3cf9f83956a1327afb7b"
+  },
+  {
+    "name": "20261007000000_customer_package_activity_foundation",
+    "hash": "aa999aea097434fdeebb6c5f06b1fae179f841b9bbb48a5ff34c4e5c42051608"
   }
 ]

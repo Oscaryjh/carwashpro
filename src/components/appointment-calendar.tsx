@@ -1690,7 +1690,7 @@ export function AppointmentCalendar({
                         <span aria-hidden="true" className="appointment-service-glyph">PK</span>
                         <strong>{item.name}</strong>
                         <small>RM{item.price}</small>
-                        <em>{item.totalUses} uses</em>
+                        <em>{item.totalUses} {item.totalUses === 1 ? "Use" : "Uses"}</em>
                       </button>
                     ))}
                   </div>
@@ -2189,7 +2189,7 @@ export function AppointmentCalendar({
                     <span aria-hidden="true" className="appointment-service-glyph">PK</span>
                     <strong>{item.name}</strong>
                     <small>RM{item.price}</small>
-                    <em>{item.totalUses} uses</em>
+                    <em>{item.totalUses} {item.totalUses === 1 ? "Use" : "Uses"}</em>
                   </button>
                 ))
               ) : <p>No items in this category.</p>}

@@ -9,6 +9,7 @@ import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { authorizedCustomerPackageBranchWhere, canAccessOperationalBranch, getActiveBranches } from "@/lib/branches";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { createPackageAction } from "./actions";
 import {
   createPackageCategoryAction,
@@ -36,6 +37,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   const { access, user, businessId, industryType } =
     await requireBusinessUser("VIEW_CATALOG");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
+  const canReturnToHub = access.granted && access.effectiveBusinessRole === "BUSINESS_OWNER" && await isBusinessModuleEnabled(businessId, "POS");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "PACKAGES");
   }
@@ -144,6 +146,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   return (
     <>
       <section className="content packages-list-page">
+        {canReturnToHub ? <Link href="/package-hub">Back to Packages</Link> : null}
         <div className="page-header">
           <div>
             <h1>Packages</h1>
@@ -151,8 +154,8 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
               {hasFilters
                 ? `${matchingCount} package${matchingCount === 1 ? "" : "s"} match this filter.`
                 : isSalonBusiness
-                  ? "Prepaid service packages and remaining-use tracking."
-                  : "Prepaid wash packages and remaining-use tracking."}
+                  ? "Prepaid service packages and Uses Left tracking."
+                  : "Prepaid wash packages and Uses Left tracking."}
             </p>
           </div>
           <div className="inline-actions">
@@ -206,7 +209,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                   <th>Category</th>
                   <th>Package</th>
                   <th className="packages-numeric">Price</th>
-                  <th className="packages-numeric">{isSalonBusiness ? "Uses" : "Washes"}</th>
+                  <th className="packages-numeric">Total Uses</th>
                     <th>{isSalonBusiness ? "Included services" : "Service"}</th>
                   <th>Status</th>
                   <th className="packages-numeric">Sold</th>

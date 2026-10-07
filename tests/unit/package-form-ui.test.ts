@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 let directory: string;
 let Form: (props: Record<string, unknown>) => ReactElement;
 let Benefits: (props: Record<string, unknown>) => ReactElement;
+let Selector: (props: Record<string, unknown>) => ReactElement;
 const hookKey = "__packageUIHooks";
 const services = [{ id: "a", name: "Wash", categoryName: "Hair", price: "20.00" }, { id: "b", name: "Treatment", categoryName: "Hair", price: "50.00" }];
 const base = { action: async () => {}, branches: [{ id: "branch", name: "Outlet" }], services, isSalonBusiness: true, submitLabel: "Create package" };
@@ -19,6 +20,8 @@ before(async () => {
   const options = { bundle: true, platform: "node" as const, format: "cjs" as const, packages: "external" as const };
   await build({ ...options, entryPoints: ["src/components/package-form.tsx"], outfile: join(directory, "form.cjs") });
   Form = require(join(directory, "form.cjs")).PackageForm;
+  await build({ ...options, entryPoints: ["src/components/customer-package-selector.tsx"], outfile: join(directory, "selector.cjs") });
+  Selector = require(join(directory, "selector.cjs")).CustomerPackageSelector;
   await build({ ...options, entryPoints: ["src/components/package-service-benefits-field.tsx"], outfile: join(directory, "events.cjs"), plugins: [{ name: "state-harness", setup(b) {
     b.onResolve({ filter: /^react$/ }, args => args.importer.endsWith("package-service-benefits-field.tsx") ? ({ path: "react", namespace: "hooks" }) : ({ path: "react", external: true }));
     b.onLoad({ filter: /.*/, namespace: "hooks" }, () => ({ contents: `export function useId(){return 'benefits-test'};export function useEffect(){};export function useState(initial){const h=globalThis.${hookKey};const i=h.index++;if(!(i in h.values))h.values[i]=typeof initial==='function'?initial():initial;return [h.values[i],v=>h.values[i]=typeof v==='function'?v(h.values[i]):v]}` }));
@@ -27,6 +30,17 @@ before(async () => {
 });
 after(async () => { await rm(directory, { recursive: true, force: true }); });
 const render = (props: Record<string, unknown> = {}) => renderToStaticMarkup(createElement(Form, { ...base, ...props }));
+test("package selector pluralizes uses without changing selection values", () => {
+  const html = renderToStaticMarkup(createElement(Selector, { packages: [
+    { id: "single", name: "One", price: 20, totalUses: 1 },
+    { id: "multiple", name: "Two", price: 35, totalUses: 2 },
+  ] }));
+  assert.match(html, /1 Use<\/small>/);
+  assert.match(html, /2 Uses<\/small>/);
+  assert.doesNotMatch(html, /1 Uses/);
+  assert.match(html, /name="packageId"[^>]*value="single"/);
+  assert.match(html, /name="packageId"[^>]*value="multiple"/);
+});
 type TestNode = { type: unknown; props: {
   children?: unknown; name?: string; value?: unknown; disabled?: boolean;
   min?: string; max?: string; required?: boolean; "aria-label"?: string;
@@ -47,7 +61,7 @@ function harness(initialBenefits: Array<{ serviceId: string; totalUses: number }
     assert.ok(button);
     return button;
   };
-  const total = () => renderToStaticMarkup(tree()).match(/Total included uses: (\d+)/)?.[1];
+  const total = () => renderToStaticMarkup(tree()).match(/Total Uses: (\d+)/)?.[1];
   return { tree, fields, add, total };
 }
 
@@ -103,7 +117,7 @@ test("new service rows use shared headings while preserving accessible field nam
   const html = render();
   assert.match(html, /Included uses/);
   assert.doesNotMatch(html, /<span>Service 1<\/span>/);
-  assert.match(html, /Choose the services included in this package and how many times each can be redeemed\./);
+  assert.match(html, /Choose the services included in this package and the uses included for each\./);
   const h = harness();
   const uses = h.fields("benefitTotalUses")[0];
   assert.equal(uses.props.min, "1");
@@ -122,7 +136,7 @@ test("edit retains description and saved values; AUTO retains its original wash 
   assert.match(html, /name="benefitTotalUses"[^>]*value="5"/);
   for (const plan of [undefined, packagePlan]) {
     const auto = render({ isSalonBusiness: false, packagePlan: plan });
-    assert.match(auto, /Total washes/);
+    assert.match(auto, /Total Uses/);
     assert.match(auto, /Linked service optional/);
     assert.match(auto, /name="totalUses"[^>]*value="10"/);
     assert.doesNotMatch(auto, /name="benefitServiceId"/);

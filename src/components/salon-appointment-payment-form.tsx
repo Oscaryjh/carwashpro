@@ -291,7 +291,7 @@ export function SalonAppointmentPaymentForm({
                     <small>{customerPackage.serviceName}</small>
                   </span>
                   <span className="salon-package-use-balance">
-                    {customerPackage.remainingUses}/{customerPackage.totalUses} uses
+                    {customerPackage.remainingUses} / {customerPackage.totalUses} Uses Left
                   </span>
                 </button>
               );

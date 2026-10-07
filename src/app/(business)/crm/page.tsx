@@ -656,7 +656,7 @@ function CustomerWorkspace({
               {customer.customerPackages.map((item) => (
                 <div key={item.id}>
                   <span><strong>{item.package.name}</strong><small>Purchased {formatBusinessDateTime(item.purchasedAt)}</small></span>
-                  <span><strong>{item.remainingUses} / {item.totalUses} uses</strong><small>{formatStatus(item.status)} / {formatCurrency(item.purchasePrice)}</small></span>
+                  <span><strong>{item.remainingUses} / {item.totalUses} Uses Left</strong><small>{formatStatus(item.status)} / {formatCurrency(item.purchasePrice)}</small></span>
                   {item.serviceBalances.length ? (
                     <p>{item.serviceBalances.map((balance) => `${balance.service.name}: ${balance.remainingUses}/${balance.totalUses}`).join(" / ")}</p>
                   ) : null}
@@ -760,7 +760,7 @@ function buildTimeline({ customer, payments, activityLimit, refundScopePrefix }:
       ? toInvoiceSummary(payment.invoice, customer.name, customer.phone, refundScopePrefix)
       : undefined;
     activities.push({
-      amount: isVoucher ? `${payment.packageUses} use${payment.packageUses === 1 ? "" : "s"}` : formatCurrency(payment.amount),
+      amount: isVoucher ? `${payment.packageUses} Use${payment.packageUses === 1 ? "" : "s"}` : formatCurrency(payment.amount),
       at: payment.paidAt,
       description: isVoucher
         ? payment.customerPackageServiceBalance?.service.name ?? payment.customerPackage?.package.name ?? "Customer package"

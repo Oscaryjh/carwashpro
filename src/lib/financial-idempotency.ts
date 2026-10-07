@@ -152,7 +152,9 @@ function replayRecord<T extends JsonObject>(
 
 function isRetryableConcurrencyError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError
-    && (error.code === "P2002" || error.code === "P2034");
+    && (error.code === "P2002" || error.code === "P2034"
+      // Prisma 6 raw queries preserve PostgreSQL SQLSTATE in structured meta.
+      || (error.code === "P2010" && error.meta?.code === "40001"));
 }
 
 async function retryBackoff(attempt: number) {

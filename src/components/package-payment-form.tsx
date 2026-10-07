@@ -50,7 +50,7 @@ export function PackagePaymentForm({
   if (!customerPackages.length) {
     return (
       <p className="empty-state">
-        This customer has no active prepaid wash package with remaining uses.
+        This customer has no active package with Uses Left.
       </p>
     );
   }
@@ -82,7 +82,7 @@ export function PackagePaymentForm({
             {customerPackages.map((customerPackage) => (
               <option key={customerPackage.id} value={customerPackage.id}>
                 {customerPackage.packageName} - {customerPackage.remainingUses}/
-                {customerPackage.totalUses} washes left
+                {customerPackage.totalUses} Uses Left
               </option>
             ))}
           </select>

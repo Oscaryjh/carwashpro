@@ -204,7 +204,7 @@ export function WorkOrderPackagePurchase({
                     <strong>{selectedPackage?.name ?? "Select package"}</strong>
                     <small>
                       {selectedPackage
-                        ? `${selectedPackage.totalUses} uses · ${formatMoney(selectedPackage.price)}`
+                        ? `${selectedPackage.totalUses} ${selectedPackage.totalUses === 1 ? "Use" : "Uses"} · ${formatMoney(selectedPackage.price)}`
                         : "Choose an active package"}
                     </small>
                   </button>
@@ -346,7 +346,7 @@ export function WorkOrderPackagePurchase({
                   <span aria-hidden="true">P</span>
                   <div>
                     <strong>{packageOption.name}</strong>
-                    <small>{packageOption.totalUses} total uses</small>
+                    <small>{packageOption.totalUses} {packageOption.totalUses === 1 ? "Use" : "Uses"}</small>
                   </div>
                   <b>{formatMoney(packageOption.price)}</b>
                 </button>
