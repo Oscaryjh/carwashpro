@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { invoiceTimeZone } from "@/lib/invoices/display-time";
 import { Prisma } from "@prisma/client";
 import { InvoiceViewButton } from "@/components/invoice-view-button";
 import { authorizedOperationalBranchWhere } from "@/lib/branches";
@@ -50,6 +51,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
     prisma.invoice.findMany({
       where,
       include: {
+        business: { select: { timezone: true } },
         workOrder: {
           include: {
             customer: true,
@@ -260,7 +262,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     </td>
                     <td>RM{Number(invoice.total).toFixed(2)}</td>
                     <td>RM{Number(invoice.balance).toFixed(2)}</td>
-                    <td>{formatDateTime(invoice.issuedAt)}</td>
+                    <td>{formatDateTime(invoice.issuedAt, invoice.business.timezone)}</td>
                     <td>
                       <InvoiceViewButton
                         invoice={{
@@ -268,6 +270,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                           invoiceNumber: invoice.invoiceNumber,
                           status: invoice.status,
                           issuedAt: invoice.issuedAt.toISOString(),
+                          businessTimezone: invoice.business.timezone,
                           customerName:
                             invoice.workOrder?.customer.name ??
                             invoice.appointment?.customer.name ??
@@ -351,8 +354,9 @@ function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
 }
 
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, timezone: string) {
   return value.toLocaleString("en-MY", {
+    timeZone: invoiceTimeZone(timezone),
     day: "2-digit",
     month: "short",
     hour: "2-digit",

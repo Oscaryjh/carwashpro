@@ -165,6 +165,7 @@ export default async function AppointmentsPage({
           customer: true,
           invoice: {
             select: {
+              business: { select: { timezone: true } },
               balance: true,
               discountAmount: true,
               id: true,
@@ -685,6 +686,7 @@ function toCalendarItem(appointment: {
   status: string;
   vehicle: { plateNumber: string } | null;
   invoice?: {
+    business: { timezone: string };
     balance: Prisma.Decimal;
     discountAmount: Prisma.Decimal;
     id: string;
@@ -770,6 +772,7 @@ function toCalendarItem(appointment: {
         invoiceNumber: appointment.invoice.invoiceNumber,
         status: appointment.invoice.status,
         issuedAt: appointment.invoice.issuedAt.toISOString(),
+        businessTimezone: appointment.invoice.business.timezone,
         customerName: appointment.customer.name,
         customerPhone: appointment.customer.phone,
         items: appointment.invoice.items.map((item) => ({

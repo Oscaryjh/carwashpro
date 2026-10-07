@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { formatInvoiceDate, formatInvoiceTime } from "@/lib/invoices/display-time";
 import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
@@ -50,6 +51,7 @@ async function sendInvoiceNotification({
     include: {
       business: {
         select: {
+          timezone: true,
           address: true,
           companyNo: true,
           name: true,
@@ -149,8 +151,8 @@ async function sendInvoiceNotification({
       .map((item) => `${item.name} x${item.quantity}`)
       .join(", ");
     const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
-    const appointmentDate = invoice.appointment.scheduledAt.toLocaleDateString("en-MY");
-    const appointmentTime = invoice.appointment.scheduledAt.toLocaleTimeString("en-MY", {
+    const appointmentDate = formatInvoiceDate(invoice.appointment.scheduledAt, invoice.business.timezone);
+    const appointmentTime = formatInvoiceTime(invoice.appointment.scheduledAt, invoice.business.timezone, {
       hour: "2-digit",
       minute: "2-digit",
     });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatInvoiceDateTime } from "@/lib/invoices/display-time";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { CrmWalletMetric, CrmWalletProvider } from "@/components/wallet/wallet-panel-context";
 import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
@@ -54,6 +55,7 @@ type CrmCustomer = Prisma.CustomerGetPayload<{
     };
     invoices: {
       include: {
+        business: { select: { timezone: true } };
         items: true;
         payments: { include: { refunds: true } };
       };
@@ -68,6 +70,7 @@ type CrmCustomer = Prisma.CustomerGetPayload<{
       include: {
         invoice: {
           include: {
+            business: { select: { timezone: true } };
             items: true;
             payments: { include: { refunds: true } };
           };
@@ -82,6 +85,7 @@ type CrmPayment = Prisma.PaymentGetPayload<{
   include: {
     invoice: {
       include: {
+        business: { select: { timezone: true } };
         items: true;
         payments: { include: { refunds: true } };
       };
@@ -209,6 +213,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           invoices: {
             where: operationalBranchWhere,
             include: {
+              business: { select: { timezone: true } },
               items: { orderBy: { createdAt: "asc" } },
               payments: {
                 where: operationalBranchWhere,
@@ -238,6 +243,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             include: {
               invoice: {
                 include: {
+                  business: { select: { timezone: true } },
                   items: { orderBy: { createdAt: "asc" } },
                   payments: {
                     where: operationalBranchWhere,
@@ -270,6 +276,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         include: {
           invoice: {
             include: {
+              business: { select: { timezone: true } },
               items: { orderBy: { createdAt: "asc" } },
               payments: {
                 where: operationalBranchWhere,
@@ -636,12 +643,12 @@ function CustomerWorkspace({
               {customer.invoices.map((invoice) => (
                 <CrmActivityItem
                   amount={formatCurrency(invoice.total)}
-                  description={`${formatStatus(invoice.status)} / ${formatBusinessDateTime(invoice.issuedAt)}`}
+                  description={`${formatStatus(invoice.status)} / ${formatInvoiceDateTime(invoice.issuedAt, invoice.business.timezone, invoiceDateOptions)}`}
                   invoice={toInvoiceSummary(invoice, customer.name, customer.phone, refundScopePrefix)}
                   key={invoice.id}
                   label="Invoice"
                   title={invoice.invoiceNumber}
-                  when={formatBusinessDateTime(invoice.issuedAt)}
+                  when={formatInvoiceDateTime(invoice.issuedAt, invoice.business.timezone, invoiceDateOptions)}
                 />
               ))}
               {!customer.invoices.length ? <p className="empty-state">No invoices yet.</p> : null}
@@ -830,6 +837,7 @@ function toInvoiceSummary(invoice: CrmInvoice, customerName: string, customerPho
     invoiceNumber: invoice.invoiceNumber,
     status: invoice.status,
     issuedAt: invoice.issuedAt.toISOString(),
+    businessTimezone: invoice.business.timezone,
     customerName,
     customerPhone,
     items: invoice.items.map((item) => ({
@@ -859,6 +867,8 @@ function appointmentTitle(appointment: CrmCustomer["appointments"][number]) {
   const invoiceNames = appointment.invoice?.items.map((item) => item.name).filter(Boolean) ?? [];
   return Array.from(new Set(invoiceNames)).join(", ") || appointment.service?.name || "Appointment";
 }
+
+const invoiceDateOptions: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true };
 
 function formatBusinessDateTime(value: Date) {
   const date = formatDateValue(toBusinessDateValue(value), { day: "2-digit", month: "short", year: "numeric" });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatInvoiceDate } from "@/lib/invoices/display-time";
 import { createPortal } from "react-dom";
 import { InvoiceRefundPaymentForm as RefundPaymentForm } from "@/components/invoice-refund-payment-form";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -21,6 +22,7 @@ export type InvoiceModalSummary = {
   invoiceNumber: string;
   status: string;
   issuedAt: string;
+  businessTimezone?: string;
   customerName: string;
   customerPhone: string;
   checkoutType?: "STANDARD" | "TRAINING_COMPLIMENTARY";
@@ -173,7 +175,7 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
           <div><span>Phone</span><strong>{invoice.customerPhone}</strong></div>
           <div>
             <span>Date</span>
-            <strong>{new Date(invoice.issuedAt).toLocaleDateString("en-MY")}</strong>
+            <strong>{formatInvoiceDate(new Date(invoice.issuedAt), invoice.businessTimezone)}</strong>
           </div>
         </div>
 

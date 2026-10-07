@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { formatInvoiceDate, formatInvoiceTime } from "@/lib/invoices/display-time";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import {
@@ -31,6 +32,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
     include: {
       business: {
         select: {
+          timezone: true,
           address: true,
           companyNo: true,
           name: true,
@@ -81,8 +83,8 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
 
   if (invoice.appointment) {
     const paymentSummary = getInvoicePaymentSummary(invoice.payments);
-    const appointmentDate = invoice.appointment.scheduledAt.toLocaleDateString("en-MY");
-    const appointmentTime = invoice.appointment.scheduledAt.toLocaleTimeString("en-MY", {
+    const appointmentDate = formatInvoiceDate(invoice.appointment.scheduledAt, invoice.business.timezone);
+    const appointmentTime = formatInvoiceTime(invoice.appointment.scheduledAt, invoice.business.timezone, {
       hour: "2-digit",
       minute: "2-digit",
     });

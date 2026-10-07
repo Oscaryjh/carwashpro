@@ -1137,7 +1137,7 @@ export async function recordSalonAppointmentPaymentAction(
     } });
     const businessSst = await tx.business.findUniqueOrThrow({
       where: { id: businessId },
-      select: { sstEnabled: true, sstLabel: true, sstRate: true },
+      select: { sstEnabled: true, sstLabel: true, sstRate: true, timezone: true },
     });
     const appointment = await tx.appointment.findFirstOrThrow({
       where: {
@@ -1778,6 +1778,7 @@ export async function recordSalonAppointmentPaymentAction(
         invoiceNumber: invoice.invoiceNumber,
         status: nextStatus,
         issuedAt: invoice.issuedAt.toISOString(),
+        businessTimezone: businessSst.timezone,
         customerName: appointment.customer.name,
         customerPhone: appointment.customer.phone,
         items: invoice.items.map((item) => ({

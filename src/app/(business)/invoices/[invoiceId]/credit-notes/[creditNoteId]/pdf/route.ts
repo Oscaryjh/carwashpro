@@ -33,6 +33,7 @@ export async function GET(_request: Request, { params }: CreditNotePdfRouteProps
     include: {
       business: {
         select: {
+          timezone: true,
           address: true,
           companyNo: true,
           logoUrl: true,

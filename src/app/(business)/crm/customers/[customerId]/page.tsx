@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { invoiceTimeZone } from "@/lib/invoices/display-time";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { notFound } from "next/navigation";
@@ -113,6 +114,7 @@ export default async function CustomerDetailsPage({
       invoices: {
         where: operationalBranchWhere,
         include: {
+          business: { select: { timezone: true } },
           items: true,
           payments: {
             where: { status: "ACTIVE", ...operationalBranchWhere },
@@ -362,7 +364,7 @@ export default async function CustomerDetailsPage({
                       <Link href={`/invoices/${invoice.id}`}>{invoice.invoiceNumber}</Link>
                       <span>{formatStatus(invoice.status)} · RM{Number(invoice.total).toFixed(2)}</span>
                     </div>
-                    <small>{formatDateTime(invoice.issuedAt)}</small>
+                    <small>{formatDateTime(invoice.issuedAt, invoice.business.timezone)}</small>
                   </div>
                 ))}
               </div>
@@ -558,8 +560,9 @@ function formatCurrency(value: number | { toString(): string }) {
   return `RM${Number(value).toFixed(2)}`;
 }
 
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, timezone?: string) {
   return value.toLocaleString("en-MY", {
+    ...(timezone === undefined ? {} : { timeZone: invoiceTimeZone(timezone) }),
     dateStyle: "medium",
     timeStyle: "short",
   });

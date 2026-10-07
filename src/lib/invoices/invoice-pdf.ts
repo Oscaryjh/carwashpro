@@ -1,4 +1,5 @@
 import { deflateSync, inflateSync } from "node:zlib";
+import { invoiceTimeZone } from "@/lib/invoices/display-time";
 import { formatTaxLabel } from "@/lib/tax/format";
 
 type InvoicePdfItem = {
@@ -10,6 +11,7 @@ type InvoicePdfItem = {
 
 export type InvoicePdfInput = {
   company: {
+    timezone?: string | null;
     address?: string | null;
     companyNo?: string | null;
     logo?: InvoicePdfLogo | null;
@@ -171,7 +173,7 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
 
   text(input.numberLabel ?? "Invoice No.", 50, 692, { font: "bold", size: 9 });
   text(input.invoiceNumber, 50, 675, { font: "bold", size: 14 });
-  text(formatDate(input.issuedAt), 50, 658, { font: "bold", size: 9 });
+  text(formatDate(input.issuedAt, input.company.timezone), 50, 658, { font: "bold", size: 9 });
 
   text(reference.label, 330, 692, { font: "bold", size: 9 });
   text(reference.value, 330, 670, { font: "bold", size: 16 });
@@ -419,7 +421,7 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
     size: 8.5,
   });
   cursor -= 12;
-  text(`Date: ${formatDateTime(input.issuedAt)}`, RECEIPT_MARGIN, cursor, { size: 8.5 });
+  text(`Date: ${formatDateTime(input.issuedAt, input.company.timezone)}`, RECEIPT_MARGIN, cursor, { size: 8.5 });
   cursor -= 12;
   text(`${reference.label}: ${reference.value}`, RECEIPT_MARGIN, cursor, {
     font: "bold",
@@ -799,16 +801,18 @@ function formatReceiptMoney(value: unknown) {
   return Number(value ?? 0).toFixed(2);
 }
 
-function formatDate(value: Date) {
+function formatDate(value: Date, timezone?: string | null) {
   return value.toLocaleDateString("en-MY", {
+    timeZone: invoiceTimeZone(timezone),
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, timezone?: string | null) {
   return value.toLocaleString("en-MY", {
+    timeZone: invoiceTimeZone(timezone),
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

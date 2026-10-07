@@ -350,7 +350,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       ] = await Promise.all([
         tx.business.findUniqueOrThrow({
           where: { id: businessId },
-          select: { sstEnabled: true, sstLabel: true, sstRate: true },
+          select: { sstEnabled: true, sstLabel: true, sstRate: true, timezone: true },
         }),
         tx.package.findMany({
           where: {
@@ -1093,6 +1093,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           walletRefundScope: `${businessId}:${user.userId}:invoice:${invoice.id}`,
           status: invoice.status,
           issuedAt: invoice.issuedAt.toISOString(),
+          businessTimezone: business.timezone,
           customerName: customer?.name ?? "Walk-in customer",
           customerPhone: customer?.phone ?? "Not provided",
           checkoutType: invoice.checkoutType,

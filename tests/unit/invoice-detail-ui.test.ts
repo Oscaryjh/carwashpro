@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test, { before, beforeEach, after } from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
-import { type ReactElement } from "react";
+import { act, createElement, type ReactElement } from "react";
+import { createRoot } from "react-dom/client";
+import type { AppointmentInvoiceModal } from "../../src/components/appointment-invoice-modal";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const require = createRequire(import.meta.url);
@@ -12,7 +14,7 @@ const payment = (method: string, amount: number, refunded = 0) => ({ id: method,
 function fixture() {
   return {
     id: "invoice", businessId: "biz", invoiceNumber: "INV-1028", issuedAt: date, status: "PARTIAL",
-    business: { name: "Demo Salon", companyNo: null, sstRegistrationNo: null, phone: null, address: null },
+    business: { name: "Demo Salon", timezone: "Asia/Kuching", companyNo: null, sstRegistrationNo: null, phone: null, address: null },
     customer, appointmentId: "appointment", appointment: { id: "appointment", scheduledAt: date, customer, assignedStaff: { name: "Demo Staff" } as { name: string } | null },
     workOrder: null, customerPackage: null, creditNotes: [],
     items: [{ id: "item", name: "Balayage Highlights", unitPrice: 250, quantity: 2, lineTotal: 500, inventoryTracked: false, productId: null, inventoryRefundLines: [], customerPackage: null }],
@@ -20,15 +22,24 @@ function fixture() {
     total: 500, paidAmount: 200, balance: 300, payments: [payment("CASH", 200)],
   };
 }
-const state = { invoice: fixture() as Record<string, unknown> | null, denied: false, calls: [] as string[], query: {} as Record<string, unknown>, outbound: 0 };
+const state = { invoice: fixture() as Record<string, unknown> | null, denied: false, calls: [] as string[], query: {} as Record<string, unknown>, outbound: 0, notificationReferences: [] as string[] };
 const globals = globalThis as typeof globalThis & { __invoiceDetailUI?: typeof state };
 let page: (props: { params: Promise<{ invoiceId: string }> }) => Promise<ReactElement>;
+let listPage: (props: { searchParams: Promise<Record<string, string>> }) => Promise<ReactElement>;
+let pdfRoute: (request: Request, props: { params: Promise<{ invoiceId: string }> }) => Promise<Response>;
+let modal: typeof AppointmentInvoiceModal;
+let notification: (input: { businessId: string; invoiceId: string; sentByUserId: string }) => Promise<void>;
 before(async () => {
   globals.__invoiceDetailUI = state;
   const stubs: Record<string, string> = {
-    "@/lib/prisma": "export const prisma={invoice:{findFirst:async(query)=>{const s=globalThis.__invoiceDetailUI;s.query=query;return s.invoice}}};",
+    "@/lib/prisma": "export const prisma={whatsAppMessage:{create:async()=>({id:'mock-log'})},whatsAppConversation:{upsert:async()=>({})},invoice:{findMany:async()=>[globalThis.__invoiceDetailUI.invoice],count:async()=>1,findFirst:async(query)=>{const s=globalThis.__invoiceDetailUI;s.query=query;return s.invoice}}};",
+    "@/lib/modules/entitlements": "export const isBusinessModuleEnabled=async()=>true;",
+    "@/lib/whatsapp/instance": "export const getDefaultWhatsAppInstanceId=()=> 'mock-instance';",
+    "@/lib/whatsapp/notification-queue": "export const enqueueWhatsAppLogMessage=async()=>{};",
+    "@/lib/whatsapp/templates": "export const renderManagedWhatsAppTemplate=async(_key,data)=>{globalThis.__invoiceDetailUI.notificationReferences.push(data.plateNumber);return 'mock-message';};",
     "@/lib/industry-context": "export async function requireBusinessIndustryContext(cap){const s=globalThis.__invoiceDetailUI;s.calls.push(cap);if(s.denied)throw Error('DENIED');return {businessId:'biz',user:{branchId:'branch'},access:{effectiveBusinessRole:'STAFF'},industry:{industryType:'SALON_BEAUTY',orderLabel:'Appointment'}}}",
     "@/lib/branches": "export const authorizedOperationalBranchWhere=()=>({branchId:'branch'});",
+    "@/lib/auth/business-user": "export const requireBusinessUser=async()=>({businessId:'biz',user:{branchId:'branch'}});",
     "next/navigation": "export const useRouter=()=>({back(){}});export function notFound(){throw Error('NOT_FOUND')}",
     "next/link": "import{createElement}from'react';export default({children,...props})=>createElement('a',props,children);",
     "@/app/(business)/whatsapp/actions": "export async function openWhatsAppDeepLinkAction(){globalThis.__invoiceDetailUI.outbound++;throw Error('OUTBOUND_FORBIDDEN')}",
@@ -36,15 +47,19 @@ before(async () => {
     "@/components/void-invoice-form": "export const VoidInvoiceForm=()=>null;",
     "@/components/wallet/wallet-refund-form": "export const WalletRefundForm=()=>null;",
   };
-  const result = await build({ stdin: { contents: 'export {default} from "./src/app/(business)/invoices/[invoiceId]/page";', resolveDir: process.cwd() }, bundle: true, platform: "node", packages: "external", format: "cjs", write: false, jsx: "automatic", plugins: [{ name: "invoice-ui-boundaries", setup(b) {
+  const result = await build({ stdin: { contents: 'export {default} from "./src/app/(business)/invoices/[invoiceId]/page"; export {default as list} from "./src/app/(business)/invoices/page"; export {GET} from "./src/app/(business)/invoices/[invoiceId]/pdf/route"; export {AppointmentInvoiceModal} from "./src/components/appointment-invoice-modal"; export {sendInvoiceIfConnected} from "./src/lib/whatsapp/invoice-notifications";', resolveDir: process.cwd() }, bundle: true, platform: "node", packages: "external", format: "cjs", write: false, jsx: "automatic", plugins: [{ name: "invoice-ui-boundaries", setup(b) {
     b.onResolve({ filter: /.*/ }, a => stubs[a.path] ? { path: a.path, namespace: "stub" } : undefined);
     b.onLoad({ filter: /.*/, namespace: "stub" }, a => ({ contents: stubs[a.path], loader: "js", resolveDir: process.cwd() }));
     b.onLoad({ filter: /\.css$/ }, () => ({ contents: "export default new Proxy({}, {get:(_,key)=>key});", loader: "js" }));
   } }] });
   const bundled = { exports: {} }; new Function("require", "module", "exports", result.outputFiles[0].text)(require, bundled, bundled.exports);
   page = (bundled.exports as { default: typeof page }).default;
+  listPage = (bundled.exports as { list: typeof listPage }).list;
+  pdfRoute = (bundled.exports as { GET: typeof pdfRoute }).GET;
+  modal = (bundled.exports as { AppointmentInvoiceModal: typeof modal }).AppointmentInvoiceModal;
+  notification = (bundled.exports as { sendInvoiceIfConnected: typeof notification }).sendInvoiceIfConnected;
 });
-beforeEach(() => { Object.assign(state, { invoice: fixture(), denied: false, calls: [], query: {}, outbound: 0 }); });
+beforeEach(() => { Object.assign(state, { invoice: fixture(), denied: false, calls: [], query: {}, outbound: 0, notificationReferences: [] }); });
 after(() => { delete globals.__invoiceDetailUI; });
 const render = async () => renderToStaticMarkup(await page({ params: Promise.resolve({ invoiceId: "invoice" }) }));
 
@@ -74,7 +89,7 @@ test("linked appointment shows actual date/time/staff and its unchanged destinat
   const html = await render();
   assert.match(html, /<h2>Linked Appointment<\/h2>/);
   assert.ok(html.includes(date.toLocaleDateString("en-MY")));
-  assert.ok(html.includes(date.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })));
+  assert.ok(html.includes(date.toLocaleTimeString("en-MY", { timeZone: "Asia/Kuching", hour: "2-digit", minute: "2-digit" })));
   assert.match(html, /href="\/appointments\/appointment">View appointment →<\/a>/);
   assert.doesNotMatch(html, /Payment does not change the service status/);
 });
@@ -138,4 +153,86 @@ test("VOID remains the original status and does not expose a refund mutation for
   assert.ok(html.includes("<span>Paid</span><strong>RM0.00</strong>"));
   assert.ok(html.includes("<span>Balance Due</span><strong>RM500.00</strong>"));
   assert.doesNotMatch(html, /Refund payment/);
+});
+
+test("invoice and appointment instants render in the business timezone, not the UTC server", async () => {
+  const previousTimezone = process.env.TZ;
+  process.env.TZ = "UTC";
+  try {
+    const inv = fixture();
+    inv.issuedAt = new Date("2026-10-07T16:30:00Z");
+    inv.appointment.scheduledAt = new Date("2026-10-09T03:00:00Z");
+    state.invoice = inv;
+    const html = await render();
+    assert.ok(html.includes("08/10/2026"), "invoice crosses midnight in Kuching");
+    assert.ok(html.includes("09/10/2026"));
+    assert.ok(html.includes("11:00 am"), "appointment is 11 AM in Kuching");
+    assert.equal(inv.issuedAt.toISOString(), "2026-10-07T16:30:00.000Z");
+    assert.equal(inv.appointment.scheduledAt.toISOString(), "2026-10-09T03:00:00.000Z");
+    inv.business.timezone = "UTC";
+    const utcHtml = await render();
+    assert.ok(utcHtml.includes("07/10/2026"));
+    assert.ok(utcHtml.includes("03:00 am"));
+    assert.doesNotMatch(utcHtml, /11:00 am/);
+  } finally {
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
+});
+
+test("invoice list agrees with detail across midnight and uses a second business timezone", async () => {
+  const previous = process.env.TZ;
+  process.env.TZ = "UTC";
+  try {
+    const inv = fixture(); inv.issuedAt = new Date("2026-10-07T16:30:00Z"); state.invoice = inv;
+    assert.match(renderToStaticMarkup(await listPage({ searchParams: Promise.resolve({}) })), /08 Oct, 12:30 am/);
+    inv.business.timezone = "UTC";
+    assert.match(renderToStaticMarkup(await listPage({ searchParams: Promise.resolve({}) })), /07 Oct, 04:30 pm/);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
+test("real PDF/print route passes business timezone to receipt and appointment reference", async () => {
+  const inv = fixture(); inv.issuedAt = new Date("2026-10-07T16:30:00Z");
+  inv.appointment.scheduledAt = new Date("2026-10-09T03:00:00Z"); state.invoice = inv;
+  for (const suffix of ["", "?format=receipt"]) {
+    const response = await pdfRoute(new Request(`https://example.test/invoices/invoice/pdf${suffix}`), { params: Promise.resolve({ invoiceId: "invoice" }) });
+    const text = Buffer.from(await response.arrayBuffer()).toString("latin1");
+    assert.match(text, /08\/10\/2026/); assert.match(text, /09\/10\/2026/); assert.match(text, /11:00 am/);
+  }
+  assert.equal(state.outbound, 0);
+});
+
+test("Invoice modal uses DTO business zone even when browser zone is UTC", async () => {
+  const { JSDOM } = require("jsdom");
+  const dom = new JSDOM("<!doctype html><body><div id='root'></div></body>");
+  const previous = ["window", "document", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
+  const previousTZ = process.env.TZ; process.env.TZ = "UTC";
+  Object.defineProperty(globalThis, "window", { value: dom.window, configurable: true });
+  Object.defineProperty(globalThis, "document", { value: dom.window.document, configurable: true });
+  Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { value: true, configurable: true });
+  const root = createRoot(dom.window.document.getElementById("root"));
+  try {
+    const invoice = { ...fixture(), issuedAt: "2026-10-07T16:30:00Z", businessTimezone: "Asia/Kuching", customerName: "Customer", customerPhone: "" };
+    await act(async () => root.render(createElement(modal, { invoice, onClose() {} })));
+    assert.ok(dom.window.document.body.textContent.includes("08/10/2026"));
+    invoice.businessTimezone = "UTC";
+    await act(async () => root.render(createElement(modal, { invoice, onClose() {} })));
+    assert.ok(dom.window.document.body.textContent.includes("07/10/2026"));
+    assert.equal(invoice.issuedAt, "2026-10-07T16:30:00Z");
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
+    if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ;
+  }
+});
+
+test("notification receipt appointment reference uses the same legacy empty-zone default without sending", async () => {
+  const inv = fixture(); inv.business.timezone = "";
+  inv.appointment = { ...inv.appointment, scheduledAt: new Date("2026-10-09T03:00:00Z"), customer: { name: "Fixture", phone: "0123456789" } };
+  state.invoice = inv;
+  await notification({ businessId: "biz", invoiceId: "invoice", sentByUserId: "owner" });
+  assert.deepEqual(state.notificationReferences, ["09/10/2026 11:00 am"]);
 });
