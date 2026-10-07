@@ -364,6 +364,9 @@ export function AppointmentCalendar({
   });
   const visibleDatePickerDays = buildDatePickerDays(visibleMonthDate, dateCountByDay);
   const allTimeSlots = buildTimeSlots(businessStartTime, businessEndTime);
+  const newAppointmentTimeSlots = isTodayDateValue(newAppointmentDate)
+    ? allTimeSlots.filter((time) => !isPastAppointmentSlot(newAppointmentDate, time))
+    : allTimeSlots;
   const shouldHidePastSlots = isTodayDateValue(selectedDateValue) && !showEarlierSlots;
   const hiddenPastSlots = shouldHidePastSlots
     ? allTimeSlots.filter((time) => isEarlierThanPastVisibilityWindow(selectedDateValue, time))
@@ -1166,7 +1169,7 @@ export function AppointmentCalendar({
             </div>
 
             <div className="appointment-time-grid">
-              {visibleTimeSlots.map((time) => {
+              {newAppointmentTimeSlots.map((time) => {
                 const isPastTime = isPastAppointmentSlot(newAppointmentDate, time);
 
                 return (
