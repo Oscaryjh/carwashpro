@@ -80,6 +80,7 @@ export async function GET(request: Request) {
     packages: balances.map((balance) => ({
       id: balance.id,
       customerPackageId: balance.customerPackage.id,
+      purchasedAt: balance.customerPackage.purchasedAt.toISOString(),
       name: balance.customerPackage.package.name,
       remainingUses: balance.remainingUses,
       serviceId: balance.service.id,

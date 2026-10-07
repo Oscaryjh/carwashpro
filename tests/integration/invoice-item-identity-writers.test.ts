@@ -46,6 +46,41 @@ async function invoiceItems(businessId: string) {
   return db.invoiceItem.findMany({ where: { businessId }, orderBy: { name: "asc" } });
 }
 
+test("Cashier same-name entitlements resolve each submitted balance to its exact CustomerPackage, never its sibling", async () => {
+  const h = await checkoutHarness(db);
+  try {
+    const f = await fixture(); await h.login(db, f);
+    const identities = [
+      { id: "7c2109ff-f47c-58c3-b50c-ae2412249f43", balanceId: "c924dd4a-384c-5376-8748-63440aa3a532", purchasedAt: new Date("2026-10-01T00:00:00Z") },
+      { id: "5df473cc-39d5-499d-93a3-5b730748290a", balanceId: "4d719354-1c84-441d-9c33-b4285bf6ec9b", purchasedAt: new Date("2026-10-07T00:00:00Z") },
+    ];
+    for (const identity of identities) await db.customerPackage.create({ data: {
+      id: identity.id, businessId: f.business.id, branchId: f.branch.id, customerId: f.customer.id,
+      packageId: f.packages[0].id, purchasePrice: 5, totalUses: 2, remainingUses: 2, status: "ACTIVE", purchasedAt: identity.purchasedAt,
+      serviceBalances: { create: { id: identity.balanceId, businessId: f.business.id, serviceId: f.second.id, totalUses: 2, remainingUses: 2 } },
+    } });
+    for (const [index, identity] of identities.entries()) {
+      const visit = await db.appointment.create({ data: {
+        businessId: f.business.id, branchId: f.branch.id, customerId: f.customer.id, assignedStaffId: f.actor.id,
+        serviceId: f.second.id, serviceIds: [f.second.id], scheduledAt: new Date(), status: "COMPLETED",
+      } });
+      const sale = form({ ...f.confirmation, operationId: randomUUID(), branchId: f.branch.id,
+        customerId: f.customer.id, appointmentId: visit.id, assignedStaffId: f.actor.id, paymentMethodCode: "BUILTIN_CASH",
+        serviceId: f.second.id, serviceQuantity: "1", customerPackageId: identity.balanceId, walletAmount: "0" });
+      const result = await h.action.completeCashierSaleAction(sale);
+      assert.equal(result.status, "success", result.message);
+      const item = await db.invoiceItem.findFirstOrThrow({ where: { invoiceId: result.invoice!.id, serviceId: f.second.id } });
+      assert.equal(item.customerPackageId, identity.id);
+      assert.equal(item.kind, "SERVICE");
+      for (const [otherIndex, other] of identities.entries()) {
+        const expected = otherIndex <= index ? 1 : 2;
+        assert.equal((await db.customerPackage.findUniqueOrThrow({ where: { id: other.id } })).remainingUses, expected);
+        assert.equal((await db.customerPackageServiceBalance.findUniqueOrThrow({ where: { id: other.balanceId } })).remainingUses, expected);
+      }
+    }
+  } finally { await h.close(); }
+});
+
 test("Cashier mixed service/product/two package purchases/covered service persist source identity, never primary-package heuristics", async () => {
   const h = await checkoutHarness(db);
   try {

@@ -1685,6 +1685,10 @@
   text-align: left;
 }
 
+.customerPackageOptions button > span {
+  overflow-wrap: anywhere;
+}
+
 .customerPackageOptions button:hover,
 .customerPackageOptions .customerPackageSelected {
   border-color: #178b80;

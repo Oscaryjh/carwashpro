@@ -26,6 +26,7 @@ import type {
   CashierCatalogType,
 } from "@/lib/cashier/catalog";
 import { RECENT_CATALOG_CATEGORY } from "@/lib/cashier/catalog";
+import { packageOptionDateLabels } from "@/lib/cashier/package-option-labels";
 import {
   calculateCatalogDiscountCents,
   formatCatalogDiscountScope,
@@ -71,6 +72,7 @@ export type CashierPaymentMethodOption = {
 type CustomerPackageBalanceOption = {
   id: string;
   customerPackageId: string;
+  purchasedAt?: string | null;
   name: string;
   remainingUses: number;
   serviceId: string;
@@ -511,6 +513,7 @@ export function CashierUnifiedSaleForm({
   const selectedCustomerPackages = useMemo(() => availableCustomerPackages.filter((option) =>
     selectedCustomerPackageIds.includes(option.id),
   ), [availableCustomerPackages, selectedCustomerPackageIds]);
+  const customerPackageDateLabels = useMemo(() => packageOptionDateLabels(availableCustomerPackages), [availableCustomerPackages]);
   // Match the server's product / individual package purchase / service order
   // for voucher-aware allocation; keep the existing non-voucher preview intact.
   const coverageLines = useMemo(() => selectedCustomerPackages.length ? [
@@ -1437,6 +1440,7 @@ export function CashierUnifiedSaleForm({
                               <span>
                                 <strong>{option.name}</strong>
                                 <small>{option.serviceName}</small>
+                                <small>{customerPackageDateLabels.get(option.id)}</small>
                               </span>
                               <b>{option.remainingUses}/{option.totalUses} uses</b>
                             </button>
