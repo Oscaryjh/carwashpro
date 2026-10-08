@@ -92,7 +92,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
         {message && !isCategoriesOpen ? <div className={messageType}>{message}</div> : null}
         <div className={`panel ${styles.panel}`}>
-          <form action="/products" className={styles.toolbar}>
+          <form key={JSON.stringify([query, status, categoryId])} action="/products" className={styles.toolbar}>
             <input aria-label="Search products" defaultValue={query} name="q" placeholder="Search product, SKU, or category" />
             <select defaultValue={status} name="status" aria-label="Status">
               <option value="">All status</option>

@@ -3,12 +3,13 @@ import test, { before, after } from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactElement } from "react";
+import { act, type ReactElement } from "react";
+import { createRoot } from "react-dom/client";
 
 const require = createRequire(import.meta.url);
 const { JSDOM } = require("jsdom");
 const categoryId = "33333333-3333-4333-8333-333333333333";
-const state = { query: {} as Record<string, unknown> };
+const state = { query: {} as Record<string, unknown>, navigationFixture: false };
 const globals = globalThis as typeof globalThis & { __productsHub?: typeof state };
 let Page: (props: { searchParams: Promise<Record<string, string>> }) => Promise<ReactElement>;
 let Detail: (props: { params: Promise<{productId: string}> }) => Promise<ReactElement>;
@@ -23,6 +24,13 @@ before(async () => {
     "@/lib/branches": "export const getActiveBranches=async()=>[{id:'a',name:'Main'},{id:'b',name:'Second'}]",
     "@/lib/prisma": `const row={id:'prod',name:'Shampoo',sku:'SKU-001',price:35,costPrice:12,taxable:true,taxRate:6,status:'ACTIVE',description:'Retail bottle',trackInventory:true,categoryId:'${categoryId}',productCategory:{name:'Hair care'},stocks:[{branchId:'a',quantity:3,reorderLevel:1,branch:{name:'Main'}},{branchId:'b',quantity:4,reorderLevel:2,branch:{name:'Second'}}],_count:{invoiceItems:1}};export const prisma={product:{findMany:async(q)=>{globalThis.__productsHub.query=q;return[row]},count:async()=>25,findFirst:async()=>row},productCategory:{findMany:async()=>[{id:'${categoryId}',name:'Hair care',status:'ACTIVE',_count:{products:1}}]},business:{findUnique:async()=>({sstRate:6})}}`,
   };
+  stubs["@/lib/prisma"] += `
+    const originalFindMany=prisma.product.findMany;
+    const rows=[row,{...row,id:'inactive',name:'Archived conditioner',status:'INACTIVE',categoryId:'other'}];
+    const matching=(where)=>rows.filter(p=>(!where.status||p.status===where.status)&&(!where.categoryId||p.categoryId===where.categoryId)&&(!where.OR||p.name.toLowerCase().includes(where.OR[0].name.contains.toLowerCase())));
+    prisma.product.findMany=async(q)=>globalThis.__productsHub.navigationFixture?matching(q.where).slice(q.skip,q.skip+q.take):originalFindMany(q);
+    prisma.product.count=async(q)=>globalThis.__productsHub.navigationFixture?matching(q.where).length:25;
+  `;
   const result = await build({stdin:{contents:'export{default as Page}from"./src/app/(business)/products/page";export{default as Detail}from"./src/app/(business)/products/[productId]/page";export{default as NewPage}from"./src/app/(business)/products/new/page";export{default as CategoriesPage}from"./src/app/(business)/products/categories/page";',resolveDir:process.cwd()},write:false,bundle:true,platform:"node",format:"cjs",packages:"external",jsx:"automatic",plugins:[{name:"products-io",setup(b){
     b.onResolve({filter:/.*/},a=>stubs[a.path]?{path:a.path,namespace:"stub"}:undefined);
     b.onLoad({filter:/.*/,namespace:"stub"},a=>({contents:stubs[a.path],loader:"ts",resolveDir:process.cwd()}));
@@ -34,6 +42,61 @@ before(async () => {
   ({Page,Detail,NewPage,CategoriesPage}=compiled.exports);
 });
 after(()=>{delete globals.__productsHub});
+
+test("Clear client navigation resets Status, Category and edited Search with the restored list, without a reload",async()=>{
+  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/products'});
+  const saved=new Map<string,PropertyDescriptor|undefined>();
+  for(const [key,value] of Object.entries({window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true})){
+    saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));
+    Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+  }
+  const doc=dom.window.document as Document;
+  const root=createRoot(doc.getElementById('root')!);
+  state.navigationFixture=true;
+  const navigate=async(href:string)=>{
+    dom.window.history.pushState(null,'',href);
+    const params=Object.fromEntries(new URL(dom.window.location.href).searchParams);
+    const page=await Page({searchParams:Promise.resolve(params)});
+    await act(async()=>{root.render(page)});
+  };
+  let navigation=Promise.resolve();
+  const followLink=(event:Event)=>{
+    const anchor=(event.target as Element).closest('a');
+    if(anchor){event.preventDefault();navigation=navigate(anchor.getAttribute('href')!)}
+  };
+  doc.addEventListener('click',followLink);
+  try{
+    const cases: Record<string,string>[]=[{status:'INACTIVE'},{categoryId},{q:'Archived'},{status:'INACTIVE',q:'Archived'}];
+    for(const params of cases){
+      await navigate(`/products?${new URLSearchParams(params)}`);
+      assert.equal(doc.querySelectorAll('tbody tr').length,1);
+      const search=doc.querySelector<HTMLInputElement>('input[name="q"]')!;
+      search.value='unsaved search';
+      const clear=[...doc.querySelectorAll('a')].find(a=>a.textContent==='Clear')!;
+      assert.ok(clear);
+      clear.click();
+      await navigation;
+      assert.equal(dom.window.location.pathname,'/products');
+      assert.equal(dom.window.location.search,'');
+      assert.equal(doc.querySelectorAll('tbody tr').length,2);
+      assert.match(doc.querySelector('tbody')!.textContent!,/Shampoo/);
+      assert.match(doc.querySelector('tbody')!.textContent!,/Archived conditioner/);
+      assert.equal(doc.querySelector<HTMLSelectElement>('[name="status"]')!.value,'');
+      assert.equal(doc.querySelector<HTMLSelectElement>('[name="categoryId"]')!.value,'');
+      assert.equal(doc.querySelector<HTMLInputElement>('[name="q"]')!.value,'');
+      assert.equal(dom.window.document,doc,'the same document is retained');
+    }
+    await navigate('/products?status=INACTIVE');
+    assert.equal(doc.querySelector<HTMLSelectElement>('[name="status"]')!.value,'INACTIVE');
+    assert.equal(doc.querySelectorAll('tbody tr').length,1);
+  }finally{
+    await act(async()=>root.unmount());
+    state.navigationFixture=false;
+    doc.removeEventListener('click',followLink);
+    dom.window.close();
+    for(const [key,descriptor] of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key)}
+  }
+});
 
 test("Products Settings contains only Categories, with New Product directly accessible",async()=>{
   const dom=new JSDOM(renderToStaticMarkup(await Page({searchParams:Promise.resolve({})})));
