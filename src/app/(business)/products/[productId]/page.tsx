@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { BackButton } from "@/components/back-button";
+import Link from "next/link";
+import styles from "@/components/products/products-hub.module.css";
 import { ProductForm } from "@/components/product-form";
 import { DeleteProductForm } from "@/components/delete-product-form";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
@@ -27,8 +28,8 @@ export default async function ProductDetailsPage({ params }: { params: Promise<{
 
   return (
     <>
-      <section className="content">
-        <div className="page-header"><div><h1>{product.name}</h1><p>Edit product details and inventory tracking.</p></div><BackButton fallbackHref="/products" /></div>
+      <section className={`content ${styles.hub}`}>
+        <div className={`page-header ${styles.header}`}><div><h1>{product.name}</h1><p>Edit product details and inventory tracking.</p></div><Link className="secondary-link-button" href="/products">Back to Products</Link></div>
         <div className="panel"><div className="section-header"><h2>Edit product</h2><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></div><ProductForm action={updateProductAction} branches={branches} categories={categories} inventoryEnabled={moduleContext.enabledModules.has("INVENTORY")} product={productForForm} submitLabel="Save product" /><div className="form-actions service-action-row"><form action={deactivateProductAction}><input name="productId" type="hidden" value={product.id} /><button className="danger-button" type="submit">Deactivate product</button></form><DeleteProductForm productId={product.id} productName={product.name} label="Delete product" /></div></div>
       </section>
     </>

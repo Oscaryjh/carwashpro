@@ -52,7 +52,7 @@ function renderShell(role = "BUSINESS_OWNER", permissions: string[] = [], access
 test("Owner sees Dashboard before Cashier without changing existing nav order", async () => {
   const frame = await renderShell();
   assert.deepEqual(frame.props.navItems.map(item => item.label), [
-    "Dashboard", "Cashier", "Services", "Appointments", "CRM", "Membership", "Expenses", "Shift Closing", "People", "Reports", "Catalog", "Company settings", "Security",
+    "Dashboard", "Cashier", "Services", "Products", "Appointments", "CRM", "Membership", "Expenses", "Shift Closing", "People", "Reports", "Catalog", "Company settings", "Security",
   ]);
   assert.deepEqual(frame.props.navItems[0], { href: "/dashboard", label: "Dashboard", shortLabel: "Dashboard", icon: "dashboard" });
 });
@@ -61,7 +61,7 @@ test("Services is a single root entry after Packages while Catalog retains its o
   const frame = await renderShell("BUSINESS_OWNER", [], { granted: true, businessId: "business", source: "DIRECT_BUSINESS", effectiveBusinessRole: "BUSINESS_OWNER" });
   const entries = frame.props.navItems;
   assert.equal(entries[entries.findIndex(item => item.href === "/package-hub") + 1].href, "/services");
-  assert.deepEqual(entries.find(item => item.label === "Catalog")?.children?.map(item => item.href), ["/products", "/crm/wallet/offers", "/discounts"]);
+  assert.deepEqual(entries.find(item => item.label === "Catalog")?.children?.map(item => item.href), ["/crm/wallet/offers", "/discounts"]);
   assert.equal(entries.filter(item => item.href === "/services").length, 1);
 });
 
@@ -75,6 +75,20 @@ test("Services retains Staff, Group Manager and POS module eligibility", async (
     state.modules = ["SALON"];
     assert.ok(!(await renderShell()).props.navItems.some(item => item.href === "/services"));
   } finally { state.modules = original; }
+});
+
+test("Products is a single root entry after Services with unchanged eligibility", async () => {
+  const owner = (await renderShell()).props.navItems;
+  assert.equal(owner[owner.findIndex(item => item.href === "/services") + 1].href, "/products");
+  assert.equal(owner.filter(item => item.href === "/products").length, 1);
+  assert.ok(!owner.flatMap(item => item.children ?? []).some(item => item.href === "/products"));
+  for (const [permissions, expected] of [[[], false], [["PRODUCTS"], true], [["SERVICES"], false]] as const) {
+    assert.equal((await renderShell("STAFF", [...permissions])).props.navItems.some(item => item.href === "/products"), expected);
+  }
+  assert.ok((await renderShell("STAFF", [], { granted: true, source: "GROUP_ACCESS", effectiveBusinessRole: "GROUP_MANAGER_READ_ONLY" })).props.navItems.some(item => item.href === "/products"));
+  const original = state.modules;
+  try { state.modules = ["SALON"]; assert.ok(!(await renderShell()).props.navItems.some(item => item.href === "/products")); }
+  finally { state.modules = original; }
 });
 
 test("Staff Dashboard visibility follows DASHBOARD permission, not REPORTS", async () => {

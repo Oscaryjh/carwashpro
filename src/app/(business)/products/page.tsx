@@ -4,6 +4,8 @@ import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
 import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeleteProductForm } from "@/components/delete-product-form";
 import { ProductCreateModal } from "@/components/product-create-modal";
+import { ProductSettingsMenu } from "@/components/products/product-settings-menu";
+import styles from "@/components/products/products-hub.module.css";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getActiveBranches } from "@/lib/branches";
@@ -75,25 +77,23 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <>
-      <section className="content">
-        <div className="page-header">
+      <section className={`content ${styles.hub}`}>
+        <div className={`page-header ${styles.header}`}>
           <div>
             <h1>Products</h1>
-            <p>{hasFilters ? `${matchingCount} product${matchingCount === 1 ? "" : "s"} match this filter.` : "Manage retail products and stock for each branch."}</p>
+            <p>{hasFilters ? `${matchingCount} product${matchingCount === 1 ? "" : "s"} match this filter.` : "Manage your product catalog."}</p>
           </div>
-          <div className="inline-actions">
-            <Link className="secondary-link-button" href="/products?modal=categories">
-              Categories
-            </Link>
+          <div className={styles.headerActions}>
+            <ProductSettingsMenu />
             <Link className="button-link" href="/products?modal=create">
               New Product
             </Link>
           </div>
         </div>
         {message && !isCategoriesOpen ? <div className={messageType}>{message}</div> : null}
-        <div className="panel">
-          <form action="/products" className="search-form product-filter-form">
-            <input defaultValue={query} name="q" placeholder="Search product, SKU, or category" />
+        <div className={`panel ${styles.panel}`}>
+          <form action="/products" className={styles.toolbar}>
+            <input aria-label="Search products" defaultValue={query} name="q" placeholder="Search product, SKU, or category" />
             <select defaultValue={status} name="status" aria-label="Status">
               <option value="">All status</option>
               <option value="ACTIVE">Active</option>
@@ -108,8 +108,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           </form>
           {products.length ? (
             <>
-            <div className="catalog-table-scroll">
-            <table className="table catalog-table catalog-table--products">
+            <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Products list">
+            <table className={`table ${styles.table}`}>
               <thead>
                 <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
               </thead>
@@ -117,10 +117,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 {products.map((product, index) => (
                   <tr key={product.id}>
                     <td className="table-number">{pageSkip + index + 1}</td>
-                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link></td>
+                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name || product.category ? <small className={styles.category}>{product.productCategory?.name ?? product.category}</small> : null}</td>
                     <td>{product.sku ?? "-"}</td>
-                    <td>RM{Number(product.price).toFixed(2)}</td>
-                    <td>{product.trackInventory ? product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
+                    <td className={styles.amount}>RM{Number(product.price).toFixed(2)}</td>
+                    <td className={styles.amount}>{product.trackInventory ? product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
                     <td><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></td>
                     <td>
                       <div className="catalog-table-actions">

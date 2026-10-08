@@ -56,7 +56,7 @@ test("authorized Owner gets Top-up Offers under Catalog at the unchanged URL",as
   const catalog=frame.props.navItems.find((n:any)=>n.label==="Catalog");
   assert.ok(catalog);
   assert.deepEqual(catalog.children.filter((n:any)=>n.href==="/crm/wallet/offers").map((n:any)=>n.label),["Top-up Offers"]);
-  assert.deepEqual(catalog.children.filter((n:any)=>n.href!=="/crm/wallet/offers").map((n:any)=>n.href),["/packages","/products","/discounts"]);
+  assert.deepEqual(catalog.children.filter((n:any)=>n.href!=="/crm/wallet/offers").map((n:any)=>n.href),["/packages","/discounts"]);
 });
 
 test("Wallet OFF, missing POS dependency, Staff and Platform Admin never gain the entry",async()=>{

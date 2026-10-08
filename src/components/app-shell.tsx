@@ -106,9 +106,6 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     ...(isStoreUser && !packageHubVisible && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
-    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_CATALOG")
-      ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "products" as const }]
-      : []),
     ...(isBusinessOwner && moduleEnabled("POS") && moduleEnabled("WALLET")
       ? [{ href: "/crm/wallet/offers", label: "Top-up Offers", shortLabel: "Top-up", icon: "membership" as const }]
       : []),
@@ -266,6 +263,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("SERVICES", "VIEW_CATALOG")
       ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
+      : []),
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_CATALOG")
+      ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "products" as const }]
       : []),
     ...(isStoreUser && operationalIndustryEnabled &&
     canSeeCapability("APPOINTMENTS", "VIEW_APPOINTMENTS")
