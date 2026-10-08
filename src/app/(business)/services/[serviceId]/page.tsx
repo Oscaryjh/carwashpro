@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { BackButton } from "@/components/back-button";
+import Link from "next/link";
+import styles from "@/components/services/services-hub.module.css";
 import { DeleteServiceForm } from "@/components/delete-service-form";
 import { ServiceForm } from "@/components/service-form";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
@@ -80,16 +81,16 @@ export default async function ServiceDetailsPage({
 
   return (
     <>
-      <section className="content">
-        <div className="page-header">
+      <section className={`content ${styles.hub}`}>
+        <div className={`page-header ${styles.header}`}>
           <div>
             <h1>{service.name}</h1>
             <p>RM{Number(service.price).toFixed(2)}</p>
           </div>
-          <BackButton fallbackHref="/services" />
+          <Link className="secondary-link-button" href="/services">Back to Services</Link>
         </div>
 
-        <div className="grid">
+        <div className={styles.detailFacts}>
           <Info
             label="Category"
             value={service.serviceCategory?.name ?? service.category ?? "-"}

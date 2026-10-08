@@ -103,9 +103,6 @@ export async function AppShell({ user, access, children }: AppShellProps) {
   }
   const brandName = business?.name ?? "TETAMU POS";
   const catalogChildren: NavItem[] = [
-    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("SERVICES", "VIEW_CATALOG")
-      ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
-      : []),
     ...(isStoreUser && !packageHubVisible && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
@@ -266,6 +263,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
     ...(packageHubVisible
       ? [{ href: "/package-hub", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
+      : []),
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("SERVICES", "VIEW_CATALOG")
+      ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
       : []),
     ...(isStoreUser && operationalIndustryEnabled &&
     canSeeCapability("APPOINTMENTS", "VIEW_APPOINTMENTS")

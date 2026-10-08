@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import type { NavItem } from "../../src/components/app-shell-frame";
 
 const require = createRequire(import.meta.url);
-const state = { pathname: "/team", query: "" };
+const state = { pathname: "/team", query: "", modules: ["POS", "SALON", "WALLET", "LOYALTY", "EXPENSE"] };
 const globals = globalThis as typeof globalThis & { __dashboardNav?: typeof state };
 type User = { role: string; businessId: string; permissions: string[] };
 let shell: (input: { user: User; children: null; access?: object }) => Promise<ReactElement<{ navItems: NavItem[] }>>;
@@ -17,10 +17,11 @@ before(async () => {
   // Keep the real shell, frame, permission and capability implementations.
   // Stub authenticated I/O and unrelated shell integrations only.
   const stubs: Record<string, string> = {
+    "@/lib/wallet/hub-availability": `export const canViewWalletHub=async()=>false;`,
     "next/link": `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     "next/navigation": `export const usePathname=()=>globalThis.__dashboardNav.pathname;export const useSearchParams=()=>new URLSearchParams(globalThis.__dashboardNav.query);export function redirect(){throw Error('REDIRECT')}`,
     "@/lib/prisma": `export const prisma={business:{findUnique:async()=>({name:'Local',industryType:'SALON_BEAUTY',cashierShiftsEnabled:true})}};`,
-    "@/lib/modules/entitlements": `export const loadBusinessModuleContext=async()=>({enabledModules:new Set(['POS','SALON','WALLET','LOYALTY','EXPENSE'])});`,
+    "@/lib/modules/entitlements": `export const loadBusinessModuleContext=async()=>({enabledModules:new Set(globalThis.__dashboardNav.modules)});`,
     "@/lib/auth/mfa-feature": `export const isMfaFeatureEnabled=()=>false;`,
     "@/lib/auth/business-context-token": `export const createBusinessContextToken=()=>{throw Error('unexpected token')};`,
     "@/lib/approvals/service": `export const actionCenterDomains=[];export const resolveUnifiedApprovalContext=async()=>null;export const isUnifiedApprovalCenterAvailable=()=>false;export const getUnifiedApprovalCounts=()=>{throw Error('unexpected approvals')};`,
@@ -51,9 +52,29 @@ function renderShell(role = "BUSINESS_OWNER", permissions: string[] = [], access
 test("Owner sees Dashboard before Cashier without changing existing nav order", async () => {
   const frame = await renderShell();
   assert.deepEqual(frame.props.navItems.map(item => item.label), [
-    "Dashboard", "Cashier", "Appointments", "CRM", "Membership", "Expenses", "Shift Closing", "People", "Reports", "Catalog", "Company settings", "Security",
+    "Dashboard", "Cashier", "Services", "Appointments", "CRM", "Membership", "Expenses", "Shift Closing", "People", "Reports", "Catalog", "Company settings", "Security",
   ]);
   assert.deepEqual(frame.props.navItems[0], { href: "/dashboard", label: "Dashboard", shortLabel: "Dashboard", icon: "dashboard" });
+});
+
+test("Services is a single root entry after Packages while Catalog retains its other entries", async () => {
+  const frame = await renderShell("BUSINESS_OWNER", [], { granted: true, businessId: "business", source: "DIRECT_BUSINESS", effectiveBusinessRole: "BUSINESS_OWNER" });
+  const entries = frame.props.navItems;
+  assert.equal(entries[entries.findIndex(item => item.href === "/package-hub") + 1].href, "/services");
+  assert.deepEqual(entries.find(item => item.label === "Catalog")?.children?.map(item => item.href), ["/products", "/crm/wallet/offers", "/discounts"]);
+  assert.equal(entries.filter(item => item.href === "/services").length, 1);
+});
+
+test("Services retains Staff, Group Manager and POS module eligibility", async () => {
+  for (const [permissions, expected] of [[[], false], [["SERVICES"], true], [["PRODUCTS"], false]] as const) {
+    assert.equal((await renderShell("STAFF", [...permissions])).props.navItems.some(item => item.href === "/services"), expected);
+  }
+  assert.ok((await renderShell("STAFF", [], { granted: true, source: "GROUP_MEMBERSHIP", effectiveBusinessRole: "GROUP_MANAGER_READ_ONLY" })).props.navItems.some(item => item.href === "/services"));
+  const original = state.modules;
+  try {
+    state.modules = ["SALON"];
+    assert.ok(!(await renderShell()).props.navItems.some(item => item.href === "/services"));
+  } finally { state.modules = original; }
 });
 
 test("Staff Dashboard visibility follows DASHBOARD permission, not REPORTS", async () => {

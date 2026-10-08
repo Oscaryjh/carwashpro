@@ -1,0 +1,41 @@
+.hub { min-width: 0; gap: 14px; }
+.header { gap: 12px; margin-bottom: 0; align-items: center; }
+.header h1 { font-size: 26px; line-height: 1.2; }
+.header p { margin-top: 4px; font-size: 13px; }
+.headerActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.headerActions :global(.button-link), .header :global(.secondary-link-button) { min-height: 36px; padding: 8px 12px; font-size: 13px; }
+.panel { min-width: 0; padding: 14px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.toolbar input, .toolbar select { min-width: 0; width: auto; min-height: 36px; padding: 7px 10px; font-size: 13px; }
+.toolbar input { flex: 1 1 230px; }
+.toolbar select { flex: 0 1 170px; }
+.toolbar button, .toolbar :global(.secondary-link-button) { min-height: 36px; padding: 7px 12px; font-size: 13px; }
+.tableScroll { width: 100%; max-width: 100%; overflow-x: auto; }
+.table { width: 100%; min-width: 760px; margin: 0; font-size: 13px; }
+.table th, .table td { padding: 10px 9px; vertical-align: middle; }
+.table th { font-size: 11px; letter-spacing: .025em; white-space: nowrap; }
+.table td { overflow-wrap: anywhere; }
+.table td:nth-child(3) { min-width: 135px; }
+.staffSummary { min-width: 220px; max-width: 300px; }
+.table .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table :global(.status) { padding: 3px 7px; font-size: 10px; white-space: nowrap; }
+.table :global(.catalog-table-actions) { gap: 8px; white-space: nowrap; }
+.panel :global(.catalog-pagination) { justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; font-size: 12px; }
+.panel :global(.catalog-pagination-range) { margin-right: auto; }
+.detailFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.detailFacts :global(.metric) { padding: 12px; min-width: 0; }
+.detailFacts strong { font-size: 16px; overflow-wrap: anywhere; }
+.settings { position: relative; font-size: 13px; }
+.settings summary { cursor: pointer; list-style: none; border: 1px solid #cbd5e1; border-radius: 7px; padding: 8px 12px; min-height: 36px; display: flex; gap: 10px; align-items: center; }
+.settings summary::-webkit-details-marker { display: none; }
+.settings > div { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; width: 160px; padding: 4px; background: white; border: 1px solid #d8e2eb; border-radius: 8px; box-shadow: 0 4px 14px #0f172a12; }
+.settings a { display: block; padding: 8px 10px; border-radius: 5px; color: inherit; }
+.settings a:hover, .settings a:focus-visible { background: #edf6f5; }
+.hub a:focus-visible, .settings summary:focus-visible, .tableScroll:focus-visible { outline: 2px solid #0f766e; outline-offset: 3px; }
+@media (max-width: 800px) {
+  .header { flex-wrap: wrap; }
+  .header h1 { font-size: 23px; }
+  .panel { padding: 10px; }
+  .toolbar select { flex: 1 1 140px; }
+  .toolbar input { flex-basis: 100%; }
+}

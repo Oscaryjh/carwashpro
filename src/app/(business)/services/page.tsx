@@ -4,6 +4,8 @@ import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
 import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeleteServiceForm } from "@/components/delete-service-form";
 import { ServiceCreateModal } from "@/components/service-create-modal";
+import { ServiceSettingsMenu } from "@/components/services/service-settings-menu";
+import styles from "@/components/services/services-hub.module.css";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
@@ -137,8 +139,8 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
 
   return (
     <>
-      <section className="content">
-        <div className="page-header">
+      <section className={`content ${styles.hub}`}>
+        <div className={`page-header ${styles.header}`}>
           <div>
             <h1>Services</h1>
             <p>
@@ -149,10 +151,8 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   : "Service menu for this business."}
             </p>
           </div>
-          <div className="inline-actions">
-            <Link className="secondary-link-button" href="/services?modal=categories">
-              Categories
-            </Link>
+          <div className={styles.headerActions}>
+            <ServiceSettingsMenu />
             <Link className="button-link" href="/services?modal=create">
               New Service
             </Link>
@@ -161,10 +161,11 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
 
         {message && !isCategoriesOpen ? <div className={messageType}>{message}</div> : null}
 
-        <div className="panel">
-          <form className="search-form service-filter-form" action="/services">
+        <div className={`panel ${styles.panel}`}>
+          <form className={styles.toolbar} action="/services">
             <input
               name="q"
+              aria-label="Search services"
               defaultValue={query}
               placeholder="Search service, category, or branch"
             />
@@ -200,14 +201,14 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
           </form>
           {services.length ? (
             <>
-            <div className="catalog-table-scroll">
-            <table className="table catalog-table catalog-table--services">
+            <div className={styles.tableScroll} role="region" aria-label="Services list" tabIndex={0}>
+            <table className={`table ${styles.table}`}>
               <thead>
                 <tr>
                   <th>No.</th>
                   <th>Category</th>
                   <th>Service</th>
-                  <th>Price</th>
+                  <th className={styles.amount}>Price</th>
                   {isSalonBusiness ? <th>Duration</th> : null}
                   {isSalonBusiness ? <th>Staff</th> : null}
                   <th>Status</th>
@@ -225,7 +226,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                         <strong>{service.name}</strong>
                       </Link>
                     </td>
-                    <td>RM{Number(service.price).toFixed(2)}</td>
+                    <td className={styles.amount}>RM{Number(service.price).toFixed(2)}</td>
                     {isSalonBusiness ? (
                       <td>
                         {service.durationMinutes
@@ -236,7 +237,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                     {isSalonBusiness ? (
                       <td>
                         {service.staffAssignments.length ? (
-                          <div className="service-staff-summary">
+                          <div className={`service-staff-summary ${styles.staffSummary}`}>
                             {service.staffAssignments.map((assignment) => (
                               <span key={assignment.userId}>{assignment.user.name}</span>
                             ))}

@@ -30,7 +30,8 @@ test("Packages follows an existing Wallet entry, otherwise Cashier; authorized C
         const wallet = nav.findIndex(n => n.href === "/wallet");
         assert.ok(hub > 0);
         assert.equal(hub, nav.findIndex(n => n.href === (wallet >= 0 ? "/wallet" : "/cashier")) + 1);
-        assert.equal(nav[hub + 1].href, "/appointments");
+        assert.equal(nav[hub + 1].href, "/services");
+        assert.equal(nav[hub + 2].href, "/appointments");
         assert.equal(nav[hub].label, "Packages");
         assert.ok(!catalog.some(n => n.href === "/packages"));
       }
