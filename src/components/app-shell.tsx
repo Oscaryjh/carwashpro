@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { getBusinessHomeHref } from "@/lib/business-industry";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { canViewWalletHub } from "@/lib/wallet/hub-availability";
 
 type AppShellProps = {
   user: AppSession;
@@ -62,6 +63,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     : [null, null];
   const moduleEnabled = (moduleKey: ModuleKey) =>
     moduleKey === "CORE" || Boolean(moduleContext?.enabledModules.has(moduleKey));
+  const walletHubVisible = Boolean(grantedAccess && !isPlatformAdmin && user.businessId &&
+    isBusinessOwner && moduleEnabled("WALLET") && moduleEnabled("POS") &&
+    await canViewWalletHub({ businessId: user.businessId, user }));
   const packageHubVisible = Boolean(grantedAccess && !isPlatformAdmin && user.businessId &&
     grantedAccess.businessId === user.businessId && isBusinessOwner && moduleEnabled("POS"));
   const isSalonBusiness = business?.industryType === "SALON_BEAUTY";
@@ -105,9 +109,6 @@ export async function AppShell({ user, access, children }: AppShellProps) {
   const catalogChildren: NavItem[] = [
     ...(isStoreUser && !packageHubVisible && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
-      : []),
-    ...(isBusinessOwner && moduleEnabled("POS") && moduleEnabled("WALLET")
-      ? [{ href: "/crm/wallet/offers", label: "Top-up Offers", shortLabel: "Top-up", icon: "membership" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("INVENTORY") && canSeeCapability("INVENTORY_VIEW", "VIEW_INVENTORY")
       ? [{ href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: "inventory" as const }]
@@ -257,6 +258,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             icon: "cashier" as const,
           },
         ]
+      : []),
+    ...(walletHubVisible
+      ? [{ href: "/wallet", label: "Wallet", shortLabel: "Wallet", icon: "membership" as const }]
       : []),
     ...(packageHubVisible
       ? [{ href: "/package-hub", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]

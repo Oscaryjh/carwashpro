@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { requireBusinessContext } from "@/lib/tenant";
 import { listWalletOffers } from "@/lib/wallet/ui-adapter";
 import { WalletOffers } from "@/components/wallet/wallet-offers";
@@ -9,5 +10,5 @@ export default async function WalletOffersPage() {
   if (access.effectiveBusinessRole !== "BUSINESS_OWNER") notFound();
   if (!(await isWalletAccessAllowed({ businessId }))) return <section className="content"><p>Member Wallet is not enabled for this business.</p></section>;
   const offers = await listWalletOffers({ businessId, user, branchId: null, shiftId: null });
-  return <section className="content"><WalletOffers businessId={businessId} initialOffers={offers} /></section>;
+  return <section className="content"><Link href="/wallet?view=top-ups">Back to Wallet</Link><WalletOffers businessId={businessId} initialOffers={offers} /></section>;
 }

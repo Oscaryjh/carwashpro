@@ -61,7 +61,7 @@ test("Services is a single root entry after Packages while Catalog retains its o
   const frame = await renderShell("BUSINESS_OWNER", [], { granted: true, businessId: "business", source: "DIRECT_BUSINESS", effectiveBusinessRole: "BUSINESS_OWNER" });
   const entries = frame.props.navItems;
   assert.equal(entries[entries.findIndex(item => item.href === "/package-hub") + 1].href, "/services");
-  assert.deepEqual(entries.find(item => item.label === "Catalog")?.children?.map(item => item.href), ["/crm/wallet/offers", "/discounts"]);
+  assert.deepEqual(entries.find(item => item.label === "Catalog")?.children?.map(item => item.href), ["/discounts"]);
   assert.equal(entries.filter(item => item.href === "/services").length, 1);
 });
 

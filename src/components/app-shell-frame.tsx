@@ -295,12 +295,11 @@ function isActiveNavItem(
   const [pathAndQuery] = href.split("#", 1);
   const [targetPath = href, targetQuery = ""] = pathAndQuery.split("?", 2);
 
+  // Offer management belongs to Wallet; preserve its existing deep link.
   if (targetPath === "/package-hub" && (pathname === "/packages" || pathname.startsWith("/packages/"))) return true;
-
-  // Offer management belongs to Catalog; keep its existing CRM URL compatible.
-  if (targetPath === "/crm" &&
+  if ((targetPath === "/crm" || targetPath === "/wallet") &&
     (pathname === "/crm/wallet/offers" || pathname.startsWith("/crm/wallet/offers/"))) {
-    return false;
+    return targetPath === "/wallet";
   }
 
   if (targetQuery) {

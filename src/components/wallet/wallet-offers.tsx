@@ -28,7 +28,7 @@ export function WalletOffers({ businessId, initialOffers }: { businessId: string
     save(form);
   }
   return <div className="wallet-ui wallet-offers">
-    <header className="wallet-offers-header"><div><h1>Top-up Offers</h1><p>Create wallet top-up amounts and bonus credit offers.</p></div><button type="button" onClick={() => { setEditing("new"); setMessage(""); }}>Create offer</button></header>
+    <header className="wallet-offers-header"><div><h1>Manage Top-up</h1><p>Create wallet top-up amounts and bonus credit offers.</p></div><button type="button" onClick={() => { setEditing("new"); setMessage(""); }}>Create offer</button></header>
     {message && !editing ? <p role="status" className="wallet-note">{message}</p> : null}
     <div className="wallet-table-wrap"><table className="wallet-table"><thead><tr><th>Offer name</th><th className="wallet-offer-money">Top-up amount</th><th className="wallet-offer-money">Bonus credit</th><th className="wallet-offer-money">Total wallet credit</th><th>Status</th><th>Actions</th></tr></thead><tbody>
       {offers.map(offer => <tr key={offer.id}><td>{offer.name}</td><td className="wallet-offer-money">{walletMoney(offer.paidAmount)}</td><td className="wallet-offer-money">+{walletMoney(offer.bonusAmount)}</td><td className="wallet-offer-money"><strong>{walletMoney(offer.totalCredited)}</strong></td><td>{offer.active ? "Active" : "Inactive"}</td><td><button type="button" className="secondary" disabled={pending} onClick={() => { setEditing(offer); setMessage(""); }}>Edit</button><button type="button" className="secondary" disabled={pending} onClick={() => toggle(offer)}>{offer.active ? "Deactivate" : "Activate"}</button></td></tr>)}

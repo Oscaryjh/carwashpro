@@ -5,20 +5,27 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactElement } from "react";
+import type { NavItem } from "../../src/components/app-shell-frame";
 
 const require = createRequire(import.meta.url);
 const { JSDOM } = require("jsdom");
 const businessId = "11111111-1111-4111-8111-111111111111";
 let directory: string;
-let ui: any;
-const state: any = { pathname: "/crm/wallet/offers", modules: ["POS", "WALLET"], role: "BUSINESS_OWNER", queries: [] };
+let ui: {
+  AppShell: (props: ReturnType<typeof context> & { children: null }) => Promise<ReactElement<{ navItems: NavItem[] }>>;
+  OffersPage: () => Promise<ReactElement>;
+};
+const state = { pathname: "/crm/wallet/offers", modules: ["POS", "WALLET"], role: "BUSINESS_OWNER", queries: [] as Array<{ businessId: string }>, context: context() };
+const globals = globalThis as typeof globalThis & { __catalogFixture?: typeof state };
 before(async () => {
-  (globalThis as any).__catalogFixture = state;
+  globals.__catalogFixture = state;
   directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/topup-catalog-"));
   const outfile = join(directory, "ui.cjs");
   // Real shell/frame, route, entitlement dependency resolution and offer component.
   // Only authenticated I/O and unrelated shell integrations are replaced.
   const stubs: Record<string, string> = {
+    "@/lib/wallet/hub-availability": `export const canViewWalletHub=async()=>true;`,
     "next/link": `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     "next/navigation": `export const usePathname=()=>globalThis.__catalogFixture.pathname;export const useSearchParams=()=>new URLSearchParams();export function notFound(){throw Error('NOT_FOUND')}export function redirect(){throw Error('REDIRECT')}`,
     "@/lib/prisma": `export const prisma={business:{findUnique:async()=>({name:'Local',industryType:'AUTO_DETAILING'})},businessModuleEntitlement:{findMany:async()=>globalThis.__catalogFixture.modules.map(moduleKey=>({moduleKey,status:'ENABLED',enabledFrom:new Date(0),enabledUntil:null}))}};`,
@@ -40,7 +47,7 @@ before(async () => {
   }}] });
   ui = require(outfile);
 });
-after(async()=>{delete (globalThis as any).__catalogFixture;if(directory)await rm(directory,{recursive:true,force:true});});
+after(async()=>{delete globals.__catalogFixture;if(directory)await rm(directory,{recursive:true,force:true});});
 
 function context(role="BUSINESS_OWNER") {
   const user={role,userId:"actor",businessId,staffPermissions:[],activeBusinessId:businessId};
@@ -51,29 +58,31 @@ async function shell(role="BUSINESS_OWNER",modules=["POS","WALLET"],pathname="/c
   return ui.AppShell({...state.context,children:null});
 }
 
-test("authorized Owner gets Top-up Offers under Catalog at the unchanged URL",async()=>{
+test("Catalog removes Offers without reordering the remaining entries or adding a sidebar item",async()=>{
   const frame=await shell();
-  const catalog=frame.props.navItems.find((n:any)=>n.label==="Catalog");
-  assert.ok(catalog);
-  assert.deepEqual(catalog.children.filter((n:any)=>n.href==="/crm/wallet/offers").map((n:any)=>n.label),["Top-up Offers"]);
-  assert.deepEqual(catalog.children.filter((n:any)=>n.href!=="/crm/wallet/offers").map((n:any)=>n.href),["/packages","/discounts"]);
+  const catalog=frame.props.navItems.find(n=>n.label==="Catalog");
+  assert.ok(catalog?.children);
+  assert.deepEqual(catalog.children.filter(n=>n.href==="/crm/wallet/offers"),[]);
+  assert.ok(!frame.props.navItems.some(n=>n.href==="/crm/wallet/offers"));
+  assert.deepEqual(catalog.children.filter(n=>n.href!=="/crm/wallet/offers").map(n=>n.href),["/packages","/discounts"]);
 });
 
 test("Wallet OFF, missing POS dependency, Staff and Platform Admin never gain the entry",async()=>{
   for(const [role,modules] of [["BUSINESS_OWNER",["POS"]],["BUSINESS_OWNER",["WALLET"]],["STAFF",["POS","WALLET"]],["PLATFORM_ADMIN",["POS","WALLET"]]] as const){
     const frame=await shell(role,[...modules]);
-    assert.ok(!frame.props.navItems.some((n:any)=>n.children?.some((c:any)=>c.href==="/crm/wallet/offers")));
+    assert.ok(!frame.props.navItems.some(n=>n.children?.some(c=>c.href==="/crm/wallet/offers")));
   }
 });
 
-test("offers activates Catalog and Top-up Offers only, while other CRM URLs still activate CRM",async()=>{
+test("existing offers deep link activates Wallet only, while other CRM URLs still activate CRM",async()=>{
   for(const path of ["/crm/wallet/offers","/crm/wallet/offers/","/crm","/crm/customer","/crm/wallet/offers-other"]){
     const html=renderToStaticMarkup(await shell("BUSINESS_OWNER",["POS","WALLET"],path));
     const dom=new JSDOM(html);try{
       const d=dom.window.document;const offers=path==="/crm/wallet/offers"||path==="/crm/wallet/offers/";
       assert.equal(d.querySelector('a[href="/crm"]')?.classList.contains("active"),!offers);
-      assert.equal(d.querySelector('button[title="Catalog"]')?.classList.contains("active"),offers);
-      if(offers)assert.equal(d.querySelector('a[href="/crm/wallet/offers"]')?.classList.contains("active"),true);
+      assert.equal(d.querySelector('button[title="Catalog"]')?.classList.contains("active"),false);
+      assert.equal(d.querySelector('a[href="/wallet"]')?.classList.contains("active"),offers);
+      assert.equal(d.querySelector('a[href="/crm/wallet/offers"]'),null);
     }finally{dom.window.close();}
   }
 });
@@ -82,7 +91,8 @@ test("old direct offers route preserves Owner and Wallet guards and tenant-scope
   state.context=context();state.modules=["POS","WALLET"];state.queries=[];
   const html=renderToStaticMarkup(await ui.OffersPage());
   assert.doesNotMatch(html,/Customers|href="\/crm"|←/);
-  assert.match(html,/<h1>Top-up Offers<\/h1>/);
+  assert.match(html,/<h1>Manage Top-up<\/h1>/);
+  assert.match(html,/href="\/wallet\?view=top-ups"[^>]*>Back to Wallet<\/a>/);
   assert.match(html,/Create wallet top-up amounts and bonus credit offers\./);
   assert.match(html,/>Create offer<\/button>/);
   assert.equal(state.queries.length,1);assert.equal(state.queries[0].businessId,businessId);
