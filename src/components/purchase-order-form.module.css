@@ -1,0 +1,29 @@
+button.addLineButton {
+  width: auto;
+  flex-shrink: 0;
+  padding: 9px 12px;
+  border: 1px solid #8aaeb0;
+  border-radius: 7px;
+  color: #18565b;
+  background: #edf7f5;
+  font-weight: 650;
+}
+
+button.addLineButton:hover:not(:disabled) {
+  color: #103e42;
+  background: #d5eeea;
+  border-color: #087e78;
+}
+
+button.addLineButton:focus-visible {
+  outline: 3px solid #087e78;
+  outline-offset: 3px;
+}
+
+button.addLineButton:disabled {
+  color: #536975;
+  background: #eef1f2;
+  border-color: #bac8cc;
+  opacity: 1;
+  cursor: not-allowed;
+}

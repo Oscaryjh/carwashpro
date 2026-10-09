@@ -251,9 +251,9 @@ export async function setReorderSettings(input: CommandContext & {
   });
 }
 
-export async function getReorderView(input: { branchIds: string[]; businessId: string; page?: number; pageSize?: number; query?: string }) {
-  const page = Math.max(1, input.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 50));
+export async function getReorderView(input: { branchIds: string[]; businessId: string; page?: number; pageSize?: number; query?: string; status?: string }) {
+  const requestedPage = Number.isSafeInteger(input.page) && input.page! > 0 ? input.page! : 1;
+  const pageSize = Number.isSafeInteger(input.pageSize) ? Math.min(100, Math.max(1, input.pageSize!)) : 50;
   const query = input.query?.trim() ?? "";
   const [branches, products, stocks, openLines] = await Promise.all([
     prisma.branch.findMany({ where: { businessId: input.businessId, id: { in: input.branchIds }, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -280,8 +280,10 @@ export async function getReorderView(input: { branchIds: string[]; businessId: s
       suggestedQuantity: targetStockLevel === null ? null : Math.max(0, targetStockLevel - projectedStock), targetStockLevel,
     };
   }));
+  const filteredRows = allRows.filter(row => input.status === "out" ? row.onHand === 0 : input.status === "low" || input.status === "needs" ? row.onHand <= row.reorderLevel : true);
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(filteredRows.length / pageSize)));
   const start = (page - 1) * pageSize;
-  return { page, pageSize, rows: allRows.slice(start, start + pageSize), total: allRows.length };
+  return { page, pageSize, rows: filteredRows.slice(start, start + pageSize), total: filteredRows.length };
 }
 
 async function transition(input: CommandContext & { expectedRevision: number; sessionId: string }, commandType: Extract<StockCountCommandType, "START_COUNT" | "SUBMIT_COUNT" | "REOPEN_COUNT">, expectedStatus: "DRAFT" | "IN_PROGRESS" | "SUBMITTED", work: (tx: Tx, session: Awaited<ReturnType<typeof getSession>>) => Promise<Awaited<ReturnType<typeof getSession>>>, reason?: string) {

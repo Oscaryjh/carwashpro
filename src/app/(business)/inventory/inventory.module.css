@@ -16,7 +16,7 @@
   display: flex;
   gap: 24px;
   justify-content: space-between;
-  padding: 22px 24px;
+  padding: 14px 16px;
 }
 
 .hero h1,
@@ -236,7 +236,7 @@
 .metrics {
   display: grid;
   gap: 9px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 12px;
 }
 
@@ -305,7 +305,7 @@
 .desktopTable th,
 .desktopTable td {
   border-bottom: 1px solid #e8eded;
-  padding: 10px 9px;
+  padding: 8px 9px;
   text-align: left;
   vertical-align: middle;
 }
@@ -455,7 +455,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .desktopTable {
+.desktopTable {
     display: none;
   }
 

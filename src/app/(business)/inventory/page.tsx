@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { InventoryHubNavigation } from "@/components/inventory-hub-navigation";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import { prisma } from "@/lib/prisma";
 import styles from "./inventory.module.css";
 
 type InventoryPageProps = {
-  searchParams: Promise<{ branchId?: string; message?: string; q?: string; status?: string; type?: string }>;
+  searchParams: Promise<{ branchId?: string; message?: string; q?: string; status?: string; type?: string; view?: string }>;
 };
 
 function getStockState(quantity: number, reorderLevel: number) {
@@ -46,8 +48,8 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
   const balances = allBalances.filter(({ stock }) =>
     stockStatus === "out" ? stock.quantity <= 0 : stockStatus === "low" ? stock.quantity <= stock.reorderLevel : true,
   );
-  const quantityOnHand = allBalances.reduce((sum, { stock }) => sum + stock.quantity, 0);
-  const sellingValue = allBalances.reduce((sum, { product, stock }) => sum + Number(product.price) * stock.quantity, 0);
+  const inStock = allBalances.filter(({ stock }) => stock.quantity > stock.reorderLevel);
+  const purchasing = params.view === "purchasing";
   const recentMovements = await prisma.inventoryMovement.findMany({
     where: {
       businessId,
@@ -67,50 +69,15 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
     <section className={`content ${styles.inventoryPage}`}>
       <header className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Stock control</span>
           <h1>Inventory</h1>
-          <p>See what is on hand, identify stock that needs attention, and record every change through the inventory ledger.</p>
-        </div>
-        <div className={styles.heroActions}>
-          <Link className={styles.secondaryAction} href="/inventory/purchase-orders/new">New purchase order</Link>
-          <Link className={styles.primaryAction} href="/inventory/stock-in">Stock in</Link>
+          <p>See what is in store and choose what to do next.</p>
         </div>
       </header>
 
       {params.message ? <p className={`form-message ${params.type === "error" ? "error" : "success"}`}>{params.message}</p> : null}
 
-      <nav className={styles.actionGroups} aria-label="Inventory tools">
-        <section className={styles.actionGroup}>
-          <div><span className={styles.groupNumber}>01</span><h2>Move stock</h2></div>
-          <p>Record physical stock changes.</p>
-          <div className={styles.actionLinks}>
-            <Link href="/inventory/stock-in">Stock in</Link>
-            <Link href="/inventory/stock-out">Stock out</Link>
-            <Link href="/inventory/adjustment">Adjust</Link>
-            <Link href="/inventory/transfer">Transfer</Link>
-          </div>
-        </section>
-        <section className={styles.actionGroup}>
-          <div><span className={styles.groupNumber}>02</span><h2>Purchase</h2></div>
-          <p>Order, receive, bill and pay suppliers.</p>
-          <div className={styles.actionLinks}>
-            <Link href="/inventory/reorder">Reorder</Link>
-            <Link href="/inventory/purchase-orders">Purchase orders</Link>
-            <Link href="/inventory/suppliers">Suppliers</Link>
-            <Link href="/inventory/supplier-bills">Supplier bills</Link>
-            <Link href="/inventory/accounts-payable">Accounts payable</Link>
-          </div>
-        </section>
-        <section className={styles.actionGroup}>
-          <div><span className={styles.groupNumber}>03</span><h2>Control</h2></div>
-          <p>Count, audit and reconcile stock.</p>
-          <div className={styles.actionLinks}>
-            <Link href="/inventory/stock-counts">Stock counts</Link>
-            <Link href="/inventory/movements">All movements</Link>
-            <Link href="/inventory/reconciliation">Reconcile</Link>
-          </div>
-        </section>
-      </nav>
+      <InventoryHubNavigation access={access} purchasing={purchasing} branchId={params.branchId} />
+      {!purchasing ? <>
 
       <section className={styles.workspace} aria-labelledby="inventory-overview-heading">
         <div className={styles.workspaceHeader}>
@@ -150,36 +117,9 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         </form>
 
         <div className={styles.metrics}>
-          <article className={`${styles.metricCard} ${styles.primaryMetric}`}>
-            <span>Stock on hand</span>
-            <strong>{quantityOnHand}</strong>
-            <small>Units across the selected scope</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span>Tracked products</span>
-            <strong>{products.length}</strong>
-            <small>Products using inventory tracking</small>
-          </article>
-          <article className={`${styles.metricCard} ${lowStock.length ? styles.warningMetric : ""}`}>
-            <span>Low stock</span>
-            <strong>{lowStock.length}</strong>
-            <small>At or below reorder level</small>
-          </article>
-          <article className={`${styles.metricCard} ${outOfStock.length ? styles.dangerMetric : ""}`}>
-            <span>Out of stock</span>
-            <strong>{outOfStock.length}</strong>
-            <small>Needs immediate attention</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span>Retail value</span>
-            <strong>RM{sellingValue.toFixed(2)}</strong>
-            <small>Selling-price estimate, not COGS</small>
-          </article>
-          <article className={styles.metricCard}>
-            <span>Recent movements</span>
-            <strong>{recentMovements.length}</strong>
-            <small>Latest ledger entries shown below</small>
-          </article>
+          <article className={styles.metricCard}><span>Out of stock</span><strong>{outOfStock.length}</strong><small>Product/store balances at zero</small></article>
+          <article className={styles.metricCard}><span>Low stock</span><strong>{lowStock.length}</strong><small>At or below reorder level, including out of stock</small></article>
+          <article className={styles.metricCard}><span>In stock</span><strong>{inStock.length}</strong><small>Above reorder level</small></article>
         </div>
       </section>
 
@@ -230,8 +170,8 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
 
       <section className={styles.dataPanel} aria-labelledby="movement-ledger-heading">
         <div className={styles.panelHeader}>
-          <div><span className={styles.eyebrow}>Audit trail</span><h2 id="movement-ledger-heading">Recent movement ledger</h2></div>
-          <Link className={styles.textLink} href="/inventory/movements">View all movements</Link>
+          <div><span className={styles.eyebrow}>Audit trail</span><h2 id="movement-ledger-heading">Recent stock history</h2></div>
+          <Link className={styles.textLink} href="/inventory/movements">View stock history</Link>
         </div>
         {recentMovements.length ? (
           <div className={styles.desktopTable}>
@@ -240,11 +180,12 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         ) : (
           <div className={styles.emptyState}>
             <strong>No stock movements yet</strong>
-            <p>Stock in, stock out, transfers and adjustments will appear here as append-only ledger entries.</p>
-            <Link href="/inventory/stock-in">Record first stock in</Link>
+            <p>Stock received, used, moved or corrected will appear here.</p>
+            {hasBusinessCapability(access, "MANAGE_INVENTORY") ? <Link href="/inventory/stock-in">Add stock</Link> : null}
           </div>
         )}
       </section>
+      </> : null}
     </section>
   );
 }

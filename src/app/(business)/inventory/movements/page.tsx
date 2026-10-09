@@ -51,7 +51,7 @@ export default async function MovementPage({ searchParams }: MovementPageProps) 
   for (const [key, value] of Object.entries(params)) if (value && key !== "page") preserved.set(key, value);
   return (
     <section className="content">
-      <div className="page-header"><div><h1>Stock movement ledger</h1><p>Immutable quantity history with source, actor, before, and after values.</p></div><Link className="secondary-link-button" href="/inventory">Back to inventory</Link></div>
+      <div className="page-header"><div><h1>Stock history</h1><p>See why stock changed, who recorded it and the quantity before and after.</p></div><Link className="secondary-link-button" href="/inventory">Back to inventory</Link></div>
       <form className="filter-bar">
         <input name="q" defaultValue={query} placeholder="Product, SKU, reason, reference" />
         {branches.length > 1 ? <select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select> : null}

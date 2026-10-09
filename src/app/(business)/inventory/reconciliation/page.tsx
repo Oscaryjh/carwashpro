@@ -15,7 +15,7 @@ export default async function ReconciliationPage({ searchParams }: Reconciliatio
   const result = await reconcileInventory(businessId, scope);
   return (
     <section className="content">
-      <div className="page-header"><div><h1>Inventory reconciliation</h1><p>Compare balances, sales, goods receipts, PO quantities, and approved stock-count variances with their canonical movements.</p></div></div>
+      <div className="page-header"><div><h1>Check stock records</h1><p>Checks whether system stock balances match recorded stock movements. To count items physically in store, use Count stock.</p></div></div>
       {branches.length > 1 ? <form className="filter-bar"><select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><button type="submit">Run check</button></form> : null}
       <div className="panel">
         <div className="section-header"><h2>Result</h2><span className={`status ${result.ok ? "active" : "warning"}`}>{result.ok ? "MATCH" : "MISMATCH"}</span></div>

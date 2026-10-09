@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import styles from "./purchase-order-form.module.css";
 
 type ProductOption = { costPrice: number | null; id: string; name: string; sku: string | null };
 
@@ -16,7 +17,7 @@ export function PurchaseOrderForm({ action, branches, expectedRevision, initial,
     <label>Branch<select name="branchId" required disabled={Boolean(initial)} defaultValue={initial?.branchId ?? prefill?.branchId ?? branches[0]?.id}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
     <label>Order date<input name="orderDate" type="date" required defaultValue={initial?.orderDate ?? new Date().toISOString().slice(0, 10)} /></label>
     <label>Expected date<input name="expectedDate" type="date" defaultValue={initial?.expectedDate ?? ""} /></label>
-    <div className="full-width"><div className="section-header"><h2>Order lines</h2><button type="button" className="secondary-button" onClick={() => setLines((current) => [...current, { expectedUnitCost: products[0]?.costPrice ?? 0, orderedQuantity: 1, productId: products[0]?.id ?? "" }])}>Add line</button></div>
+    <div className="full-width"><div className="section-header"><h2>Order lines</h2><button type="button" className={styles.addLineButton} onClick={() => setLines((current) => [...current, { expectedUnitCost: products[0]?.costPrice ?? 0, orderedQuantity: 1, productId: products[0]?.id ?? "" }])}>Add line</button></div>
       {lines.map((line, index) => <div className="filter-bar" key={index}>
         <select aria-label={`Product ${index + 1}`} value={line.productId} onChange={(event) => { const product = products.find((item) => item.id === event.target.value); setLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, expectedUnitCost: product?.costPrice ?? 0, productId: event.target.value } : item)); }}><option value="" disabled>Select tracked product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}{product.sku ? ` (${product.sku})` : ""}</option>)}</select>
         <input aria-label={`Quantity ${index + 1}`} type="number" min="1" step="1" value={line.orderedQuantity} onChange={(event) => setLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, orderedQuantity: Number(event.target.value) } : item))} />
