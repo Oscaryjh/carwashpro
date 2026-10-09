@@ -17,6 +17,7 @@ import {
   getRecoveryBusinessContext,
 } from "@/lib/business-groups/business-context";
 import { loginSchema } from "@/lib/validation/login";
+import { getLoginCooldown } from "./cooldown-actions";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import {
   messageForLoginException,
@@ -25,6 +26,8 @@ import {
 
 export type LoginState = {
   error?: string;
+  cooldown?: { serverNow: number; retryAt: number | null };
+  cooldownEmail?: string;
 };
 
 export async function loginAction(
@@ -57,6 +60,17 @@ export async function loginAction(
   }
 
   if (!authenticated.ok) {
+    if (authenticated.code === "RATE_LIMITED") {
+      try {
+        return {
+          error: messageForPasswordLoginFailure(authenticated.code),
+          cooldown: await getLoginCooldown(parsed.data.email),
+          cooldownEmail: parsed.data.email.trim().toLowerCase(),
+        };
+      } catch {
+        // Status display must not change the original fail-closed decision.
+      }
+    }
     return { error: messageForPasswordLoginFailure(authenticated.code) };
   }
 

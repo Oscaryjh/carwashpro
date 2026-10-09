@@ -8,6 +8,7 @@ import {
 } from "../../src/lib/auth/password-login";
 import {
   authSecurityHashes,
+  checkPasswordLoginRateLimit,
   PASSWORD_LOGIN_IDENTIFIER_LIMIT,
   PASSWORD_LOGIN_WINDOW_MS,
 } from "../../src/lib/auth/security";
@@ -94,6 +95,12 @@ test("password abuse protection and server-side session revocation are determini
       { now: new Date(base.getTime() + 10_000) },
     );
     assert.deepEqual(limited, { ok: false, code: "RATE_LIMITED" });
+    const cooldown = await checkPasswordLoginRateLimit({
+      identifierHash: knownHash,
+      ipAddressHash: null,
+      now: new Date(base.getTime() + 10_000),
+    }, prisma);
+    assert.equal(cooldown.retryAt?.toISOString(), "2026-08-09T12:15:00.001Z");
 
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const rapidAttempt = await authenticatePasswordLogin(
@@ -106,6 +113,13 @@ test("password abuse protection and server-side session revocation are determini
       );
       assert.deepEqual(rapidAttempt, { ok: false, code: "RATE_LIMITED" });
     }
+
+    const refreshedCooldown = await checkPasswordLoginRateLimit({
+      identifierHash: knownHash,
+      ipAddressHash: null,
+      now: new Date(base.getTime() + 60_000),
+    }, prisma);
+    assert.equal(refreshedCooldown.retryAt?.toISOString(), "2026-08-09T12:15:00.001Z", "blocked retries and status reads do not extend the lock");
 
     const recovered = await authenticatePasswordLogin(
       {

@@ -250,9 +250,28 @@ export async function checkPasswordLoginRateLimit(
       : null,
   ].filter((value): value is string => value !== null);
 
+  // The limit-th newest failure must leave the inclusive rolling window.
+  // A blocked retry is not LOGIN_FAILED and must never extend this time.
+  const buckets = [
+    { blocked: identifierFailures >= PASSWORD_LOGIN_IDENTIFIER_LIMIT, where: { identifierHash: input.identifierHash }, limit: PASSWORD_LOGIN_IDENTIFIER_LIMIT },
+    { blocked: ipFailures >= PASSWORD_LOGIN_IP_LIMIT, where: { ipAddressHash: input.ipAddressHash }, limit: PASSWORD_LOGIN_IP_LIMIT },
+    { blocked: combinationFailures >= PASSWORD_LOGIN_COMBINATION_LIMIT, where: { identifierHash: input.identifierHash, ipAddressHash: input.ipAddressHash }, limit: PASSWORD_LOGIN_COMBINATION_LIMIT },
+  ];
+  const boundaries = await Promise.all(buckets.filter(bucket => bucket.blocked).map(async bucket => {
+    const failure = await database.authSecurityEvent.findFirst({
+      where: { ...baseWhere, ...bucket.where },
+      orderBy: { createdAt: "desc" },
+      skip: bucket.limit - 1,
+      select: { createdAt: true },
+    });
+    // Concurrent expiry/deletion in a read-only status check: do not guess.
+    return failure ? failure.createdAt.getTime() + PASSWORD_LOGIN_WINDOW_MS + 1 : null;
+  }));
+  const times = boundaries.filter((time): time is number => time !== null);
   return {
     allowed: reasons.length === 0,
     reasons,
+    retryAt: times.length ? new Date(Math.max(...times)) : null,
   } as const;
 }
 
