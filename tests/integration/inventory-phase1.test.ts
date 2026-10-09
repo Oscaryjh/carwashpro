@@ -223,13 +223,13 @@ test("Inventory Phase 1 preserves ledger, idempotency, concurrency, refund choic
     type: "STOCK_IN",
   })), /branch not found/);
 
-  const reconciliation = await reconcileInventory(business.id);
+  const reconciliation = await reconcileInventory(business.id, { kind: "business" });
   assert.equal(reconciliation.ok, true);
   assert.deepEqual(reconciliation.balanceMismatches, []);
   assert.deepEqual(reconciliation.saleMismatches, []);
 
   const missingMovementItem = await prisma.invoiceItem.create({ data: { businessId: business.id, invoiceId: invoice.id, productId: product.id, inventoryTracked: true, name: "Corrupted QA sale line", quantity: 1, unitPrice: 1, lineTotal: 1 } });
-  const failedReconciliation = await reconcileInventory(business.id);
+  const failedReconciliation = await reconcileInventory(business.id, { kind: "business" });
   assert.equal(failedReconciliation.ok, false);
   assert.ok(failedReconciliation.saleMismatches.some((item) => item.id === missingMovementItem.id && item.movementCount === 0));
   await prisma.invoiceItem.update({ where: { id: missingMovementItem.id }, data: { inventoryTracked: false } });

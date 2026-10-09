@@ -205,7 +205,7 @@ async function performanceHealth(input: { businessId: string; branchId: string |
   const [expense, ap, inventory] = await Promise.all([
     input.enabled.has("EXPENSE") ? reconcileExpenseSources({ businessId: input.businessId }) : null,
     input.enabled.has("INVENTORY") ? reconcileAccountsPayable({ businessId: input.businessId, allowedBranchIds: input.branchIds }) : null,
-    input.enabled.has("INVENTORY") ? reconcileInventory(input.businessId, input.branchId) : null,
+    input.enabled.has("INVENTORY") ? reconcileInventory(input.businessId, { kind: "branches", branchIds: input.branchIds }) : null,
   ]);
   const issues = (expense?.issues.length ?? 0) + (ap?.issues.length ?? 0) + (inventory && !inventory.ok ? 1 : 0);
   return { status: issues ? "NEEDS_REVIEW" as const : "HEALTHY" as const, issues,

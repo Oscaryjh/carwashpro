@@ -51,5 +51,5 @@ test("server actions enforce module capability and operational branch scope", ()
   const actions = readFileSync("src/app/(business)/inventory/stock-count-actions.ts", "utf8");
   for (const capability of ["CREATE_STOCK_COUNT", "COUNT_INVENTORY", "SUBMIT_STOCK_COUNT", "APPROVE_STOCK_COUNT", "REOPEN_STOCK_COUNT", "CANCEL_STOCK_COUNT", "MANAGE_REORDER_SETTINGS"]) assert.match(actions, new RegExp(capability));
   assert.match(actions, /resolveOperationalBranchId/);
-  assert.match(actions, /assertSessionBranch/);
+  // Existing-document denial is executed in inventory-authorization-audit.test.ts.
 });

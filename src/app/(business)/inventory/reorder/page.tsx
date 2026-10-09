@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getOperationalBranches } from "@/lib/branches";
+import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import type { StaffPermission } from "@/lib/auth/staff-permissions";
 import { getReorderView } from "@/lib/inventory/stock-count-service";
 import { setReorderSettingsAction } from "../stock-count-actions";
 
 export default async function ReorderPage({ searchParams }: { searchParams: Promise<{ branchId?: string; message?: string; page?: string; q?: string; status?: string; type?: string }> }) {
-  const { businessId, user } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY"); const params = await searchParams; const branches = await getOperationalBranches(businessId, user); const allBranchIds = branches.map((branch) => branch.id); const selectedBranch = allBranchIds.includes(params.branchId ?? "") ? params.branchId! : null;
+  const { businessId, user, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY"); const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId); const branches = await getInventoryReadBranches(businessId, access); const allBranchIds = branches.map((branch) => branch.id); const selectedBranch = allBranchIds.includes(params.branchId ?? "") ? params.branchId! : null;
   const result = await getReorderView({ branchIds: selectedBranch ? [selectedBranch] : allBranchIds, businessId, page: Number(params.page) || 1, pageSize: 50, query: params.q });
   const filter = ["needs", "out", "low"].includes(params.status ?? "") ? params.status : ""; const rows = result.rows.filter((row) => filter === "out" ? row.onHand === 0 : filter === "low" || filter === "needs" ? row.onHand <= row.reorderLevel : true);
   const can = (permission: StaffPermission) => user.role === "BUSINESS_OWNER" || (user.role === "STAFF" && user.permissions.includes(permission));

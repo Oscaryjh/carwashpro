@@ -1,17 +1,18 @@
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getOperationalBranches } from "@/lib/branches";
+import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import { reconcileInventory } from "@/lib/inventory/service";
 
 type ReconciliationPageProps = { searchParams: Promise<{ branchId?: string }> };
 
 export default async function ReconciliationPage({ searchParams }: ReconciliationPageProps) {
-  const { businessId, user } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
+  const { businessId, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
   const params = await searchParams;
-  const branches = await getOperationalBranches(businessId, user);
+  const branches = await getInventoryReadBranches(businessId, access);
   const selectedBranchId = branches.some((branch) => branch.id === params.branchId)
     ? params.branchId!
     : branches.length === 1 ? branches[0].id : null;
-  const result = await reconcileInventory(businessId, selectedBranchId);
+  const scope = await resolveInventoryReadScope(businessId, access, params.branchId);
+  const result = await reconcileInventory(businessId, scope);
   return (
     <section className="content">
       <div className="page-header"><div><h1>Inventory reconciliation</h1><p>Compare balances, sales, goods receipts, PO quantities, and approved stock-count variances with their canonical movements.</p></div></div>

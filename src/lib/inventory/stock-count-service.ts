@@ -1,3 +1,4 @@
+import { assertInventoryBranchWrite, assertInventoryDocumentWrite } from "@/lib/inventory/authorization";
 import { createHash } from "node:crypto";
 import {
   Prisma,
@@ -32,6 +33,7 @@ export async function createStockCount(input: CommandContext & {
   const productIds = [...new Set(input.productIds ?? [])].sort();
   const payload = { branchId: input.branchId, countType: input.countType, notes: clean(input.notes), productIds };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryBranchWrite(tx, input.businessId, input.actor.userId, "CREATE_STOCK_COUNT", input.branchId);
     const replay = await commandReplay(tx, input, "CREATE_COUNT", payload);
     if (replay) return getSession(tx, input.businessId, replay);
     const branch = await tx.branch.findUnique({
@@ -103,6 +105,7 @@ export async function recordStockCountLine(input: CommandContext & {
   if (!Number.isInteger(input.actualQuantity) || input.actualQuantity < 0) throw new Error("Actual quantity must be a non-negative whole number.");
   const payload = { actualQuantity: input.actualQuantity, expectedLineRevision: input.expectedLineRevision, lineId: input.lineId, notes: clean(input.notes), sessionId: input.sessionId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "COUNT_INVENTORY", "stockCount", input.sessionId);
     const replay = await commandReplay(tx, input, "RECORD_LINE", payload);
     if (replay) return tx.stockCountLine.findFirstOrThrow({ where: { businessId: input.businessId, id: replay }, include: { product: true, revisions: { orderBy: { revision: "desc" } } } });
     const line = await tx.stockCountLine.findFirst({
@@ -161,6 +164,7 @@ export async function cancelStockCount(input: CommandContext & { expectedRevisio
   if (input.reason.trim().length < 3) throw new Error("Cancellation reason is required.");
   const payload = { expectedRevision: input.expectedRevision, reason: input.reason.trim(), sessionId: input.sessionId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "CANCEL_STOCK_COUNT", "stockCount", input.sessionId);
     const replay = await commandReplay(tx, input, "CANCEL_COUNT", payload);
     if (replay) return getSession(tx, input.businessId, replay);
     const session = await getSession(tx, input.businessId, input.sessionId);
@@ -179,6 +183,7 @@ export async function approveStockCount(input: CommandContext & { expectedRevisi
   if (input.reason.trim().length < 3) throw new Error("Approval reason is required.");
   const payload = { expectedRevision: input.expectedRevision, reason: input.reason.trim(), sessionId: input.sessionId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "APPROVE_STOCK_COUNT", "stockCount", input.sessionId);
     const replay = await commandReplay(tx, input, "APPROVE_COUNT", payload);
     if (replay) return getSession(tx, input.businessId, replay);
     const session = await getSession(tx, input.businessId, input.sessionId);
@@ -227,6 +232,7 @@ export async function setReorderSettings(input: CommandContext & {
   if (input.targetStockLevel !== null && (!Number.isInteger(input.targetStockLevel) || input.targetStockLevel < 0)) throw new Error("Target stock must be a non-negative whole number or blank.");
   const payload = { branchId: input.branchId, expectedRevision: input.expectedRevision ?? null, productId: input.productId, reorderLevel: input.reorderLevel, targetStockLevel: input.targetStockLevel };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryBranchWrite(tx, input.businessId, input.actor.userId, "MANAGE_REORDER_SETTINGS", input.branchId);
     const replay = await commandReplay(tx, input, "SET_REORDER_SETTINGS", payload);
     if (replay) return tx.productStock.findFirstOrThrow({ where: { businessId: input.businessId, id: replay } });
     const [branch, product, existing] = await Promise.all([
@@ -283,6 +289,7 @@ async function transition(input: CommandContext & { expectedRevision: number; se
   validateOperation(input.operationKey);
   const payload = { expectedRevision: input.expectedRevision, reason: reason ?? null, sessionId: input.sessionId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, commandType === "START_COUNT" ? "COUNT_INVENTORY" : commandType === "SUBMIT_COUNT" ? "SUBMIT_STOCK_COUNT" : "REOPEN_STOCK_COUNT", "stockCount", input.sessionId);
     const replay = await commandReplay(tx, input, commandType, payload);
     if (replay) return getSession(tx, input.businessId, replay);
     const session = await getSession(tx, input.businessId, input.sessionId);

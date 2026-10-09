@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { InventoryMovementType, Prisma } from "@prisma/client";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getOperationalBranches } from "@/lib/branches";
+import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 50;
@@ -9,9 +9,9 @@ const movementTypes: InventoryMovementType[] = ["OPENING_BALANCE", "SALE", "REFU
 type MovementPageProps = { searchParams: Promise<{ branchId?: string; dateFrom?: string; dateTo?: string; movementType?: string; page?: string; q?: string }> };
 
 export default async function MovementPage({ searchParams }: MovementPageProps) {
-  const { businessId, user } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
-  const params = await searchParams;
-  const branches = await getOperationalBranches(businessId, user);
+  const { businessId, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
+  const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId);
+  const branches = await getInventoryReadBranches(businessId, access);
   const allowedBranchIds = branches.map((branch) => branch.id);
   const selectedBranchId = allowedBranchIds.includes(params.branchId ?? "") ? params.branchId! : null;
   const type = movementTypes.includes(params.movementType as InventoryMovementType) ? params.movementType as InventoryMovementType : null;

@@ -1,5 +1,7 @@
 "use server";
 
+import { authorizeInventoryDocument } from "@/lib/inventory/authorization";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -90,7 +92,7 @@ export async function updatePurchaseOrderAction(formData: FormData) {
   const parsed = z.object({ expectedDate: z.string().optional(), expectedRevision: z.coerce.number().int().min(0), lines: z.string(), notes: z.string().max(2000).optional(), operationKey: z.string().min(16).max(180), orderDate: z.string().min(1), purchaseOrderId: z.string().uuid(), supplierId: z.string().uuid() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) purchasingRedirect("/inventory/purchase-orders", "error", parsed.error.issues[0]?.message ?? "Invalid purchase order.");
   const path = `/inventory/purchase-orders/${parsed.data.purchaseOrderId}/edit`; const lines = parseLines(parsed.data.lines, path);
-  try { await updatePurchaseOrder({ actor: actor(context.user), businessId: context.businessId, expectedDate: parsed.data.expectedDate ? new Date(`${parsed.data.expectedDate}T00:00:00Z`) : null, expectedRevision: parsed.data.expectedRevision, lines, notes: parsed.data.notes, operationKey: parsed.data.operationKey, orderDate: new Date(`${parsed.data.orderDate}T00:00:00Z`), purchaseOrderId: parsed.data.purchaseOrderId, supplierId: parsed.data.supplierId }); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, "CREATE_PURCHASE_ORDER", "purchaseOrder", parsed.data.purchaseOrderId); await updatePurchaseOrder({ actor: actor(context.user), businessId: context.businessId, expectedDate: parsed.data.expectedDate ? new Date(`${parsed.data.expectedDate}T00:00:00Z`) : null, expectedRevision: parsed.data.expectedRevision, lines, notes: parsed.data.notes, operationKey: parsed.data.operationKey, orderDate: new Date(`${parsed.data.orderDate}T00:00:00Z`), purchaseOrderId: parsed.data.purchaseOrderId, supplierId: parsed.data.supplierId }); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
   refresh(); purchasingRedirect(`/inventory/purchase-orders/${parsed.data.purchaseOrderId}`, "success", "Draft purchase order updated; stock unchanged.");
 }
 
@@ -112,7 +114,8 @@ export async function receivePurchaseOrderAction(formData: FormData) {
   let receiptNumber: string;
   try {
     const purchaseOrder = await prisma.purchaseOrder.findFirst({ where: { businessId: context.businessId, id: parsed.data.purchaseOrderId }, select: { branchId: true } });
-    if (!purchaseOrder || !(await resolveOperationalBranchId(context.businessId, context.user, purchaseOrder.branchId))) throw new Error("Purchase order is outside your branch scope.");
+    if (!purchaseOrder) throw new Error("Purchase order is outside your branch scope.");
+    await authorizeInventoryDocument(context.businessId, context.user.userId, "RECEIVE_PURCHASE_ORDER", "purchaseOrder", parsed.data.purchaseOrderId);
     receiptNumber = (await receivePurchaseOrder({ actor: actor(context.user), businessId: context.businessId, deliveryReference: parsed.data.deliveryReference, lines, notes: parsed.data.notes, operationKey: parsed.data.operationKey, purchaseOrderId: parsed.data.purchaseOrderId })).receiptNumber;
   } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
   refresh(); purchasingRedirect(path, "success", `${receiptNumber} posted to inventory.`);
@@ -123,7 +126,7 @@ export async function reverseGoodsReceiptLineAction(formData: FormData) {
   const parsed = z.object({ goodsReceiptLineId: z.string().uuid(), operationKey: z.string().min(16), purchaseOrderId: z.string().uuid(), quantity: z.coerce.number().int().positive(), reason: z.string().trim().min(3).max(500) }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) purchasingRedirect("/inventory/purchase-orders", "error", parsed.error.issues[0]?.message ?? "Invalid reversal.");
   const path = `/inventory/purchase-orders/${parsed.data.purchaseOrderId}`;
-  try { await reverseGoodsReceiptLine({ actor: actor(context.user), businessId: context.businessId, goodsReceiptLineId: parsed.data.goodsReceiptLineId, operationKey: parsed.data.operationKey, quantity: parsed.data.quantity, reason: parsed.data.reason }); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, "REVERSE_GOODS_RECEIPT", "receiptLine", parsed.data.goodsReceiptLineId); await reverseGoodsReceiptLine({ actor: actor(context.user), businessId: context.businessId, goodsReceiptLineId: parsed.data.goodsReceiptLineId, operationKey: parsed.data.operationKey, quantity: parsed.data.quantity, reason: parsed.data.reason }); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
   refresh(); purchasingRedirect(path, "success", "Goods receipt reversal posted to the ledger.");
 }
 
@@ -132,7 +135,7 @@ async function poTransition(formData: FormData, capability: "APPROVE_PURCHASE_OR
   const parsed = z.object({ expectedRevision: z.coerce.number().int().min(0), operationKey: z.string().min(16), purchaseOrderId: z.string().uuid(), reason: requiresReason ? z.string().trim().min(3).max(500) : z.string().optional().default("") }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) purchasingRedirect("/inventory/purchase-orders", "error", parsed.error.issues[0]?.message ?? "Invalid purchase order action.");
   const path = `/inventory/purchase-orders/${parsed.data.purchaseOrderId}`;
-  try { await work(context, parsed.data); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, capability, "purchaseOrder", parsed.data.purchaseOrderId); await work(context, parsed.data); } catch (error) { purchasingRedirect(path, "error", mapPurchasingError(error)); }
   refresh(); purchasingRedirect(path, "success", message);
 }
 

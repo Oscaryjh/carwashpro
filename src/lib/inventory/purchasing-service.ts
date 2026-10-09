@@ -1,3 +1,4 @@
+import { assertInventoryBranchWrite, assertInventoryDocumentWrite } from "@/lib/inventory/authorization";
 import { createHash } from "node:crypto";
 import { Prisma, type InventoryPurchasingCommandType, type PurchaseOrderStatus } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
@@ -89,6 +90,7 @@ export async function createPurchaseOrder(input: CommandContext & {
   validateLines(input.lines);
   const payload = poPayload(input);
   return runInventorySerializable(async (tx) => {
+    await assertInventoryBranchWrite(tx, input.businessId, input.actor.userId, "CREATE_PURCHASE_ORDER", input.branchId);
     const replay = await commandReplay(tx, input, "CREATE_PURCHASE_ORDER", payload);
     if (replay) return getPurchaseOrder(tx, input.businessId, replay);
     await validateNewPurchaseOrderReferences(tx, input.businessId, input.branchId, input.supplierId, input.lines);
@@ -116,6 +118,7 @@ export async function updatePurchaseOrder(input: CommandContext & {
   validateLines(input.lines);
   const payload = { ...poPayload(input), expectedRevision: input.expectedRevision, purchaseOrderId: input.purchaseOrderId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "CREATE_PURCHASE_ORDER", "purchaseOrder", input.purchaseOrderId);
     const replay = await commandReplay(tx, input, "UPDATE_PURCHASE_ORDER", payload);
     if (replay) return getPurchaseOrder(tx, input.businessId, replay);
     const before = await getPurchaseOrder(tx, input.businessId, input.purchaseOrderId);
@@ -179,6 +182,7 @@ export async function receivePurchaseOrder(input: CommandContext & {
   if (ids.size !== input.lines.length) throw new Error("Each purchase order line may be received once per receipt.");
   const payload = { deliveryReference: cleanNullable(input.deliveryReference), lines: input.lines, notes: cleanNullable(input.notes), purchaseOrderId: input.purchaseOrderId };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "RECEIVE_PURCHASE_ORDER", "purchaseOrder", input.purchaseOrderId);
     const replay = await commandReplay(tx, input, "RECEIVE_PURCHASE_ORDER", payload);
     if (replay) return getGoodsReceipt(tx, input.businessId, replay);
     const purchaseOrder = await getPurchaseOrder(tx, input.businessId, input.purchaseOrderId);
@@ -217,6 +221,7 @@ export async function reverseGoodsReceiptLine(input: CommandContext & { goodsRec
   if (input.reason.trim().length < 3) throw new Error("Reversal reason is required.");
   const payload = { goodsReceiptLineId: input.goodsReceiptLineId, quantity: input.quantity, reason: input.reason.trim() };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, "REVERSE_GOODS_RECEIPT", "receiptLine", input.goodsReceiptLineId);
     const replay = await commandReplay(tx, input, "REVERSE_GOODS_RECEIPT", payload);
     if (replay) return tx.goodsReceiptReversal.findUniqueOrThrow({ where: { id: replay } });
     const line = await tx.goodsReceiptLine.findFirst({ where: { id: input.goodsReceiptLineId, businessId: input.businessId }, include: { goodsReceipt: true, purchaseOrderLine: true, reversals: true } });
@@ -247,6 +252,7 @@ async function transitionPurchaseOrder(input: CommandContext & { expectedRevisio
   validateOperation(input.operationKey);
   const payload = { expectedRevision: input.expectedRevision, purchaseOrderId: input.purchaseOrderId, reason: "reason" in input ? (input as { reason: string }).reason : null };
   return runInventorySerializable(async (tx) => {
+    await assertInventoryDocumentWrite(tx, input.businessId, input.actor.userId, type === "APPROVE_PURCHASE_ORDER" ? "APPROVE_PURCHASE_ORDER" : "CANCEL_PURCHASE_ORDER", "purchaseOrder", input.purchaseOrderId);
     const replay = await commandReplay(tx, input, type, payload);
     if (replay) return getPurchaseOrder(tx, input.businessId, replay);
     const purchaseOrder = await getPurchaseOrder(tx, input.businessId, input.purchaseOrderId);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getOperationalBranches } from "@/lib/branches";
+import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import { prisma } from "@/lib/prisma";
 import styles from "./inventory.module.css";
 
@@ -15,9 +15,9 @@ function getStockState(quantity: number, reorderLevel: number) {
 }
 
 export default async function InventoryPage({ searchParams }: InventoryPageProps) {
-  const { businessId, user } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
-  const params = await searchParams;
-  const branches = await getOperationalBranches(businessId, user);
+  const { businessId, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
+  const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId);
+  const branches = await getInventoryReadBranches(businessId, access);
   const allowedBranchIds = branches.map((branch) => branch.id);
   const selectedBranchId = allowedBranchIds.includes(params.branchId ?? "")
     ? params.branchId!

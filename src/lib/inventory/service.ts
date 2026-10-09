@@ -1,3 +1,4 @@
+import type { InventoryReadScope } from "@/lib/inventory/authorization";
 import { Prisma, type InventoryMovementType, type InventoryRefundDisposition } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -372,15 +373,17 @@ export async function transferInventory(input: {
   });
 }
 
-export async function reconcileInventory(businessId: string, branchId?: string | null) {
+export async function reconcileInventory(businessId: string, scope: InventoryReadScope) {
+  if (!scope || !["business", "branches", "none"].includes(scope.kind)) throw new Error("Explicit inventory read scope is required.");
+  const branchFilter = scope.kind === "business" ? {} : { branchId: { in: scope.kind === "branches" ? scope.branchIds : [] } };
   const [balances, ledgerGroups] = await Promise.all([
     prisma.productStock.findMany({
-      where: { businessId, ...(branchId ? { branchId } : {}), product: { trackInventory: true } },
+      where: { businessId, ...branchFilter, product: { trackInventory: true } },
       include: { product: { select: { name: true, sku: true } }, branch: { select: { name: true } } },
     }),
     prisma.inventoryMovement.groupBy({
       by: ["branchId", "productId"],
-      where: { businessId, ...(branchId ? { branchId } : {}) },
+      where: { businessId, ...branchFilter },
       _sum: { quantityDelta: true },
     }),
   ]);
@@ -408,12 +411,12 @@ export async function reconcileInventory(businessId: string, branchId?: string |
     where: {
       businessId,
       inventoryTracked: true,
-      invoice: { ...(branchId ? { branchId } : {}), status: { not: "VOID" } },
+      invoice: { ...branchFilter, status: { not: "VOID" } },
     },
     select: { id: true, invoiceId: true, productId: true, quantity: true },
   });
   const saleMovementLines = await prisma.inventoryMovement.findMany({
-    where: { businessId, ...(branchId ? { branchId } : {}), type: "SALE" },
+    where: { businessId, ...branchFilter, type: "SALE" },
     select: { id: true, productId: true, sourceId: true, sourceLineId: true, quantityDelta: true },
   });
   const movementByLine = new Map<string, { count: number; quantity: number }>();
@@ -452,19 +455,19 @@ export async function reconcileInventory(businessId: string, branchId?: string |
   ];
   const [receiptLines, receiptReversals, receiptMovements, purchaseOrderLines] = await Promise.all([
     prisma.goodsReceiptLine.findMany({
-      where: { businessId, ...(branchId ? { goodsReceipt: { branchId } } : {}) },
+      where: { businessId, goodsReceipt: branchFilter },
       select: { id: true, goodsReceiptId: true, productId: true, purchaseOrderLineId: true, receivedQuantity: true, goodsReceipt: { select: { branchId: true } } },
     }),
     prisma.goodsReceiptReversal.findMany({
-      where: { businessId, ...(branchId ? { branchId } : {}) },
+      where: { businessId, ...branchFilter },
       select: { id: true, branchId: true, goodsReceiptLineId: true, productId: true, purchaseOrderLineId: true, reversedQuantity: true },
     }),
     prisma.inventoryMovement.findMany({
-      where: { businessId, ...(branchId ? { branchId } : {}), sourceType: { in: ["GOODS_RECEIPT", "GOODS_RECEIPT_REVERSAL"] } },
+      where: { businessId, ...branchFilter, sourceType: { in: ["GOODS_RECEIPT", "GOODS_RECEIPT_REVERSAL"] } },
       select: { branchId: true, id: true, productId: true, quantityDelta: true, sourceId: true, sourceLineId: true, sourceType: true },
     }),
     prisma.purchaseOrderLine.findMany({
-      where: { businessId, ...(branchId ? { purchaseOrder: { branchId } } : {}) },
+      where: { businessId, purchaseOrder: branchFilter },
       select: { id: true, productId: true, receivedQuantity: true },
     }),
   ]);
@@ -498,11 +501,11 @@ export async function reconcileInventory(businessId: string, branchId?: string |
   const purchaseOrderMismatches = purchaseOrderLines.filter((line) => line.receivedQuantity !== (receivedByPoLine.get(line.id) ?? 0)).map((line) => ({ id: line.id, materializedQuantity: line.receivedQuantity, receiptQuantity: receivedByPoLine.get(line.id) ?? 0, reason: "PO_RECEIVED_QUANTITY_MISMATCH" }));
   const [approvedCountLines, stockCountMovements] = await Promise.all([
     prisma.stockCountLine.findMany({
-      where: { businessId, ...(branchId ? { branchId } : {}), session: { status: "APPROVED" } },
+      where: { businessId, ...branchFilter, session: { status: "APPROVED" } },
       select: { branchId: true, id: true, productId: true, sessionId: true, varianceQuantity: true },
     }),
     prisma.inventoryMovement.findMany({
-      where: { businessId, ...(branchId ? { branchId } : {}), sourceType: "STOCK_COUNT" },
+      where: { businessId, ...branchFilter, sourceType: "STOCK_COUNT" },
       select: { branchId: true, id: true, productId: true, quantityDelta: true, sourceId: true, sourceLineId: true },
     }),
   ]);

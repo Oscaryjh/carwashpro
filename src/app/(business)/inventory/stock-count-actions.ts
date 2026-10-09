@@ -1,5 +1,7 @@
 "use server";
 
+import { authorizeInventoryDocument } from "@/lib/inventory/authorization";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -16,7 +18,7 @@ import {
   startStockCount,
   submitStockCount,
 } from "@/lib/inventory/stock-count-service";
-import { prisma } from "@/lib/prisma";
+
 
 const base = z.object({ operationKey: z.string().min(16).max(180) });
 const transition = base.extend({ expectedRevision: z.coerce.number().int().min(0), sessionId: z.string().uuid() });
@@ -43,7 +45,7 @@ export async function recordStockCountLineAction(formData: FormData) {
   const parsed = base.extend({ actualQuantity: z.coerce.number().int().min(0), expectedLineRevision: z.coerce.number().int().min(0), lineId: z.string().uuid(), notes: z.string().max(500).optional(), sessionId: z.string().uuid() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/inventory/stock-counts", parsed.error.issues[0]?.message ?? "Invalid count quantity.");
   const path = `/inventory/stock-counts/${parsed.data.sessionId}`;
-  try { await assertSessionBranch(context.businessId, context.user, parsed.data.sessionId); await recordStockCountLine({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, "COUNT_INVENTORY", "stockCount", parsed.data.sessionId); await recordStockCountLine({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
   catch (error) { fail(path, mapStockCountError(error)); }
   refresh(); success(path, "Physical quantity saved with a frozen expected snapshot.");
 }
@@ -70,7 +72,7 @@ async function runTransition(formData: FormData, capability: "COUNT_INVENTORY" |
   const parsed = transition.safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/inventory/stock-counts", parsed.error.issues[0]?.message ?? "Invalid count transition.");
   const path = `/inventory/stock-counts/${parsed.data.sessionId}`;
-  try { await assertSessionBranch(context.businessId, context.user, parsed.data.sessionId); await service({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, capability, "stockCount", parsed.data.sessionId); await service({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
   catch (error) { fail(path, mapStockCountError(error)); }
   refresh(); success(path, message);
 }
@@ -80,15 +82,11 @@ async function reasonTransition(formData: FormData, capability: "REOPEN_STOCK_CO
   const parsed = transition.extend({ reason: z.string().trim().min(3).max(500) }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/inventory/stock-counts", parsed.error.issues[0]?.message ?? "A reason is required.");
   const path = `/inventory/stock-counts/${parsed.data.sessionId}`;
-  try { await assertSessionBranch(context.businessId, context.user, parsed.data.sessionId); await service({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
+  try { await authorizeInventoryDocument(context.businessId, context.user.userId, capability, "stockCount", parsed.data.sessionId); await service({ actor: actor(context.user), businessId: context.businessId, ...parsed.data }); }
   catch (error) { fail(path, mapStockCountError(error)); }
   refresh(); success(path, message);
 }
 
-async function assertSessionBranch(businessId: string, user: Parameters<typeof resolveOperationalBranchId>[1], sessionId: string) {
-  const session = await prisma.stockCountSession.findFirst({ where: { businessId, id: sessionId }, select: { branchId: true } });
-  if (!session || !(await resolveOperationalBranchId(businessId, user, session.branchId))) throw new Error("Stock count is outside your branch scope.");
-}
 function actor(user: { userId: string; name: string; email: string }) { return { email: user.email, name: user.name, userId: user.userId }; }
 function refresh() { for (const path of ["/inventory", "/inventory/stock-counts", "/inventory/reorder", "/inventory/movements", "/inventory/reconciliation"]) revalidatePath(path); }
 function fail(path: string, message: string): never { redirect(`${path}?type=error&message=${encodeURIComponent(message)}`); }
