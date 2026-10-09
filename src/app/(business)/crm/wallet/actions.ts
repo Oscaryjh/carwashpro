@@ -13,6 +13,7 @@ import { readWalletRefundOwner } from "@/lib/wallet/refund-authorization";
 import { assertWalletAccessAllowed, isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { toCents } from "@/lib/validation/pos";
 import { WalletTopUpAlreadyConsumedError } from "@/lib/wallet/refund-errors";
+import { isWalletTopUpConsumed } from "@/lib/wallet/top-up-consumed";
 import { packageRefundPresentation } from "@/lib/refunds/package-presentation";
 import { getRefundableCents } from "@/lib/refunds/rules";
 
@@ -60,10 +61,13 @@ export async function walletRefundOptionsAction(sourceId:string,kind:"invoice"|"
     const ctx=await context();z.string().uuid().parse(sourceId);
     await assertWalletAccessAllowed(ctx);
     if(kind==="top-up"){
-      const top=await prisma.walletTopUp.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{account:true,payment:true,reversals:true}});
+      const top=await prisma.walletTopUp.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{account:true,payment:{include:{refunds:true}},transactions:true,reversals:true}});
       await readWalletRefundOwner(prisma,ctx,top.account.customerId,top.branchId);
+      const originals=top.transactions.filter(t=>t.type==="TOP_UP_PAID"||t.type==="TOP_UP_BONUS").sort((a,b)=>a.sequence-b.sequence);
+      const unavailableReason=top.payment.status!=="ACTIVE"||top.payment.refunds.length?"Original top-up payment cannot be reversed.":originals.length!==(top.bonusAmount.gt(0)?2:1)?"Incomplete original top-up ledger.":null;
+      const consumed=originals.length>0?await isWalletTopUpConsumed(prisma,top.walletAccountId,originals.at(-1)!.sequence):false;
       return {kind,releaseEnabled:await isWalletAccessAllowed(ctx),businessId:ctx.businessId,scope:`${ctx.businessId}:${ctx.user.userId}:top-up:${sourceId}`,sourceId,canVoid:false,
-        paidAmount:top.paidAmount.toFixed(2),bonusAmount:top.bonusAmount.toFixed(2),method:top.payment.method,reversed:top.reversals.length>0,legs:[],stockLines:[],packagePurchaseRefund:null};
+        paidAmount:top.paidAmount.toFixed(2),bonusAmount:top.bonusAmount.toFixed(2),method:top.payment.method,reversed:top.reversals.length>0,consumed,unavailableReason,legs:[],stockLines:[],packagePurchaseRefund:null};
     }
     if(kind!=="invoice")throw new Error("Invalid source type.");
     const invoice=await prisma.invoice.findFirstOrThrow({where:{id:sourceId,businessId:ctx.businessId},include:{payments:{include:{refunds:true}},customerPackage:{include:{serviceBalances:true}},items:{include:{inventoryRefundLines:true,customerPackage:{include:{serviceBalances:true}}}}}});

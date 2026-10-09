@@ -5,7 +5,7 @@ export function hasWalletInvoiceSource(invoice:{hasWalletPayment?:boolean;wallet
 export type RefundOptions={kind:string;legs:{paymentId:string;method:string;availableCents:number}[];stockLines:{id:string;name:string;remainingQuantity:number}[];paidAmount:string;bonusAmount:string;method:string;canVoid:boolean;packagePurchaseRefund?:{refundableCents:number;unavailableReason:string|null}|null};
 export function WalletRefundFields({options}:{options:RefundOptions}){
  return <>
-  {options.kind==="top-up"?<p>Return RM {options.paidAmount} via {options.method}. Remove bonus RM {options.bonusAmount}. This records the original-channel refund; it does not send money.</p>:options.packagePurchaseRefund?<section aria-label="Package full refund">
+  {options.kind==="top-up"?<><dl className="wallet-amounts"><dt>Top-up amount</dt><dd>RM {options.paidAmount}</dd><dt>Bonus to remove</dt><dd>RM {options.bonusAmount}</dd><dt>Original payment method</dt><dd>{refundMethodLabels[options.method]??options.method}</dd></dl><p>This records the original-channel refund; it does not send money.</p></>:options.packagePurchaseRefund?<section aria-label="Package full refund">
    <p>Unused packages can only be refunded in full.</p>
    <p>Full refund total <strong>RM{(options.packagePurchaseRefund.refundableCents/100).toFixed(2)}</strong></p>
    {options.packagePurchaseRefund.unavailableReason?<p role="alert">{options.packagePurchaseRefund.unavailableReason}</p>:null}
@@ -22,7 +22,7 @@ export function WalletRefundFields({options}:{options:RefundOptions}){
    {l.method!=="MEMBER_WALLET"?<label>External refund reference<input name={`reference_${l.paymentId}`}/></label>:null}
   </fieldset>)}
   {options.stockLines.map(i=><fieldset key={i.id}><legend>{i.name}</legend><label>Returned quantity<input name={`quantity_${i.id}`} type="number" min="0" max={i.remainingQuantity} step="1" defaultValue="0"/></label><label>Stock treatment<select name={`disposition_${i.id}`}><option value="RESTOCK">Restock</option><option value="NO_RESTOCK">Do not restock</option></select></label><label>No-restock reason<input name={`stockReason_${i.id}`}/></label></fieldset>)}
-  {options.kind==="top-up"?<label>Original-channel refund reference<input name="externalRefundReference" required={options.method!=="CASH"}/></label>:null}
+  {options.kind==="top-up"?<label>{options.method==="CASH"?"Reference (optional)":"Original-channel refund reference (required)"}<input name="externalRefundReference" required={options.method!=="CASH"}/></label>:null}
   <label>Reason<textarea name="reason" minLength={3} maxLength={500} required/></label>
  </>;
 }

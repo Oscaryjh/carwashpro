@@ -9,7 +9,9 @@ type Options=Extract<Awaited<ReturnType<typeof walletRefundOptionsAction>>,{ok:t
 export function WalletRefundForm({sourceId,kind="invoice",recoveryScope,onSuccess,recoveryOnly=false,invoiceNumber}:{sourceId:string;kind?:"invoice"|"top-up";recoveryScope?:string;onSuccess?:()=>void;recoveryOnly?:boolean;invoiceNumber?:string}){
  const router=useRouter(),intent=useRef<WalletRefundIntent|null>(null);
  const [options,setOptions]=useState<Options|null>(null),[saved,setSaved]=useState<RefundIntentRequest|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[done,setDone]=useState(false);
- useEffect(()=>{let live=true;intent.current=null;setOptions(null);setSaved(null);setDone(false);
+ const [expanded,setExpanded]=useState(false);
+ const topUpBlocked=kind==="top-up"&&options&&(options.reversed||("consumed" in options&&options.consumed)||("unavailableReason" in options&&options.unavailableReason));
+ useEffect(()=>{let live=true;intent.current=null;setOptions(null);setSaved(null);setDone(false);setExpanded(false);
   try {
    const entries=Array.from({length:sessionStorage.length},(_,index)=>sessionStorage.key(index)).filter((key):key is string=>!!key&&key.startsWith("wallet-refund:")).flatMap(key=>{const value=sessionStorage.getItem(key);return value===null?[]:[[key,value] as const];});
    if(recoveryScope)setSaved(findSavedRefundIntent(entries,sourceId,kind,recoveryScope));
@@ -20,7 +22,7 @@ export function WalletRefundForm({sourceId,kind="invoice",recoveryScope,onSucces
   }).catch(()=>{if(live)setMessage("Refund controls unavailable. Do not refund again if a confirmation is pending.");});return()=>{live=false;};
  },[sourceId,kind,recoveryScope]);
  async function submit(form:HTMLFormElement,mode:string){
-  if(!options||!options.releaseEnabled||!intent.current||busy||done||(!saved&&options.packagePurchaseRefund?.unavailableReason))return;
+  if(!options||!options.releaseEnabled||!intent.current||busy||done||(!saved&&(topUpBlocked||options.packagePurchaseRefund?.unavailableReason)))return;
   try{
    const data=new FormData(form),legs=options.legs.flatMap(l=>{const amount=Number(data.get(`amount_${l.paymentId}`)??0);if(!Number.isFinite(amount)||Math.abs(amount*100-Math.round(amount*100))>0.0001)throw new Error("Use up to two decimal places.");return amount>0?[{paymentId:l.paymentId,amountCents:Math.round(amount*100),method:String(data.get(`method_${l.paymentId}`)),reference:String(data.get(`reference_${l.paymentId}`)??"")}]:[];});
    const fields={kind:mode,businessId:options.businessId,sourceId,reason:String(data.get("reason")??""),legs:JSON.stringify(legs),stockLines:JSON.stringify(options.stockLines.flatMap(i=>{const quantity=Number(data.get(`quantity_${i.id}`)??0);return quantity>0?[{invoiceItemId:i.id,quantity,disposition:String(data.get(`disposition_${i.id}`)),noRestockReason:String(data.get(`stockReason_${i.id}`)??"")}]:[];})),externalRefundReference:String(data.get("externalRefundReference")??"")};
@@ -30,17 +32,22 @@ export function WalletRefundForm({sourceId,kind="invoice",recoveryScope,onSucces
    const result=request.fields.kind==="reversal"?await reverseWalletTopUpAction(payload):request.fields.kind==="void"?await voidInvoiceAction({status:"idle",message:""},payload):await refundWalletSaleAction({status:"idle",message:""},payload);
    const success="ok" in result?result.ok:result.status==="success";
    if(success){intent.current.completed();setSaved(null);setDone(true);setMessage("Completed. Do not repeat this refund.");router.refresh();onSuccess?.();}
-   else{if("canCorrect" in result&&result.canCorrect&&intent.current.rejected())setSaved(null);else intent.current.uncertain();setMessage("message" in result?(result.message??"Result unknown. Retry the same confirmation."):"Result unknown. Retry the same confirmation.");}
+   else{if("canCorrect" in result&&result.canCorrect&&intent.current.rejected()){setSaved(null);if(kind==="top-up"&&"code" in result&&result.code==="TOP_UP_ALREADY_CONSUMED"){setOptions(current=>current?.kind==="top-up"?{...current,consumed:true}:current);setExpanded(false);}}else intent.current.uncertain();setMessage("message" in result?(result.message??"Result unknown. Retry the same confirmation."):"Result unknown. Retry the same confirmation.");}
   }catch(error){if(intent.current?.existing)intent.current.uncertain();setMessage(error instanceof Error?error.message:"Result unknown. Retry the same confirmation; do not refund again.");}finally{setBusy(false);}
  }
  if(!saved&&(!options?.releaseEnabled||recoveryOnly))return null;
- return <section className="wallet-ui"><h3>{kind==="top-up"?"Reverse unused top-up":"Wallet sale refund"}</h3>
+ if(!saved&&!done&&topUpBlocked)return <section className="wallet-ui wallet-reversal-status">
+  {options?.reversed?<p>This source is already reversed.</p>:options&&"consumed" in options&&options.consumed?<><strong>Used · Not reversible</strong><p>This top-up has already been used and cannot be reversed.</p></>:<p>{options&&"unavailableReason" in options?options.unavailableReason:null}</p>}
+ </section>;
+ if(kind==="top-up"&&!saved&&!done&&!expanded)return <section className="wallet-ui"><button type="button" className="wallet-reversal-danger" onClick={()=>setExpanded(true)}>Reverse</button></section>;
+ return <section className={`wallet-ui${kind==="top-up"?" wallet-reversal-card":""}`}><h3>{kind==="top-up"?"Reverse top-up":"Wallet sale refund"}</h3>
   {message?<p role="status">{message}</p>:null}
   {saved&&!options?<WalletRefundPending request={saved} invoiceNumber={invoiceNumber}/>:null}
   {options&&!done?<form onSubmit={e=>{e.preventDefault();void submit(e.currentTarget,kind==="top-up"?"reversal":"refund");}}>
    {saved?<WalletRefundPending request={saved} invoiceNumber={invoiceNumber}/>:options.reversed?<p>This source is already reversed.</p>:<WalletRefundFields options={options}/>}
    {!options.releaseEnabled?<p>Wallet actions are unavailable. Your saved confirmation is retained. Do not refund again.</p>:null}
-   {!options.reversed||saved?<button type="submit" disabled={busy||!options.releaseEnabled||(!saved&&!!options.packagePurchaseRefund?.unavailableReason)}>{busy?"Processing…":saved?"Retry confirmation":kind==="top-up"?"Reverse top-up":options.packagePurchaseRefund?"Process full refund":"Confirm refund"}</button>:null}
+   {kind==="top-up"&&!saved?<button type="button" className="secondary" disabled={busy} onClick={()=>{setExpanded(false);setMessage("");}}>Cancel</button>:null}
+   {!options.reversed||saved?<button type="submit" className={kind==="top-up"?"wallet-reversal-danger":undefined} disabled={busy||!options.releaseEnabled||(!saved&&!!options.packagePurchaseRefund?.unavailableReason)}>{busy?"Processing…":saved?"Retry confirmation":kind==="top-up"?"Reverse top-up":options.packagePurchaseRefund?"Process full refund":"Confirm refund"}</button>:null}
    {!saved&&options.canVoid?<button type="button" className="secondary" disabled={busy} onClick={e=>{const form=e.currentTarget.form;if(form?.reportValidity())void submit(form,"void");}}>Void invoice</button>:null}
   </form>:null}
  </section>;

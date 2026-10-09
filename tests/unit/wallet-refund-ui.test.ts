@@ -8,7 +8,7 @@ test("Owner refund view fixes wallet destination, explicit amount and frozen ret
  const html=renderToStaticMarkup(createElement(m.WalletRefundFields,{options:{kind:"invoice",legs:[{paymentId:"payment",method:"MEMBER_WALLET",availableCents:8000}],stockLines:[],paidAmount:"",bonusAmount:"",method:"",canVoid:false}}));
  assert.match(html,/Return to member wallet/);assert.match(html,/80.00/);assert.doesNotMatch(html,/value="80.00"/);
  const top=renderToStaticMarkup(createElement(m.WalletRefundFields,{options:{kind:"top-up",legs:[],stockLines:[],paidAmount:"1000.00",bonusAmount:"100.00",method:"CASH",canVoid:false}}));
- assert.match(top,/Return RM 1000.00/);assert.match(top,/Remove bonus RM 100.00/);
+ assert.match(top,/Top-up amount<\/dt><dd>RM 1000.00/);assert.match(top,/Bonus to remove<\/dt><dd>RM 100.00/);
  const pending=renderToStaticMarkup(createElement(m.WalletRefundPending,{request:{operationKey:"key",fields:{kind:"refund",reason:"Original reason",legs:'[{"method":"CARD","amountCents":2000,"reference":"card-ref"}]',stockLines:"[]"}}}));
  assert.match(pending,/card-ref/);assert.match(pending,/Original reason/);assert.doesNotMatch(pending,/Original operation key|<input|<select/);
 });

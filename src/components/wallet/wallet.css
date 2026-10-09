@@ -35,3 +35,11 @@
 .wallet-history-row summary { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .wallet-history-row small { display: block; color: #5d7080; margin-top: 5px; }
 @media(max-width: 600px) { .wallet-form-grid { grid-template-columns: 1fr; }.wallet-dialog { padding: 16px; }.wallet-summary .wallet-actions { flex-wrap: wrap; } }
+.wallet-ui .wallet-reversal-danger { color: #a32929; background: #fff; border-color: #b84a4a; }
+.wallet-ui .wallet-reversal-danger:hover:not(:disabled) { background: #fff1f1; }
+.wallet-reversal-card { padding: 16px; margin-block: 12px; border: 1px solid #dce5e8; border-radius: 10px; }
+.wallet-reversal-card form { display: flex; flex-wrap: wrap; gap: 12px; }
+.wallet-reversal-card form > :not(button) { flex-basis: 100%; min-width: 0; }
+.wallet-reversal-card form > button.secondary { margin-left: auto; }
+.wallet-reversal-card textarea { width: 100%; min-height: 80px; resize: vertical; }
+.wallet-reversal-status { margin-block: 12px; }

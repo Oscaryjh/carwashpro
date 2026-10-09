@@ -6,6 +6,7 @@ import { writeAuditLog } from "@/lib/audit";
 import type { WalletContext } from "./authorization";
 import { requireWalletRefundOwner } from "./refund-authorization";
 import { WalletTopUpAlreadyConsumedError } from "./refund-errors";
+import { isWalletTopUpConsumed } from "./top-up-consumed";
 
 async function reverseEntry(tx:Prisma.TransactionClient,ctx:WalletContext,original:WalletTransaction,operationId:string,reason:string) {
   const account=await tx.walletAccount.findUniqueOrThrow({where:{id:original.walletAccountId}});
@@ -32,7 +33,7 @@ export async function reverseWalletTopUp(ctx:WalletContext,raw:z.input<typeof sc
     if(top.payment.method!=="CASH" && !input.externalRefundReference) throw new Error("Original channel refund reference is required.");
     const originals=top.transactions.filter(t=>t.type==="TOP_UP_PAID"||t.type==="TOP_UP_BONUS").sort((a,b)=>a.sequence-b.sequence);
     if(originals.length!==(top.bonusAmount.gt(0)?2:1)) throw new Error("Incomplete original top-up ledger.");
-    const used=await tx.walletTransaction.findFirst({where:{walletAccountId:top.walletAccountId,sequence:{gt:originals.at(-1)!.sequence},OR:[{type:"REDEMPTION"},{paidDelta:{lt:0}},{bonusDelta:{lt:0}}]}});
+    const used=await isWalletTopUpConsumed(tx,top.walletAccountId,originals.at(-1)!.sequence);
     if(used) throw new WalletTopUpAlreadyConsumedError();
     const op=await tx.financialOperation.findUniqueOrThrow({where:{businessId_operationType_operationKey:{businessId:ctx.businessId,operationType:"WALLET_TOP_UP_REVERSAL",operationKey}}});
     const refund=await tx.paymentRefund.create({data:{businessId:ctx.businessId,branchId:top.branchId,paymentId:top.externalPaymentId,processedById:ctx.user.userId,shiftId:null,invoiceId:null,amount:top.paidAmount,method:top.payment.method,tenderCurrency:"MYR",tenderAmount:top.paidAmount,exchangeRateToMyr:1,reason:input.reason,reference:input.externalRefundReference||null}});
