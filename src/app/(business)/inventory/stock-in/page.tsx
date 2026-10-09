@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "@/components/inventory-hub.module.css";
+import stockInStyles from "@/components/inventory-stock-in.module.css";
 import { InventoryCommandForm } from "@/components/inventory-command-form";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
@@ -16,7 +17,7 @@ export default async function StockInPage({ searchParams }: { searchParams: Prom
     prisma.product.findMany({ where: { businessId, status: "ACTIVE", trackInventory: true }, select: { id: true, name: true, sku: true, stocks: { select: { branchId: true, quantity: true, revision: true } } }, orderBy: { name: "asc" } }),
   ]);
   const canSetUpProducts = access.granted && access.source === "DIRECT_BUSINESS" && moduleContext.enabledModules.has("POS") && hasBusinessCapability(access, "VIEW_CATALOG") && hasStaffPermission(user, "PRODUCTS");
-  return <section className={`content ${styles.workflow}`}>
+  return <section className={`content ${styles.workflow} ${stockInStyles.page}`}>
     <div className="page-header"><div><h1>Add Stock</h1><p>Add items received into your store.</p></div><Link href="/inventory">Back to inventory</Link></div>
     <div className="panel">
       <p className="field-helper">Only active products with Track stock turned on appear here.</p>

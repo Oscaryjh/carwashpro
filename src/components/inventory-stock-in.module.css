@@ -1,0 +1,20 @@
+.page :global(.stock-in-form) { max-width: 580px; gap: 18px; }
+.page :global(.stock-in-context) { margin: 0; color: #536879; font-size: 13px; }
+.page :global(.stock-in-product), .page :global(.stock-in-quantity) { min-width: 0; }
+.page :global(.stock-in-product label > span), .page :global(.stock-in-quantity > span) { font-size: 15px; font-weight: 700; color: #13283a; }
+.page :global(.stock-in-current) { margin: 8px 0 0; font-size: 13px; color: #536879; }
+.page :global(.stock-in-quantity input) { max-width: 240px; font-size: 18px; }
+.page :global(.stock-in-store) { max-width: 340px; font-size: 13px; }
+.page :global(.stock-in-preview) { padding: 10px 12px; margin: 0; border-left: 3px solid #087e78; background: #edf8f6; color: #174b48; }
+.page :global(.stock-in-preview small) { display: block; margin-top: 4px; font-size: 12px; color: #536879; }
+.page :global(.stock-in-details) { border-top: 1px solid #d8e4e5; padding-top: 12px; color: #536879; }
+.page :global(.stock-in-details summary) { cursor: pointer; width: fit-content; font-size: 13px; }
+.page :global(.stock-in-details > div) { display: grid; gap: 12px; padding-top: 12px; }
+.page :global(.stock-in-details textarea) { min-height: 64px; resize: vertical; }
+.page :global(.stock-in-form .form-actions) { margin-top: 0; }
+.page :global(.stock-in-submit) { background: #087e78; border: 1px solid #087e78; color: #fff; opacity: 1; min-height: 44px; padding: 10px 24px; font-weight: 700; border-radius: 8px; cursor: pointer; }
+.page :global(.stock-in-submit:hover:not(:disabled)) { background: #075f5b; border-color: #075f5b; }
+.page :global(.stock-in-submit:disabled) { background: #dce5e7; border-color: #c4d0d4; color: #54656d; opacity: 1; cursor: not-allowed; }
+.page :global(.stock-in-submit[aria-busy="true"]) { cursor: wait; }
+.page :global(.stock-in-form :is(input, select, textarea, summary, button):focus-visible) { outline: 3px solid #087e78; outline-offset: 3px; }
+@media (max-width: 800px) { .page :global(.stock-in-form), .page :global(.stock-in-store) { max-width: 100%; } }

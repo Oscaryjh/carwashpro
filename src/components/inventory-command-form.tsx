@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import type { BranchOption } from "@/lib/branches";
 
 type InventoryCommandFormProps = {
@@ -19,6 +20,11 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
   const [actualQuantity, setActualQuantity] = useState("");
   const [note, setNote] = useState("");
   const [removalReason, setRemovalReason] = useState("Used");
+  const [quantityToAdd, setQuantityToAdd] = useState("");
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const productKeyboardSelection = useRef(false);
+  const stockIn = mode === "STOCK_IN";
+  const validQuantityToAdd = quantityToAdd !== "" && Number.isSafeInteger(Number(quantityToAdd)) && Number(quantityToAdd) > 0;
   const transfer = mode === "TRANSFER";
   const selectedStock = products
     .find((product) => product.id === productId)
@@ -36,13 +42,43 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
   const productField = (
         <label>
           <span>Product</span>
-          <select name="productId" onChange={(event) => { setProductId(event.target.value); setActualQuantity(""); }} value={productId} required>
+          <select name="productId" onKeyDown={stockIn ? () => { productKeyboardSelection.current = true; } : undefined} onPointerDown={stockIn ? () => { productKeyboardSelection.current = false; } : undefined} onChange={(event) => { setProductId(event.target.value); setActualQuantity(""); if (stockIn && event.target.value && !productKeyboardSelection.current) quantityRef.current?.focus(); }} value={productId} required>
             <option value="">Select product</option>
             {products.map((product) => (
               <option key={product.id} value={product.id}>{product.name}{product.sku ? ` · ${product.sku}` : ""}</option>
             ))}
           </select>
         </label>
+  );
+  if (stockIn) return (
+    <form action={action} className="form stock-in-form">
+      <input name="operationKey" type="hidden" value={operationKey} />
+      {branches.length === 1 ? <p className="stock-in-context">Store: <strong>{branches[0].name}</strong><input type="hidden" name="branchId" value={branchId} /></p> : <label className="stock-in-store">
+        <span>Store</span>
+        <select name="branchId" value={branchId} onChange={event => setBranchId(event.target.value)} required>
+          <option value="">Select store</option>
+          {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+        </select>
+      </label>}
+      <div className="stock-in-product">
+        {productField}
+        {productId && branchId ? <p className="stock-in-current">Current stock: <strong>{selectedStock?.quantity ?? 0}</strong></p> : null}
+      </div>
+      <label className="stock-in-quantity">
+        <span>Quantity to add</span>
+        <input ref={quantityRef} name="quantity" type="number" min="1" step="1" placeholder="e.g. 10" value={quantityToAdd} onChange={event => setQuantityToAdd(event.target.value)} required />
+      </label>
+      {productId && branchId && validQuantityToAdd && Number.isSafeInteger((selectedStock?.quantity ?? 0) + Number(quantityToAdd)) ? <p className="stock-in-preview" role="status">After adding: <strong>{(selectedStock?.quantity ?? 0) + Number(quantityToAdd)}</strong><small>Preview only. Stock is checked when you submit.</small></p> : null}
+      <details className="stock-in-details">
+        <summary>More details</summary>
+        <div>
+          <label><span>Reference (optional)</span><input name="reference" maxLength={120} /></label>
+          <label><span>Note (optional)</span><textarea value={note} onChange={event => setNote(event.target.value)} maxLength={470} rows={2} /></label>
+        </div>
+      </details>
+      <input name="reason" type="hidden" value={reason} />
+      <div className="form-actions"><StockInSubmit disabled={!productId || !branchId || !validQuantityToAdd} /></div>
+    </form>
   );
   return (
     <form action={action} className="form">
@@ -94,6 +130,11 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
       <div className="form-actions"><button disabled={!products.length || !branches.length || (adjustment && !validActual) || (needsNote && note.trim().length < 3)} type="submit">{labelForMode(mode)}</button></div>
     </form>
   );
+}
+
+function StockInSubmit({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return <button className="stock-in-submit" type="submit" disabled={disabled || pending} aria-busy={pending}>{pending ? "Adding stock…" : "Add Stock"}</button>;
 }
 
 function labelForMode(mode: InventoryCommandFormProps["mode"]) {
