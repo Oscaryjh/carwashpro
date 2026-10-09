@@ -36,3 +36,15 @@
   .toolbar select { flex: 1 1 140px; }
   .toolbar input { flex-basis: 100%; }
 }
+.stockGuidance {
+  margin-block: 12px 20px;
+  padding: 12px 16px;
+  border: 1px solid #d7e4e6;
+  border-radius: 10px;
+  background: #f5faf9;
+  color: #153d42;
+  overflow-wrap: anywhere;
+}
+.stockGuidance p { margin: 6px 0; }
+.stockGuidance a { color: #087970; text-decoration: underline; }
+.trackingHint { display: block; margin-top: 3px; font-size: 12px; color: #54716d; font-weight: 400; }

@@ -111,13 +111,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Products list">
             <table className={`table ${styles.table}`}>
               <thead>
-                <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th><th>Total stock<small className={styles.trackingHint}>Across stores</small></th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {products.map((product, index) => (
                   <tr key={product.id}>
                     <td className="table-number">{pageSkip + index + 1}</td>
-                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name || product.category ? <small className={styles.category}>{product.productCategory?.name ?? product.category}</small> : null}</td>
+                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name || product.category ? <small className={styles.category}>{product.productCategory?.name ?? product.category}</small> : null}{product.trackInventory ? <small className={styles.trackingHint}>Stock tracking on</small> : null}</td>
                     <td>{product.sku ?? "-"}</td>
                     <td className={styles.amount}>RM{Number(product.price).toFixed(2)}</td>
                     <td className={styles.amount}>{product.trackInventory ? product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>

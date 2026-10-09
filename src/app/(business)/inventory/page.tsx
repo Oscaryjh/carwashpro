@@ -4,6 +4,7 @@ import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
 import { prisma } from "@/lib/prisma";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import styles from "./inventory.module.css";
 
 type InventoryPageProps = {
@@ -17,7 +18,7 @@ function getStockState(quantity: number, reorderLevel: number) {
 }
 
 export default async function InventoryPage({ searchParams }: InventoryPageProps) {
-  const { businessId, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
+  const { businessId, access, user, moduleContext } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
   const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId);
   const branches = await getInventoryReadBranches(businessId, access);
   const allowedBranchIds = branches.map((branch) => branch.id);
@@ -52,6 +53,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
   const purchasing = params.view === "purchasing";
   /* History is available on its dedicated route. */
   const canAddStock = access.granted && access.effectiveBusinessRole !== "GROUP_MANAGER_READ_ONLY" && access.effectiveBusinessRole !== "PLATFORM_ADMIN" && hasBusinessCapability(access, "MANAGE_INVENTORY");
+  const canSetUpProducts = access.granted && access.source === "DIRECT_BUSINESS" && moduleContext.enabledModules.has("POS") && hasBusinessCapability(access, "VIEW_CATALOG") && hasStaffPermission(user, "PRODUCTS");
 
   return (
     <section className={`content ${styles.inventoryPage}`}>
@@ -116,10 +118,15 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           <div><span className={styles.eyebrow}>Current position</span><h2 id="stock-balance-heading">Stock balance</h2></div>
           <span className={styles.safetyBadge}>Negative stock blocked</span>
         </div>
-        {!products.length ? (
+        {!branches.length ? (
+          <div className={styles.emptyState}><strong>No store stock is available in your current access.</strong><p>Ask the business owner to check your store access or set up an active store. Products and their stock history are kept.</p></div>
+        ) : !balances.length && hasFilters ? (
+          <div className={styles.emptyState}><strong>No stock matches your current search or filters.</strong><p>Try another search or store.</p><Link href="/inventory">Clear filters</Link></div>
+        ) : !products.length ? (
           <div className={styles.emptyState}>
-            <strong>No inventory-tracked products</strong>
-            <p>Enable inventory tracking from Products, then record an explicit opening balance.</p>
+            <strong>No products are being tracked yet.</strong>
+            <p>Turn on Track stock in Products for the items you want to manage.</p>
+            {canSetUpProducts ? <Link href="/products">Set up products</Link> : <p>Ask the business owner to set up stock tracking for products.</p>}
           </div>
         ) : balances.length ? (
           <>
@@ -128,7 +135,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
                 <thead><tr><th>Product</th><th>Store</th><th>Quantity</th><th>Status</th></tr></thead>
                 <tbody>{balances.map(({ product, stock }) => {
                   const state = getStockState(stock.quantity, stock.reorderLevel);
-                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small></td><td>{stock.branch.name}</td><td className={styles.quantityCell}>{stock.quantity}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>{canAddStock && stock.quantity <= stock.reorderLevel ? <Link className={styles.textLink} href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}</td></tr>;
+                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small>{product.status === "INACTIVE" ? <small>Inactive — stock and history are kept.</small> : null}</td><td>{stock.branch.name}</td><td className={styles.quantityCell}>{stock.quantity}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>{canAddStock && product.status === "ACTIVE" && stock.quantity <= stock.reorderLevel ? <Link className={styles.textLink} href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}</td></tr>;
                 })}</tbody>
               </table>
             </div>
@@ -144,14 +151,15 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
                     <dl>
                       <div><dt>Quantity</dt><dd>{stock.quantity}</dd></div>
                     </dl>
-                    {canAddStock && stock.quantity <= stock.reorderLevel ? <Link href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}
+                    {product.status === "INACTIVE" ? <p>Inactive — stock and history are kept.</p> : null}
+                    {canAddStock && product.status === "ACTIVE" && stock.quantity <= stock.reorderLevel ? <Link href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}
                   </article>
                 );
               })}
             </div>
           </>
         ) : (
-          <div className={styles.emptyState}><strong>No matching stock balances</strong><p>Try changing the search, branch or stock status filter.</p></div>
+          <div className={styles.emptyState}><strong>No stock quantities are set up for these stores yet.</strong><p>The products still exist. Ask the business owner to check their stock setup for these stores.</p></div>
         )}
       </section>
 

@@ -19,7 +19,7 @@ test("Inventory Hub presents existing workflows according to effective capabilit
   const state = {
     access: { granted: true, source: "DIRECT_BUSINESS", identityRole: "BUSINESS_OWNER", effectiveBusinessRole: "BUSINESS_OWNER", actorRole: "BUSINESS_OWNER", permissions: [] as string[] },
     branches: [{ id: "A", name: "Store A" }],
-    products: [] as Array<{ id: string; name: string; sku: string; costPrice: number; stocks: Array<{ id: string; branchId: string; quantity: number; reorderLevel: number; branch: {name: string} }> }>,
+    products: [] as Array<{ id: string; name: string; sku: string; status?: "ACTIVE" | "INACTIVE"; costPrice: number; stocks: Array<{ id: string; branchId: string; quantity: number; reorderLevel: number; branch: {name: string} }> }>,
     suppliers: [] as Array<{ id: string; name: string }>,
     movements: [] as Array<{id: string; createdAt: Date; type: string; quantityDelta: number; quantityBefore: number; quantityAfter: number; reason: string; reference: string; sourceType: string; sourceId: string; product: {name: string; sku: string}; branch: {name: string}; actor: {name: string}}>,
   };
@@ -68,7 +68,7 @@ test("Inventory Hub presents existing workflows according to effective capabilit
     });
     await t.test("Stock table focuses on quantity and low stock links carry product/store preselection", async () => {
       state.branches = [{ id: "A", name: "Store A" }, { id: "B", name: "Store B" }];
-      state.products = [{ id: "P", name: "Shampoo", sku: "SH", costPrice: 10, stocks: [{ id: "S", branchId: "A", quantity: 0, reorderLevel: 2, branch: { name: "Store A" } }] }];
+      state.products = [{ id: "P", name: "Shampoo", sku: "SH", status: "ACTIVE", costPrice: 10, stocks: [{ id: "S", branchId: "A", quantity: 0, reorderLevel: 2, branch: { name: "Store A" } }] }];
       const doc = await render("src/app/(business)/inventory/page.tsx");
       assert.deepEqual(Array.from(doc.querySelectorAll('table thead th')).map(e => e.textContent), ["Product", "Store", "Quantity", "Status"]);
       const shortcut = doc.querySelector('a[href^="/inventory/stock-in?"]')!;

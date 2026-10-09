@@ -39,9 +39,9 @@ test("new product exposes ordered fields and concise create-only guidance", () =
   assert.deepEqual([...html.matchAll(/<(?:input|select)\b[^>]*name="([^"]+)"/g)].map(m => m[1]).filter(n => !n.startsWith("$")), ["name", "price", "categoryId", "taxable", "taxRate", "trackInventory", "costPrice"]);
   assert.doesNotMatch(html, /System-generated SKU|Assigned automatically|<span>SKU<\/span>/);
   assert.match(html, /No category yet\? <a href="\/products\?modal=categories">Manage categories/);
-  assert.match(html, /<span>Cost price<\/span>/);
+  assert.match(html, /<span>Purchase cost \(optional\)<\/span>/);
   assert.doesNotMatch(html, /name="description"|<textarea/);
-  assert.match(html, /Keep track of stock quantity for this product\./);
+  assert.match(html, /Turn this on if you want Tetamu POS to keep track of how many units you have in each store\./);
   assert.doesNotMatch(html, /immutable branch stock ledger|name="stock_a"/);
 });
 
@@ -149,5 +149,47 @@ test("existing product schema and calculator preserve blank, zero, custom and no
     const input = productSchema.parse({ name: "Synthetic product", categoryId: "00000000-0000-4000-8000-000000000001", price: "100", taxable, taxRate });
     assert.equal(input.taxRate, taxRate === "" ? undefined : Number(taxRate));
     assert.equal(calculateTax({ sstEnabled: true, sstRate: 8, lines: [{ lineTotal: 100, taxable: input.taxable, taxRate: input.taxRate }] }).tax, tax);
+  }
+});
+
+test("new and previously untracked products keep tracking off until explicitly enabled, then submit per-store starting quantities", () => {
+  const state = { index: 0, values: [] as unknown[] };
+  const runtime = globalThis as typeof globalThis & { __productFormUIHooks?: typeof state };
+  runtime[hookKey] = state;
+  const tree = (branches = base.branches) => {
+    state.index = 0;
+    return InteractiveForm({ ...base, branches });
+  };
+  try {
+    let elements = nodes(tree());
+    assert.equal(elements.find(n => n.props?.name === "trackInventory").props.checked, false);
+    assert.ok(!elements.some(n => n.props?.name === "stock_a"));
+    elements.find(n => n.props?.name === "trackInventory").props.onChange({target:{checked:true}});
+    let html = renderToStaticMarkup(tree());
+    assert.match(html, /How many do you have in stock right now\?/);
+    assert.match(html, /Store: Outlet/);
+    assert.match(html, /Starting quantity/);
+    assert.match(html, /Enter 0 if you have none\. You can add stock later from Inventory\./);
+    assert.match(html, /Low stock alert at/);
+    assert.doesNotMatch(html, /Opening balances|OPENING_BALANCE|branch stock ledger/);
+    elements = nodes(tree([{id:"a",name:"Outlet"},{id:"b",name:"Second"}]));
+    for(const name of ["stock_a","stock_b","reorder_a","reorder_b"]){
+      const field=elements.find(n=>n.props?.name===name);
+      assert.ok(field,name);assert.equal(field.props.defaultValue,0);assert.notEqual(field.props.disabled,true);
+    }
+    html=renderToStaticMarkup(tree([]));
+    assert.match(html,/Stock tracking is on, but there is no active store available/);
+    assert.ok(nodes(tree([])).some(n=>n.type==="button" && n.props.type==="submit" && !n.props.disabled));
+  } finally {delete runtime[hookKey];}
+});
+
+test("tracked edit preserves positive read-only quantities and only offers Inventory navigation when authorized",()=>{
+  const product={id:"p",name:"Shampoo",sku:"P001",status:"ACTIVE",price:10,costPrice:null,taxRate:null,taxable:false,trackInventory:true,stocks:[{branchId:"a",quantity:10,reorderLevel:2}]};
+  for(const canViewInventory of [false,true]){
+    const html=render({product,canViewInventory});
+    assert.match(html,/Stock quantities are managed in Inventory\./);
+    assert.match(html,/name="stock_a"[^>]*value="10"/);
+    assert.match(html.match(/<input[^>]*name="stock_a"[^>]*>/)?.[0]??"",/readOnly/);
+    assert.equal(html.includes('href="/inventory"'),canViewInventory);
   }
 });

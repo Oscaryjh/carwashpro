@@ -18,11 +18,12 @@ type ProductFormProps = {
   submitLabel: string;
   returnPath?: string;
   inventoryEnabled: boolean;
+  canViewInventory?: boolean;
   modalLayout?: boolean;
   companySstRate?: number | null;
 };
 
-export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled, modalLayout = false, companySstRate }: ProductFormProps) {
+export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled, canViewInventory = false, modalLayout = false, companySstRate }: ProductFormProps) {
   const isCreate = !product;
   const [trackInventory, setTrackInventory] = useState(product?.trackInventory ?? false);
   const [taxable, setTaxable] = useState(product?.taxable ?? false);
@@ -33,7 +34,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
     <input min="0" name="price" step="0.01" type="number" defaultValue={product ? Number(product.price).toFixed(2) : ""} required />
   </label>;
   const costField = <label>
-    <span>{isCreate || modalLayout ? "Cost price" : "Cost price optional"}</span>
+    <span>Purchase cost (optional)</span>
     <input min="0" name="costPrice" step="0.01" type="number"
       defaultValue={product?.costPrice == null ? "" : Number(product.costPrice).toFixed(2)}
       onInvalid={isCreate ? (event) => {
@@ -158,35 +159,45 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           <span className="service-taxable-indicator" aria-hidden="true">✓</span>
           {modalLayout ? <span className="product-toggle-state" aria-hidden="true">{trackInventory ? "On" : "Off"}</span> : null}
           <span className="service-taxable-copy">
-            <strong>Track inventory</strong>
-            <small>{modalLayout ? "Keep track of stock quantity for this product." : "Use the immutable branch stock ledger for this product."}</small>
+            <strong>Track stock</strong>
+            <small>Turn this on if you want Tetamu POS to keep track of how many units you have in each store.</small>
           </span>
         </label>
       ) : null}
 
       {inventoryEnabled && trackInventory ? <fieldset className="product-stock-fieldset">
-        <legend>{product?.trackInventory ? "Branch inventory" : "Opening balances"}</legend>
+        <legend>{product?.trackInventory ? "Stock quantities" : "How many do you have in stock right now?"}</legend>
         <p className="field-helper">
           {product?.trackInventory
-            ? "Balances are read-only here. Use Inventory movements to change quantity."
-            : modalLayout ? "Enter the starting stock quantity for each location." : "These explicit quantities create immutable OPENING_BALANCE movements."}
+            ? "Stock quantities are managed in Inventory."
+            : "Enter 0 if you have none. You can add stock later from Inventory."}
         </p>
+        {product?.trackInventory && canViewInventory ? <Link href="/inventory">Open Inventory</Link> : null}
         {branches.length ? (
           <div className="field-grid">
             {branches.map((branch) => {
               const stock = product?.stocks.find((item) => item.branchId === branch.id);
               return (
-                <label key={branch.id}>
-                  <span>{branch.name} quantity</span>
-                  <input name={`stock_${branch.id}`} min="0" readOnly={Boolean(product?.trackInventory)} step="1" type="number" defaultValue={stock?.quantity ?? 0} />
-                  <span>{branch.name} reorder level</span>
-                  <input name={`reorder_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.reorderLevel ?? 0} />
-                </label>
+                <div key={branch.id}>
+                  <p className="field-helper">Store: {branch.name}</p>
+                  <label>
+                    <span>{product?.trackInventory ? "Current quantity" : "Starting quantity"}</span>
+                    <input aria-label={`${branch.name} ${product?.trackInventory ? "current" : "starting"} quantity`} name={`stock_${branch.id}`} min="0" readOnly={Boolean(product?.trackInventory)} step="1" type="number" defaultValue={stock?.quantity ?? 0} />
+                  </label>
+                  <details className="product-advanced-settings">
+                    <summary>Low stock alert</summary>
+                    <label>
+                      <span>Low stock alert at</span>
+                      <input aria-label={`${branch.name} low stock alert at`} name={`reorder_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.reorderLevel ?? 0} />
+                      <small className="field-helper">Show a low stock warning when quantity reaches this level.</small>
+                    </label>
+                  </details>
+                </div>
               );
             })}
           </div>
         ) : (
-          <p className="empty-state compact-empty-state">Create an active branch before adding stock.</p>
+          <p role="status" className="empty-state compact-empty-state">Stock tracking is on, but there is no active store available for stock quantities yet. Ask the business owner to set up an active store.</p>
         )}
       </fieldset> : null}
       </div>
