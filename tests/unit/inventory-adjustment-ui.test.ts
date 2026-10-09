@@ -40,12 +40,49 @@ test("Actual quantity submits existing delta/revision and resets when product or
     const data = new dom.window.FormData(doc.querySelector("form")!);
     assert.equal(data.get("delta"), "-2");
     assert.equal(data.get("expectedRevision"), "7");
+    await act(async () => {
+      const reason = doc.querySelector('textarea')!;
+      Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(reason, "Counted on shelf");
+      reason.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    });
+    assert.equal((doc.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, false);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(actual, "10");
+      actual.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    });
+    assert.match(doc.body.textContent!, /Stock matches\. No update needed\./);
+    assert.equal((doc.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
+    async function renderMode(mode: string, extra = {}) {
+      await act(async () => root.render(createElement(InventoryCommandForm, { key: mode, action: async () => {}, mode, branches: [{ id: "A", name: "Store A" }], products: [{ id: "P", name: "Shampoo", sku: null, stocks: [] }], ...extra })));
+    }
     await select("branchId", "B");
     assert.equal(actual.value, "");
     assert.equal(new dom.window.FormData(doc.querySelector("form")!).get("expectedRevision"), "9");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(actual, "4");
+      actual.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    });
+    assert.equal(actual.value, "4");
     await select("productId", "Q");
     assert.equal(actual.value, "");
     assert.equal((doc.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
+    await renderMode("STOCK_IN", { initialProductId: "P", initialBranchId: "A" });
+    assert.equal(new dom.window.FormData(doc.querySelector("form")!).get("productId"), "P");
+    assert.equal(new dom.window.FormData(doc.querySelector("form")!).get("reason"), "Stock added");
+    assert.equal(doc.querySelector('textarea')?.required, false);
+    await renderMode("STOCK_OUT");
+    assert.deepEqual(Array.from(doc.querySelectorAll('select[aria-label="Reason"] option')).map(o => o.textContent), ["Used", "Damaged", "Lost", "Other"]);
+    await act(async () => {
+      const reason = doc.querySelector('select[aria-label="Reason"]') as HTMLSelectElement;
+      reason.value = "Other"; reason.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    assert.equal(doc.querySelector('textarea')?.required, true);
+    assert.equal((doc.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
+    await renderMode("STOCK_IN", { initialProductId: "foreign", initialBranchId: "foreign" });
+    assert.equal(new dom.window.FormData(doc.querySelector("form")!).get("productId"), "");
+    assert.equal(new dom.window.FormData(doc.querySelector("form")!).get("branchId"), "A");
+    await renderMode("TRANSFER");
+    assert.equal(doc.querySelector('form'), null, "Single store cannot present a transfer submission");
   } finally {
     await act(async () => root.unmount());
     dom.window.close();

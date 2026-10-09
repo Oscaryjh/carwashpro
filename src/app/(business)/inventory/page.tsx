@@ -50,20 +50,8 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
   );
   const inStock = allBalances.filter(({ stock }) => stock.quantity > stock.reorderLevel);
   const purchasing = params.view === "purchasing";
-  const recentMovements = await prisma.inventoryMovement.findMany({
-    where: {
-      businessId,
-      branchId: { in: selectedBranchId ? [selectedBranchId] : allowedBranchIds },
-      ...(query ? { product: { OR: [{ name: { contains: query, mode: "insensitive" } }, { sku: { contains: query, mode: "insensitive" } }] } } : {}),
-    },
-    include: {
-      actor: { select: { name: true } },
-      branch: { select: { name: true } },
-      product: { select: { name: true, sku: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 25,
-  });
+  /* History is available on its dedicated route. */
+  const canAddStock = access.granted && access.effectiveBusinessRole !== "GROUP_MANAGER_READ_ONLY" && access.effectiveBusinessRole !== "PLATFORM_ADMIN" && hasBusinessCapability(access, "MANAGE_INVENTORY");
 
   return (
     <section className={`content ${styles.inventoryPage}`}>
@@ -76,7 +64,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
 
       {params.message ? <p className={`form-message ${params.type === "error" ? "error" : "success"}`}>{params.message}</p> : null}
 
-      <InventoryHubNavigation access={access} purchasing={purchasing} branchId={params.branchId} />
+      <InventoryHubNavigation access={access} purchasing={purchasing} branchId={params.branchId} branchCount={branches.length} />
       {!purchasing ? <>
 
       <section className={styles.workspace} aria-labelledby="inventory-overview-heading">
@@ -85,7 +73,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             <span className={styles.eyebrow}>Live overview</span>
             <h2 id="inventory-overview-heading">Stock overview</h2>
           </div>
-          <span className={styles.scopeLabel}>{selectedBranchId ? branches.find((branch) => branch.id === selectedBranchId)?.name : "All accessible branches"}</span>
+          <span className={styles.scopeLabel}>{selectedBranchId ? branches.find((branch) => branch.id === selectedBranchId)?.name : "All accessible stores"}</span>
         </div>
 
         <form className={styles.filters} key={`${query}:${selectedBranchId ?? "all"}:${stockStatus || "all"}`}>
@@ -95,9 +83,9 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           </label>
           {branches.length > 1 ? (
             <label>
-              <span>Branch</span>
+              <span>Store</span>
               <select name="branchId" defaultValue={selectedBranchId ?? ""}>
-                <option value="">All branches</option>
+                <option value="">All stores</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             </label>
@@ -137,10 +125,10 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           <>
             <div className={styles.desktopTable}>
               <table>
-                <thead><tr><th>Product</th><th>Branch</th><th>On hand</th><th>Reorder at</th><th>Retail price</th><th>Status</th></tr></thead>
+                <thead><tr><th>Product</th><th>Store</th><th>Quantity</th><th>Status</th></tr></thead>
                 <tbody>{balances.map(({ product, stock }) => {
                   const state = getStockState(stock.quantity, stock.reorderLevel);
-                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small></td><td>{stock.branch.name}</td><td className={styles.quantityCell}>{stock.quantity}</td><td>{stock.reorderLevel}</td><td>RM{Number(product.price).toFixed(2)}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span></td></tr>;
+                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small></td><td>{stock.branch.name}</td><td className={styles.quantityCell}>{stock.quantity}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>{canAddStock && stock.quantity <= stock.reorderLevel ? <Link className={styles.textLink} href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}</td></tr>;
                 })}</tbody>
               </table>
             </div>
@@ -154,10 +142,9 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
                       <span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>
                     </div>
                     <dl>
-                      <div><dt>On hand</dt><dd>{stock.quantity}</dd></div>
-                      <div><dt>Reorder at</dt><dd>{stock.reorderLevel}</dd></div>
-                      <div><dt>Retail price</dt><dd>RM{Number(product.price).toFixed(2)}</dd></div>
+                      <div><dt>Quantity</dt><dd>{stock.quantity}</dd></div>
                     </dl>
+                    {canAddStock && stock.quantity <= stock.reorderLevel ? <Link href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}
                   </article>
                 );
               })}
@@ -168,23 +155,6 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         )}
       </section>
 
-      <section className={styles.dataPanel} aria-labelledby="movement-ledger-heading">
-        <div className={styles.panelHeader}>
-          <div><span className={styles.eyebrow}>Audit trail</span><h2 id="movement-ledger-heading">Recent stock history</h2></div>
-          <Link className={styles.textLink} href="/inventory/movements">View stock history</Link>
-        </div>
-        {recentMovements.length ? (
-          <div className={styles.desktopTable}>
-            <table><thead><tr><th>Time</th><th>Product</th><th>Branch</th><th>Type</th><th>Delta</th><th>Balance</th><th>Reason</th><th>Actor</th></tr></thead><tbody>{recentMovements.map((movement) => <tr key={movement.id}><td>{movement.createdAt.toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" })}</td><td><strong>{movement.product.name}</strong><small>{movement.product.sku ?? "No SKU"}</small></td><td>{movement.branch.name}</td><td>{movement.type.replaceAll("_", " ")}</td><td className={movement.quantityDelta > 0 ? styles.positiveDelta : styles.negativeDelta}>{movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}</td><td>{movement.quantityAfter}</td><td>{movement.reason}</td><td>{movement.actor?.name ?? "System"}</td></tr>)}</tbody></table>
-          </div>
-        ) : (
-          <div className={styles.emptyState}>
-            <strong>No stock movements yet</strong>
-            <p>Stock received, used, moved or corrected will appear here.</p>
-            {hasBusinessCapability(access, "MANAGE_INVENTORY") ? <Link href="/inventory/stock-in">Add stock</Link> : null}
-          </div>
-        )}
-      </section>
       </> : null}
     </section>
   );
