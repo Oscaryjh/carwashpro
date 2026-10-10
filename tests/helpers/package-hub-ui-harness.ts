@@ -19,15 +19,17 @@ export const fixture = {
   customers: { rows: [{ customerPackageId: "cp1", customerId: "c1", customerName: "Alice", packageId: "p1", packageName: "Haircut bundle", remainingUses: 5, totalUses: 10, status: "ACTIVE" as const, purchasedAt: event.occurredAt, branchId, branchName: "Local", serviceBalances: [{ balanceId: "b1", serviceId: "s1", serviceName: "Haircut", remainingUses: 3, totalUses: 4 }], lastActivityAt: event.occurredAt, historyMayBeIncomplete: true }], pageSize: 20 as const, nextCursor: null },
 };
 export async function packageHubHarness() {
-  const state = { role: "BUSINESS_OWNER", enabled: true, manage: true, links: true, empty: false, error: undefined as Error | undefined,
+  const state = { extraHistoricalBranch: false, outletKind: "legacy_multi_branch", role: "BUSINESS_OWNER", enabled: true, manage: true, links: true, empty: false, error: undefined as Error | undefined,
     calls: [] as { reader: string; ctx: Record<string, unknown>; input: Record<string, unknown> }[] };
   const globals = globalThis as typeof globalThis & { __packageUI?: { state: typeof state; fixture: typeof fixture } };
   globals.__packageUI = { state, fixture };
   const stubs: Record<string, string> = {
+    "@/lib/catalog-outlet-context": `export async function resolveCatalogOutletContext(){const kind=globalThis.__packageUI.state.outletKind;return {kind,businessId:'${businessId}',internalBranchId:'${branchId}'}}`,
+    "@/lib/outlet-ui-context": "export const outletPresentation=c=>c;",
     "next/link": "import{createElement}from'react';export default({children,...props})=>createElement('a',props,children)",
     "next/navigation": "export function notFound(){throw Error('NOT_FOUND')}",
     "@/lib/tenant": `export async function getBusinessContext(){const s=globalThis.__packageUI.state;return{businessId:'${businessId}',isPlatformAdmin:s.role==='PLATFORM_ADMIN',user:{userId:'u1'},access:{granted:true,effectiveBusinessRole:s.role}}}`,
-    "@/lib/prisma": `export const prisma={business:{findUniqueOrThrow:async()=>({timezone:'Asia/Singapore',businessDayCutoffTime:'02:00'})},branch:{findMany:async()=>[{id:'${branchId}',name:'Local'}]},invoice:{findMany:async()=>[{id:'i1'}]}}`,
+    "@/lib/prisma": `export const prisma={business:{findUniqueOrThrow:async()=>({timezone:'Asia/Singapore',businessDayCutoffTime:'02:00'})},branch:{findMany:async()=>[{id:'${branchId}',name:'Local'},...(globalThis.__packageUI.state.extraHistoricalBranch?[{id:'old',name:'Historical'}]:[])]},invoice:{findMany:async()=>[{id:'i1'}]}}`,
     "@/lib/business-groups/business-access": "export const hasBusinessCapability=(_,c)=>c==='VIEW_CATALOG'?globalThis.__packageUI.state.manage:globalThis.__packageUI.state.links",
     "@/lib/branches": "export const authorizedOperationalBranchWhere=()=>({})",
     "@/lib/packages/hub-scope": `export async function resolvePackageHubScope(ctx){const s=globalThis.__packageUI.state;if(!s.enabled||s.role!=='BUSINESS_OWNER')throw Error('Package Hub access denied.');if(ctx.branchId&&ctx.branchId!=='${branchId}')throw Error('Package Hub branch unavailable.');return ctx}`,

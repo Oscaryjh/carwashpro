@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
 import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeletePackageForm } from "@/components/delete-package-form";
 import { PackageCreateModal } from "@/components/package-create-modal";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUser, requireBusinessUserForModule } from "@/lib/auth/business-user";
+import { resolveCatalogOutletContext, guardCatalogOutletSubmission } from "@/lib/catalog-outlet-context";
+import { outletPresentation } from "@/lib/outlet-ui-context";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { authorizedCustomerPackageBranchWhere, canAccessOperationalBranch, getActiveBranches } from "@/lib/branches";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -43,6 +46,19 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   }
 
   const params = await searchParams;
+  const outletContext = await resolveCatalogOutletContext({ businessId, actorUserId: user.userId, resource: "PACKAGES", operation: "read",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId === ALL_BRANCHES_ONLY ? null : params.branchId } : {}) });
+  if (outletContext.kind === "denied") notFound();
+  const outlet = outletPresentation(outletContext);
+  const snapshot = { ...outlet, businessId };
+  async function createWithCurrentOutlet(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUserForModule("POS");
+    assertStaffPermission(fresh.user, "PACKAGES");
+    const current = await guardCatalogOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId, resource: "PACKAGES", snapshot, formData });
+    if (!formData.has("branchId") && current.kind === "single_outlet") formData.set("branchId", current.internalBranchId);
+    await createPackageAction(formData);
+  }
   const isCreateOpen = params.modal === "create";
   const isCategoriesOpen = params.modal === "categories";
   const message = params.message?.trim();
@@ -175,7 +191,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
             <input
               name="q"
               defaultValue={query}
-              placeholder="Search package, category, service, or branch"
+              placeholder={outlet.kind === "single_outlet" ? "Search package, category, or service" : "Search package, category, service, or branch"}
             />
             <select name="categoryId" defaultValue={categoryId} aria-label="Category">
               <option value="">All categories</option>
@@ -279,7 +295,8 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
       </section>
       {isCreateOpen ? (
         <PackageCreateModal
-          action={createPackageAction}
+          action={createWithCurrentOutlet}
+          outlet={outlet}
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}
           isSalonBusiness={isSalonBusiness}

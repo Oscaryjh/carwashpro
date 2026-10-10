@@ -6,6 +6,7 @@ import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { resolveCatalogEditBranch } from "@/lib/catalog-outlet-context";
 import { createCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
 import {
   packageSchema,
@@ -97,12 +98,15 @@ export async function updatePackageAction(formData: FormData) {
   const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PACKAGES");
 
-  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const packageId = formData.get("packageId")?.toString();
 
   if (!packageId) {
     throw new Error("Package id is required.");
   }
+
+  const packagePlan = await prisma.package.findFirstOrThrow({ where: { id: packageId, businessId } });
+  const branchId = await resolveCatalogEditBranch({ businessId, actorUserId: user.userId,
+    resource: "PACKAGES", existingBranchId: packagePlan.branchId, formData });
 
   const benefits = parsePackageBenefits(formData, industryType === "SALON_BEAUTY");
   const aggregateUses = benefits.reduce((sum, benefit) => sum + benefit.totalUses, 0);
@@ -117,13 +121,6 @@ export async function updatePackageAction(formData: FormData) {
     price: formData.get("price"),
     totalUses: benefits.length ? aggregateUses : formData.get("totalUses"),
     status: formData.get("status"),
-  });
-
-  const packagePlan = await prisma.package.findFirstOrThrow({
-    where: {
-      id: packageId,
-      businessId,
-    },
   });
 
   const duplicate = await prisma.package.findFirst({

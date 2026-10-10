@@ -16,6 +16,8 @@ let Detail: (props: { params: Promise<{serviceId: string}> }) => Promise<ReactEl
 before(async () => {
   globals.__servicesHub = state;
   const stubs: Record<string, string> = {
+    "@/lib/catalog-outlet-context": "export const resolveCatalogOutletContext=async()=>({kind:'legacy_multi_branch',businessId:'biz'});export const guardCatalogOutletSubmission=async()=>({kind:'legacy_multi_branch'});",
+    "@/lib/outlet-ui-context": "export const outletPresentation=c=>c;",
     "next/link": "import{createElement}from'react';export default({children,...props})=>createElement('a',props,children)",
     "next/navigation": "export const useRouter=()=>({back(){}});export const notFound=()=>{throw Error('NOT_FOUND')};export const redirect=()=>{throw Error('REDIRECT')}",
     "@/lib/industry-context": "export const requireBusinessIndustryContext=async()=>({user:{role:'BUSINESS_OWNER'},businessId:'biz',access:{source:'DIRECT_BUSINESS'},industry:{industryType:'SALON_BEAUTY'}})",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
 import { CatalogPagination } from "@/components/catalog-pagination";
@@ -10,6 +11,9 @@ import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { prisma } from "@/lib/prisma";
+import { resolveCatalogOutletContext, guardCatalogOutletSubmission } from "@/lib/catalog-outlet-context";
+import { outletPresentation } from "@/lib/outlet-ui-context";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { createServiceAction } from "./actions";
 import {
   createServiceCategoryAction,
@@ -41,6 +45,20 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
   }
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
+  const outletContext = await resolveCatalogOutletContext({ businessId, actorUserId: user.userId, resource: "SERVICES", operation: "read",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId === ALL_BRANCHES_ONLY ? null : params.branchId } : {}) });
+  if (outletContext.kind === "denied") notFound();
+  const outlet = outletPresentation(outletContext);
+  const snapshot = { ...outlet, businessId };
+  const showBranch = outlet.kind === "legacy_multi_branch";
+  async function createWithCurrentOutlet(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUserForModule("POS");
+    assertStaffPermission(fresh.user, "SERVICES");
+    const current = await guardCatalogOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId, resource: "SERVICES", snapshot, formData });
+    if (!formData.has("branchId") && current.kind === "single_outlet") formData.set("branchId", current.internalBranchId);
+    await createServiceAction(formData);
+  }
   const isCreateOpen = params.modal === "create";
   const companyTax = isCreateOpen
     ? await prisma.business.findUnique({ where: { id: businessId }, select: { sstRate: true } })
@@ -167,7 +185,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
               name="q"
               aria-label="Search services"
               defaultValue={query}
-              placeholder="Search service, category, or branch"
+              placeholder={showBranch ? "Search service, category, or branch" : "Search service or category"}
             />
             <select name="categoryId" defaultValue={categoryId} aria-label="Category">
               <option value="">All categories</option>
@@ -183,7 +201,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
             </select>
-            {branches.length > 1 ? <select name="branchId" defaultValue={branchId} aria-label="Branch">
+            {showBranch ? <select name="branchId" defaultValue={branchId} aria-label="Branch">
               <option value="">All branches</option>
               <option value={ALL_BRANCHES_ONLY}>All branches only</option>
               {branches.map((branch) => (
@@ -191,7 +209,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   {branch.name}
                 </option>
               ))}
-            </select> : null}
+            </select> : branchId ? <input type="hidden" name="branchId" value={branchId} /> : null}
             <button type="submit">Filter</button>
             {hasFilters ? (
               <Link className="secondary-link-button" href="/services">
@@ -212,7 +230,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   {isSalonBusiness ? <th>Duration</th> : null}
                   {isSalonBusiness ? <th>Staff</th> : null}
                   <th>Status</th>
-                  <th>Branch</th>
+                  {showBranch ? <th>Branch</th> : null}
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -252,7 +270,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                         {service.status}
                       </span>
                     </td>
-                    <td>{service.branch?.name ?? "All branches"}</td>
+                    {showBranch ? <td>{service.branch?.name ?? "All branches"}</td> : null}
                     <td>
                       <div className="catalog-table-actions">
                         <Link href={`/services/${service.id}`}>View</Link>
@@ -284,7 +302,8 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       </section>
       {isCreateOpen ? (
         <ServiceCreateModal
-          action={createServiceAction}
+          action={createWithCurrentOutlet}
+          outlet={outlet}
           companySstRate={companyTax?.sstRate == null ? null : Number(companyTax.sstRate)}
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}

@@ -6,6 +6,8 @@ import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { resolveCatalogOutletContext, guardCatalogOutletSubmission } from "@/lib/catalog-outlet-context";
+import { outletPresentation } from "@/lib/outlet-ui-context";
 import { formatCents, parseMoneyToCents } from "@/lib/commercial/money";
 import { updatePackageAction } from "../actions";
 
@@ -24,6 +26,18 @@ export default async function PackageDetailsPage({
   assertStaffPermission(user, "PACKAGES");
 
   const { packageId } = await params;
+  const outletContext = await resolveCatalogOutletContext({ businessId, actorUserId: user.userId, resource: "PACKAGES", operation: "read" });
+  if (outletContext.kind === "denied") notFound();
+  const outlet = outletPresentation(outletContext);
+  const snapshot = { ...outlet, businessId };
+  async function updateWithCurrentOutlet(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUserForModule("POS");
+    assertStaffPermission(fresh.user, "PACKAGES");
+    if (formData.get("packageId") !== packageId) throw new Error("Package access denied.");
+    await guardCatalogOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId, resource: "PACKAGES", snapshot, formData });
+    await updatePackageAction(formData);
+  }
 
   const [packagePlan, services, branches, categories] = await Promise.all([
     prisma.package.findFirst({
@@ -94,7 +108,8 @@ export default async function PackageDetailsPage({
             <h2>Edit package</h2>
           </div>
           <PackageForm
-            action={updatePackageAction}
+            action={updateWithCurrentOutlet}
+            outlet={outlet}
             packagePlan={packagePlan}
             categories={categories}
             services={services}

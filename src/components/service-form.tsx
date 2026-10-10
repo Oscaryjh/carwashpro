@@ -3,9 +3,11 @@ import Link from "next/link";
 import { BranchSelect } from "@/components/branch-select";
 import { ServiceTaxFields } from "@/components/service-tax-fields";
 import type { BranchOption } from "@/lib/branches";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
 type ServiceFormProps = {
   action: (formData: FormData) => Promise<void>;
+  outlet?: OutletPresentation;
   service?: Service;
   companySstRate?: number | null;
   categories?: Pick<ServiceCategory, "id" | "name" | "status">[];
@@ -25,6 +27,7 @@ type ServiceFormProps = {
 
 export function ServiceForm({
   action,
+  outlet,
   service,
   companySstRate,
   categories = [],
@@ -36,6 +39,10 @@ export function ServiceForm({
   staffOptions = [],
   selectedStaffIds = [],
 }: ServiceFormProps) {
+  if (!service && outlet?.kind === "no_location") return <p role="alert">This business does not have an operating location set up yet.</p>;
+  const branchField = outlet?.kind === "single_outlet"
+    ? service ? null : <input type="hidden" name="branchId" value={outlet.internalBranchId} />
+    : <BranchSelect branches={branches} selectedBranchId={service?.branchId} />;
   const durationField = isSalonBusiness ? (
     <label>
       <span>Duration</span>
@@ -49,9 +56,9 @@ export function ServiceForm({
   return (
     <form action={action} className={modalLayout ? "form service-create-form" : "form"} id={formId}>
       {service ? <input type="hidden" name="serviceId" value={service.id} /> : null}
-      {modalLayout ? <BranchSelect branches={branches} selectedBranchId={service?.branchId} /> : null}
+      {modalLayout ? branchField : null}
       <div className="field-grid">
-        {!modalLayout ? <BranchSelect branches={branches} selectedBranchId={service?.branchId} /> : null}
+        {!modalLayout ? branchField : null}
         <label>
           <span>Category</span>
           <select
@@ -137,7 +144,7 @@ export function ServiceForm({
                     <strong>{staff.name}</strong>
                     <small>
                       {staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}
-                      {staff.branchName ? ` · ${staff.branchName}` : ""}
+                      {outlet?.kind !== "single_outlet" && staff.branchName ? ` · ${staff.branchName}` : ""}
                     </small>
                   </span>
                 </label>

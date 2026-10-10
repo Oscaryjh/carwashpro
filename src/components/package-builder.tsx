@@ -12,9 +12,11 @@ import { BranchSelect } from "@/components/branch-select";
 import { PackageServiceBenefitsField } from "@/components/package-service-benefits-field";
 import { PackageServiceDropdown } from "@/components/package-service-dropdown";
 import type { BranchOption } from "@/lib/branches";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
 export type PackageBuilderProps = {
   action: (formData: FormData) => Promise<void>;
+  outlet?: OutletPresentation;
   packagePlan?: Pick<Package, "id" | "name" | "categoryId" | "description" | "branchId" | "serviceId" | "totalUses" | "status"> & { price: string };
   categories?: Pick<PackageCategory, "id" | "name" | "status">[];
   services: Array<
@@ -32,6 +34,7 @@ export type PackageBuilderProps = {
 
 export function PackageBuilder({
   action,
+  outlet,
   packagePlan,
   categories = [],
   services,
@@ -46,6 +49,10 @@ export function PackageBuilder({
   const [benefits, setBenefits] = useState(serviceBenefits);
   const [washServiceId, setWashServiceId] = useState(packagePlan?.serviceId ?? "");
   const [washUses, setWashUses] = useState(packagePlan?.totalUses ?? 10);
+  if (isCreate && outlet?.kind === "no_location") return <p role="alert">This business does not have an operating location set up yet.</p>;
+  const branchField = outlet?.kind === "single_outlet"
+    ? packagePlan ? null : <input type="hidden" name="branchId" value={outlet.internalBranchId} />
+    : <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />;
   const referenceItems = isSalonBusiness ? benefits : [{ serviceId: washServiceId, totalUses: washUses }];
   let regularCents: number | null = referenceItems.length ? 0 : null;
   for (const item of referenceItems) {
@@ -90,10 +97,10 @@ export function PackageBuilder({
       {packagePlan ? (
         <input type="hidden" name="packageId" value={packagePlan.id} />
       ) : null}
-      {isCreate ? <BranchSelect branches={branches} /> : null}
+      {isCreate ? branchField : null}
       <div className="field-grid">
         {!isCreate ? (
-          <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
+          branchField
         ) : null}
         <label>
           <span>Category</span>

@@ -8,6 +8,8 @@ import { resolvePackageHubScope } from "@/lib/packages/hub-scope";
 import { readPackageHubOverview, readPackageHubActivity, readPackageHubSales, readPackageHubCustomerPackages } from "@/lib/packages/hub-read-model";
 import { parsePackageHubQuery, resolvePackageHubPeriod } from "@/lib/packages/hub-presentation";
 import { PackageHub, type PackageHubProps } from "@/components/packages/package-hub";
+import { resolveCatalogOutletContext } from "@/lib/catalog-outlet-context";
+import { outletPresentation } from "@/lib/outlet-ui-context";
 function accessDenied(error: unknown) { return error instanceof Error && ["Package Hub access denied.", "Package Hub branch unavailable."].includes(error.message); }
 export default async function PackageHubPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const context = await getBusinessContext();
@@ -16,6 +18,10 @@ export default async function PackageHubPage({ searchParams }: { searchParams: P
   try { query = parsePackageHubQuery(await searchParams); } catch { notFound(); }
   const ctx = { businessId: context.businessId, user: context.user, branchId: query.branchId };
   try { await resolvePackageHubScope(ctx); } catch (error) { if (accessDenied(error) || error instanceof ZodError) notFound(); throw error; }
+  // Existing Hub scope validates historical branch queries. Topology is only
+  // presentation here: never replace the reader's branch or historical metadata.
+  const outletContext = await resolveCatalogOutletContext({ businessId: context.businessId, actorUserId: context.user.userId, resource: "PACKAGES", operation: "read" });
+  if (outletContext.kind === "denied") notFound();
   const [business, branches] = await Promise.all([
     prisma.business.findUniqueOrThrow({ where: { id: context.businessId }, select: { timezone: true, businessDayCutoffTime: true } }),
     prisma.branch.findMany({ where: { businessId: context.businessId }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] }),
@@ -32,7 +38,7 @@ export default async function PackageHubPage({ searchParams }: { searchParams: P
     </form></section>;
   }
   const input = { fromDate: period.fromDate, toDateExclusive: period.toDateExclusive, search: query.q, packageSearch: query.packageSearch, cursor: query.cursor };
-  const props: PackageHubProps = { query, period, branches, timezone: business.timezone,
+  const props: PackageHubProps = { query, period, branches, outlet: outletPresentation(outletContext), timezone: business.timezone,
     canManage: hasBusinessCapability(context.access, "VIEW_CATALOG"), canViewCustomers: hasBusinessCapability(context.access, "VIEW_CRM"), invoiceViewIds: [] };
   try {
     if (query.view === "overview") [props.overview, props.activity] = await Promise.all([readPackageHubOverview(ctx, input), readPackageHubActivity(ctx, { ...input, search: "", packageSearch: "", cursor: undefined })]);

@@ -6,11 +6,16 @@ import { createRequire } from 'node:module';
 async function fixture(total = 1, params: Record<string, string> = {}, actor: { role: string; branchId: string | null; source: string } = { role: 'BUSINESS_OWNER', branchId: '22222222-2222-4222-8222-222222222222', source: 'DIRECT_BUSINESS' }) {
   const bundle = await build({ stdin: { contents: `import React from 'react';import{createRoot}from'react-dom/client';import Page from './src/app/(business)/packages/page';
     window.fixtureTotal=${total};window.actor=${JSON.stringify(actor)};Page({searchParams:Promise.resolve(${JSON.stringify(params)})}).then(page=>createRoot(document.getElementById('root')).render(page)).catch(error=>window.pageError=error.message);`, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, write: false, platform: 'browser', jsx: 'automatic', plugins: [{ name: 'isolated-list', setup(b) {
+      b.onResolve({filter:/^next\/navigation$/},()=>({path:'navigation',namespace:'navigation-fixture'}));
+      b.onLoad({filter:/.*/,namespace:'navigation-fixture'},()=>({contents:`export const notFound=()=>{throw Error('NOT_FOUND')};`}));
+      b.onResolve({filter:/^@\/lib\/(catalog-outlet-context|outlet-ui-context)$/}, args=>({path:args.path,namespace:'outlet-fixture'}));
+      b.onLoad({filter:/.*/,namespace:'outlet-fixture'},()=>({contents:`export const resolveCatalogOutletContext=async()=>({kind:'single_outlet',internalBranchId:'22222222-2222-4222-8222-222222222222'});export const outletPresentation=c=>c;export const guardCatalogOutletSubmission=()=>{throw Error('No create')};`}));
       b.onResolve({ filter: /^next\/link$/ }, () => ({ path: 'link', namespace: 'link-fixture' }));
       b.onLoad({ filter: /.*/, namespace: 'link-fixture' }, () => ({ contents: `import{createElement}from'react';export default function Link(props){return createElement('a',props)}`, resolveDir: process.cwd() }));
       b.onResolve({ filter: /^@\/lib\/(auth\/business-user|auth\/staff-permissions|prisma)$|^(\.\/actions|\.\/categories\/actions|@\/app\/\(business\)\/packages\/actions)$|^@\/components\/(catalog-categories-modal|package-create-modal)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
       b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `
         export const requireBusinessUser=async()=>({access:{granted:true,source:window.actor.source,actorRole:'GROUP_MANAGER',businessId:'business'},user:window.actor,businessId:'business',industryType:'SALON_BEAUTY'});
+        export const requireBusinessUserForModule=requireBusinessUser;
         export const assertStaffPermission=()=>{};export const getActiveBranches=async()=>[{id:'b',name:'Local'}];
         export const createPackageAction=async()=>{throw Error('No create')};
         export const deletePackageAction=async(_,data)=>{window.deletedId=data.get('packageId');return{status:'success',message:'Deleted fixture'}};

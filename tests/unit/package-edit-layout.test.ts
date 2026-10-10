@@ -6,9 +6,10 @@ import { createRequire } from 'node:module';
 test('edit page renders five saved summary facts and retains separate save/delete form targets', async () => {
   const result = await build({ stdin: { contents: `import React from 'react';import{createRoot}from'react-dom/client';import Page from './src/app/(business)/packages/[packageId]/page';
     Page({params:Promise.resolve({packageId:'p'})}).then(page=>createRoot(document.getElementById('root')).render(page));`, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, write: false, platform: 'browser', jsx: 'automatic', plugins: [{ name: 'read-only-fixture', setup(b) {
-      b.onResolve({ filter: /^(next\/navigation|@\/lib\/(auth\/business-user|auth\/staff-permissions|branches|prisma))$|^(\.\.\/actions|@\/app\/\(business\)\/packages\/actions)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+      b.onResolve({ filter: /^(next\/navigation|@\/lib\/(catalog-outlet-context|outlet-ui-context|auth\/business-user|auth\/staff-permissions|branches|prisma))$|^(\.\.\/actions|@\/app\/\(business\)\/packages\/actions)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
       b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `
         export const notFound=()=>{throw Error('not found')};export const useRouter=()=>({back(){},push(){}});
+        export const resolveCatalogOutletContext=async()=>({kind:'single_outlet',internalBranchId:'b'});export const outletPresentation=c=>c;export const guardCatalogOutletSubmission=()=>{throw Error('No submit')};
         export const requireBusinessUserForModule=async()=>({user:{},businessId:'business',industryType:'SALON_BEAUTY'});
         export const assertStaffPermission=()=>{};export const getActiveBranches=async()=>[{id:'b',name:'Local'}];
         export const updatePackageAction=async()=>{throw Error('No submit')};export const deletePackageAction=async()=>{throw Error('No delete')};

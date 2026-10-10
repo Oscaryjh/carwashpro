@@ -7,6 +7,8 @@ import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { resolveCatalogOutletContext, guardCatalogOutletSubmission } from "@/lib/catalog-outlet-context";
+import { outletPresentation } from "@/lib/outlet-ui-context";
 import { updateServiceAction } from "../actions";
 
 type ServiceDetailsPageProps = {
@@ -24,6 +26,18 @@ export default async function ServiceDetailsPage({
   const isSalonBusiness = industryType === "SALON_BEAUTY";
 
   const { serviceId } = await params;
+  const outletContext = await resolveCatalogOutletContext({ businessId, actorUserId: user.userId, resource: "SERVICES", operation: "read" });
+  if (outletContext.kind === "denied") notFound();
+  const outlet = outletPresentation(outletContext);
+  const snapshot = { ...outlet, businessId };
+  async function updateWithCurrentOutlet(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUserForModule("POS");
+    assertStaffPermission(fresh.user, "SERVICES");
+    if (formData.get("serviceId") !== serviceId) throw new Error("Service access denied.");
+    await guardCatalogOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId, resource: "SERVICES", snapshot, formData });
+    await updateServiceAction(formData);
+  }
 
   const [service, branches, categories, staffOptions] = await Promise.all([
     prisma.service.findFirst({
@@ -96,7 +110,7 @@ export default async function ServiceDetailsPage({
             value={service.serviceCategory?.name ?? service.category ?? "-"}
           />
           <Info label="Status" value={service.status} />
-          <Info label="Branch" value={service.branch?.name ?? "All branches"} />
+          {outlet.kind === "legacy_multi_branch" ? <Info label="Branch" value={service.branch?.name ?? "All branches"} /> : null}
           <Info
             label={isSalonBusiness ? "Service usage" : "Work order usage"}
             value={service._count.items}
@@ -125,7 +139,8 @@ export default async function ServiceDetailsPage({
             <h2>Edit service</h2>
           </div>
           <ServiceForm
-            action={updateServiceAction}
+            action={updateWithCurrentOutlet}
+            outlet={outlet}
             companySstRate={companyTax?.sstRate == null ? null : Number(companyTax.sstRate)}
             service={service}
             branches={branches}

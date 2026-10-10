@@ -2,9 +2,11 @@ import type { PackageCategory, Service, ServiceCategory } from "@prisma/client";
 import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { PackageForm } from "@/components/package-form";
 import type { BranchOption } from "@/lib/branches";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
 type PackageCreateModalProps = {
   action: (formData: FormData) => Promise<void>;
+  outlet?: OutletPresentation;
   branches: BranchOption[];
   categories: Pick<PackageCategory, "id" | "name" | "status">[];
   isSalonBusiness: boolean;
@@ -17,6 +19,7 @@ type PackageCreateModalProps = {
 
 export function PackageCreateModal({
   action,
+  outlet,
   branches,
   categories,
   isSalonBusiness,
@@ -31,6 +34,7 @@ export function PackageCreateModal({
       wide
     >
       <PackageForm
+        outlet={outlet}
         action={action}
         branches={branches}
         categories={categories}

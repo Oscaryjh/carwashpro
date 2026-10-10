@@ -6,6 +6,20 @@ import { appShellNavigationHarness } from "../helpers/app-shell-navigation-harne
 import type { AppShell } from "../../src/components/app-shell";
 import { createRequire } from "node:module";
 
+test("single topology hides Package Hub branch presentation without changing reader scope or metadata", async () => {
+  const h=await packageHubHarness();
+  try {
+    h.state.outletKind="single_outlet";
+    h.state.extraHistoricalBranch=true;
+    const page=await h.api.Page({searchParams:Promise.resolve({view:"customers",branchId})});
+    const html=renderToStaticMarkup(h.api.PackageHub(page.props));
+    assert.doesNotMatch(html, /<label>Branch|<dt>Branch|All branches/);
+    assert.ok(h.state.calls.every(c=>c.ctx.branchId===branchId));
+    assert.equal(fixture.customers.rows[0].branchId,branchId);
+    assert.match(html,/name="branchId"/);
+  } finally { h.close(); }
+});
+
 function navigationProps(role: "BUSINESS_OWNER" | "STAFF" | "GROUP_MANAGER_READ_ONLY" | "PLATFORM_ADMIN", permissions = ["PACKAGES"]): Parameters<typeof AppShell>[0] {
   const identityRole = role === "GROUP_MANAGER_READ_ONLY" ? "STAFF" : role;
   return {

@@ -6,6 +6,7 @@ import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { resolveCatalogEditBranch } from "@/lib/catalog-outlet-context";
 import { money, serviceSchema } from "@/lib/validation/services";
 
 export type DeleteServiceState = {
@@ -91,12 +92,15 @@ export async function updateServiceAction(formData: FormData) {
   const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
 
-  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const serviceId = formData.get("serviceId")?.toString();
 
   if (!serviceId) {
     throw new Error("Service id is required.");
   }
+
+  const service = await prisma.service.findFirstOrThrow({ where: { id: serviceId, businessId } });
+  const branchId = await resolveCatalogEditBranch({ businessId, actorUserId: user.userId,
+    resource: "SERVICES", existingBranchId: service.branchId, formData });
 
   const input = serviceSchema.parse({
     name: formData.get("name"),
@@ -120,13 +124,6 @@ export async function updateServiceAction(formData: FormData) {
   const staffIds = isSalonBusiness
     ? await resolveServiceStaff(businessId, input.staffIds)
     : [];
-
-  const service = await prisma.service.findFirstOrThrow({
-    where: {
-      id: serviceId,
-      businessId,
-    },
-  });
 
   const duplicate = await prisma.service.findFirst({
     where: {
