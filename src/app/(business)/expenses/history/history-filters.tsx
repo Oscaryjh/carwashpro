@@ -10,6 +10,7 @@ export function HistoryFilters(props: {
   periods: ReturnType<typeof historyDatePeriods>;
   branches: Array<{ id: string; name: string }>;
   categories: Array<{ id: string; name: string }>;
+  showBranchSelector?: boolean;
 }) {
   const { query, periods } = props;
   const [period, setPeriod] = useState(Object.entries(periods).find(([, dates]) => dates.from === query.from && dates.to === query.to)?.[0] ?? (query.from || query.to ? "custom" : "all"));
@@ -40,7 +41,7 @@ export function HistoryFilters(props: {
       <label>Source<select name="sourceType" defaultValue={query.sourceType ?? ""}><option value="">All sources</option><option value="MANUAL">Manual</option><option value="CLAIM">Claims</option><option value="PAYROLL">Payroll</option><option value="INVENTORY_PURCHASE">Inventory Purchases</option></select></label>
       <label>Payment<select name="paymentStatus" defaultValue={query.paymentStatus ?? ""}><option value="">All payment states</option><option value="PAID">Paid</option><option value="PARTIALLY_PAID">Partially paid</option><option value="UNPAID">Unpaid</option></select></label>
       <label>Status<select name="status" defaultValue={query.status ?? ""}><option value="">All statuses</option><option value="DRAFT">Draft</option><option value="CONFIRMED">Confirmed</option><option value="VOID">Void</option></select></label>
-      {props.branches.length > 1 ? <label>Scope<select name="branchId" defaultValue={query.branchId ?? ""}><option value="">All authorised scope</option>{props.branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : query.branchId ? <input type="hidden" name="branchId" value={query.branchId} /> : null}
+      {(props.showBranchSelector ?? props.branches.length > 1) ? <label>Scope<select name="branchId" defaultValue={query.branchId ?? ""}><option value="">All authorised scope</option>{props.branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : query.branchId ? <input type="hidden" name="branchId" value={query.branchId} /> : null}
       <div className={styles.historyFilterButtons}><Link href="/expenses/history?from=&to=">Clear filters</Link><button type="submit">Apply filters</button></div>
     </div>
     <button type="submit" hidden aria-hidden="true" tabIndex={-1}>Search</button>

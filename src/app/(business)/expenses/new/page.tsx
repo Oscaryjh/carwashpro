@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { resolveExpenseReadScope } from "@/lib/expense/access";
+import { resolveExpenseOutletContext } from "@/lib/expense/outlet-scope";
 import { listOpenExpenseDrawerShifts } from "@/lib/expense/drawer-balance";
 import { getExpenseDocumentAiConfiguration } from "@/lib/expense/document-ai/config";
 import { ensureStarterExpenseCategories } from "@/lib/expense/service";
@@ -11,6 +12,9 @@ import styles from "../expense.module.css";
 
 export default async function NewExpensePage({ searchParams }: { searchParams: Promise<{ message?: string; type?: string }> }) {
   const context = await requireBusinessUserForModule("EXPENSE", "CREATE_EXPENSE");
+  const outlet = await resolveExpenseOutletContext({ businessId: context.businessId, actorUserId: context.user.userId });
+  if (outlet.context.kind === "denied") throw new Error("Expense access is not available.");
+  if (outlet.context.kind === "no_location" && !outlet.businessWideAllowed) return <section className="content"><h1>Add Expense</h1><p>An active authorised outlet is required. Ask the business owner to review your access.</p></section>;
   await ensureStarterExpenseCategories(context.businessId);
   const [query, scope, categories] = await Promise.all([
     searchParams,
@@ -35,6 +39,7 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
     {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`} role={query.type === "error" ? "alert" : "status"}>{query.message}</p> : null}
 
     <ExpenseDocumentAutofillForm
+      outletMode={outlet.context.kind}
       cashierShiftsEnabled={cashierShiftsEnabled}
       operationKey={`CREATE_EXPENSE:${randomUUID()}`}
       categories={categories.map(({ id, name, requiresReceipt }) => ({ id, name, requiresReceipt }))}

@@ -2,7 +2,10 @@ import Link from "next/link";
 import { z } from "zod";
 import { summarizePayments } from "@/lib/closing/payment-summary";
 import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
-import { BranchSelect } from "@/components/branch-select";
+import { Phase1c2LocationField } from "@/components/phase1c2-location-field";
+import { resolvePhase1c2OutletContext } from "@/lib/phase1c2-outlet-context";
+import { outletBranches } from "@/lib/outlet-ui-context";
+import { startOutletShiftAction } from "../phase1c2-location-actions";
 import { selectedOrOnlyBranch } from "@/lib/branch-selection";
 import type { PaymentMethod, PaymentRecordStatus } from "@prisma/client";
 import { DailyClosingSnapshotPanel } from "@/components/daily-closing-snapshot-panel";
@@ -25,7 +28,7 @@ import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
 import { assertStaffPermission, hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { fromCents, sumMoneyAmounts, toCents } from "@/lib/validation/pos";
-import { endShiftAction, resolveStaleShiftAction, startShiftAction } from "./actions";
+import { endShiftAction, resolveStaleShiftAction } from "./actions";
 
 type ClosingPageProps = {
   searchParams: Promise<{
@@ -109,12 +112,13 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const closingIndustry = isDailyClosingIndustry(context.industryType)
     ? context.industryType
     : null;
-  const isOwner = context.user.role === "BUSINESS_OWNER";
   const canConfirmDailyClosing = hasStaffPermission(
     context.user,
     "CONFIRM_DAILY_CLOSING",
   );
-  const branches = await getOperationalBranches(businessId, context.user);
+  const outlet = await resolvePhase1c2OutletContext({ businessId, actorUserId: context.user.userId, capability: "RUN_CLOSING", operation: "read", ...(params.branchId === undefined ? {} : { explicitBranchInput: params.branchId }) });
+  if (outlet.kind === "denied") throw new Error("Branch is invalid.");
+  const branches = outletBranches(outlet);
   if (params.branchId && !branches.some((branch) => branch.id === params.branchId)) {
     throw new Error("Branch is invalid.");
   }
@@ -174,7 +178,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         ...(canConfirmDailyClosing
           ? authorizedBranchIds.length
             ? { branchId: { in: authorizedBranchIds } }
-            : {}
+            : { branchId: { in: [] } }
           : { cashierId: context.user.userId }),
       },
       include: shiftInclude,
@@ -448,12 +452,12 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                 </form>
               </div>
             ) : (
-              <form action={startShiftAction} className="form closing-form">
+              <form action={startOutletShiftAction.bind(null, outlet)} className="form closing-form">
                 {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
                 {canStartShift ? (
                   <>
                     <div className="field-grid">
-                      <BranchSelect branches={branches} />
+                      <Phase1c2LocationField mode={outlet.kind} branches={branches} />
                       <label>
                         <span>Opening Float</span>
                         <input
@@ -518,6 +522,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
               branches={branches}
               returnTo={returnTo}
               isFrozen={Boolean(existingSnapshot)}
+              legacyMulti={outlet.kind === "legacy_multi_branch"}
             />
             {(
               <DailyClosingSnapshotPanel
@@ -1049,11 +1054,13 @@ function DailyClosingSummary({
   branches,
   isFrozen,
   returnTo,
+  legacyMulti,
 }: {
   dailyClosing: DailyClosingResult;
   branches: Awaited<ReturnType<typeof getOperationalBranches>>;
   isFrozen: boolean;
   returnTo: string | null;
+  legacyMulti: boolean;
 }) {
   const report = dailyClosing.report;
   const operationUnit =
@@ -1070,7 +1077,7 @@ function DailyClosingSummary({
             {isFrozen ? "Final figures from the frozen snapshot" : "Preview before daily closing"}
           </p>
         </div>
-        {branches.length > 1 ? <form method="get" className="daily-closing-branch-form">
+        {legacyMulti ? <form method="get" className="daily-closing-branch-form">
           {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
           <input type="hidden" name="date" value={dailyClosing.dateValue} />
           <label>

@@ -42,6 +42,7 @@ const paymentSources = ["POS_DRAWER", "PETTY_CASH", "BANK_ACCOUNT", "COMPANY_CAR
 export async function createExpenseAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "CREATE_EXPENSE");
   const parsed = facts.extend({
+    expenseScope: z.enum(["THIS_OUTLET", "BUSINESS_WIDE"]).optional(),
     intent: z.enum(["DRAFT", "CONFIRMED"]),
     paymentDate: z.string().date().optional().or(z.literal("")),
     paymentMethod: z.enum(paymentMethods).optional().or(z.literal("")),
@@ -54,7 +55,9 @@ export async function createExpenseAction(formData: FormData) {
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/new", parsed.error.issues[0]?.message ?? "Invalid Expense.");
   try {
-    const branchId = await resolveExpenseCreateBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
+    if (formData.getAll("expenseScope").length > 1 || formData.getAll("branchId").length > 1) throw new Error("Conflicting Expense scope input.");
+    const branchId = await resolveExpenseCreateBranch({ access: context.access, businessId: context.businessId,
+      ...(parsed.data.expenseScope ? { expenseScope: parsed.data.expenseScope, ...(parsed.data.branchId === undefined ? {} : { requestedBranchId: parsed.data.branchId }) } : { requestedBranchId: parsed.data.branchId || null }), user: context.user });
     const file = formData.get("receipt");
     const receipt = file instanceof File && file.size > 0 ? { bytes: new Uint8Array(await file.arrayBuffer()), claimedMimeType: file.type, originalFileName: file.name } : null;
     const expense = await createBusinessExpense({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, cashierShiftId: parsed.data.cashierShiftId || null, categoryId: parsed.data.categoryId, description: parsed.data.description, desiredStatus: parsed.data.intent, expenseDate: parsed.data.expenseDate, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, paymentDate: parsed.data.paymentDate || null, paymentMethod: parsed.data.paymentMethod || null, paymentSource: parsed.data.paymentSource || null, paymentReference: parsed.data.paymentReference, paymentStatus: parsed.data.paymentStatus, receipt, documentScanId: parsed.data.documentScanId || null, duplicateOverride: parsed.data.duplicateOverride === "true", request: await getAuditRequestContext() });
@@ -71,7 +74,12 @@ export async function updateExpenseFactsAction(formData: FormData) {
     const scope = await resolveExpenseReadScope(context);
     const existing = await getBusinessExpenseDetail({ businessId: context.businessId, expenseId: parsed.data.expenseId, ...scope });
     assertExpenseInMutationScope(existing, scope);
-    const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
+    if (formData.getAll("branchId").length > 1) throw new Error("Conflicting Expense location input.");
+    if (parsed.data.branchId && !scope.branches.some(branch => branch.id === parsed.data.branchId)) {
+      throw new Error("Expense location is outside your authorised scope.");
+    }
+    const branchId = parsed.data.branchId === undefined ? existing.branchId
+      : await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     const common = { actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, expenseDate: parsed.data.expenseDate, expenseId: parsed.data.expenseId, expectedRevision: parsed.data.expectedRevision, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, request: await getAuditRequestContext() };
     if (parsed.data.status === "DRAFT") await updateDraftBusinessExpense(common);
     else await correctConfirmedBusinessExpense({ ...common, reason: parsed.data.reason ?? "" });

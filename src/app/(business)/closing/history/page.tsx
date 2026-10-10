@@ -38,6 +38,7 @@ export default async function ClosingHistoryPage({
     context.user,
   );
   const allowedBranchIds = branches.map((branch) => branch.id);
+  if (params.branchId && !allowedBranchIds.includes(params.branchId)) throw new Error("Closing history location is outside your authorised scope.");
   const selectedBranchId = allowedBranchIds.includes(params.branchId ?? "")
     ? params.branchId
     : undefined;

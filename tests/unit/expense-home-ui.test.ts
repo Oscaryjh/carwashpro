@@ -23,6 +23,7 @@ before(async()=>{
   globals.__expenseHome=state;
   directory=await mkdtemp(join(process.cwd(),'node_modules/.cache/expense-home-'));
   const stubs: Record<string,string>={
+    '@/lib/expense/outlet-scope': `export const resolveExpenseOutletContext=async()=>({context:{kind:globalThis.__expenseHome.branches.length>1?'legacy_multi_branch':globalThis.__expenseHome.branches.length?'single_outlet':'no_location'}});`,
     'next/link': `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     '@/lib/auth/business-user': `export const requireBusinessUserForModule=async()=>({businessId:'business',access:{},user:{}});`,
     '@/lib/business-groups/business-access': `export const hasBusinessCapability=(_,cap)=>cap==='CREATE_EXPENSE'?globalThis.__expenseHome.create:globalThis.__expenseHome.manage;`,
@@ -86,7 +87,8 @@ test('recent records retain exact amount, date and detail route with lifecycle s
 test('server keeps authorised query scope and date/source contract',async()=>{
   await document({range:'custom',from:'2026-10-01',to:'2026-10-05',sourceType:'CLAIM',branchId:'one'});
   assert.deepEqual(state.input,{businessId:'business',branchId:'one',dateFrom:'2026-10-01',dateTo:'2026-10-05',sourceType:'CLAIM',branches:state.branches,allowedBranchIds:['one'],includeBusinessWide:true});
-  await document({branchId:'outside',sourceType:'UNKNOWN'});assert.equal(state.input.branchId,null);assert.equal(state.input.sourceType,null);
+  const prior=state.input;await assert.rejects(document({branchId:'outside',sourceType:'UNKNOWN'}),/outside your authorised scope/);assert.equal(state.input,prior);
+  await document({sourceType:'UNKNOWN'});assert.equal(state.input.branchId,null);assert.equal(state.input.sourceType,null);
 });
 test('period and filter disclosure work interactively without changing GET field names',async()=>{
   state.dashboard.bySource=[{sourceType:'MANUAL',amount:'10.00',count:1},{sourceType:'CLAIM',amount:'20.00',count:1}];

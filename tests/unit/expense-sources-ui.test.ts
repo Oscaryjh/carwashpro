@@ -20,6 +20,7 @@ before(async () => {
   directory = await mkdtemp(join(process.cwd(), 'node_modules/.cache/sources-ui-'));
   const serviceNames = ['confirmBusinessExpense', 'correctConfirmedBusinessExpense', 'createExpenseCategory', 'createBusinessExpense', 'getBusinessExpenseDetail', 'markBusinessExpensePaid', 'reorderExpenseCategories', 'updateDraftBusinessExpense', 'updateExpenseCategory', 'voidBusinessExpense', 'ensureStarterExpenseCategories', 'createRecurringExpenseTemplate', 'updateRecurringExpenseTemplate', 'generateRecurringExpense'];
   const stubs: Record<string, string> = {
+    '@/lib/expense/create-branch': `export async function resolveExpenseCreateBranch(){throw Error('Expense creation is outside this settings UI harness')}`,
     'next/link': `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     'next/cache': `export const revalidatePath=()=>{};`,
     'next/navigation': `export const redirect=url=>{throw Object.assign(new Error(url),{digest:'NEXT_REDIRECT'})};`,

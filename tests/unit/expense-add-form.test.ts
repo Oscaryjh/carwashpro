@@ -13,24 +13,26 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = require('jsdom') as { JSDOM: new (html: string) => { window: Window & typeof globalThis } };
 const branch = { id: '11111111-1111-4111-8111-111111111111', name: 'Main' };
 const second = { id: '22222222-2222-4222-8222-222222222222', name: 'Second' };
-const state = { branches: [branch], role: 'BUSINESS_OWNER', assigned: branch.id as string | null, created: [] as Record<string, unknown>[] };
+const state = { branches: [branch], role: 'BUSINESS_OWNER', assigned: branch.id as string | null, created: [] as Record<string, unknown>[], updated: [] as Record<string, unknown>[], existingBranchId: branch.id as string | null };
 const globals = globalThis as typeof globalThis & { __expenseAdd?: typeof state; IS_REACT_ACT_ENVIRONMENT?: boolean };
 let directory: string;
 let Form: typeof ExpenseDocumentAutofillForm;
 let createAction: (data: FormData) => Promise<void>;
+let updateAction: (data: FormData) => Promise<void>;
 before(async () => {
   globals.__expenseAdd = state;
   directory = await mkdtemp(join(process.cwd(), 'node_modules/.cache/expense-add-'));
-  const serviceNames = ['confirmBusinessExpense','correctConfirmedBusinessExpense','createExpenseCategory','createRecurringExpenseTemplate','generateRecurringExpense','getBusinessExpenseDetail','markBusinessExpensePaid','reorderExpenseCategories','updateDraftBusinessExpense','updateExpenseCategory','updateRecurringExpenseTemplate','voidBusinessExpense'];
+  const serviceNames = ['confirmBusinessExpense','correctConfirmedBusinessExpense','createExpenseCategory','createRecurringExpenseTemplate','generateRecurringExpense','markBusinessExpensePaid','reorderExpenseCategories','updateExpenseCategory','updateRecurringExpenseTemplate','voidBusinessExpense'];
   const stubs: Record<string, string> = {
+    'server-only': `export {};`,
     'next/link': `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     'next/cache': `export const revalidatePath=()=>{};`,
     'next/navigation': `export const redirect=url=>{throw Object.assign(new Error(url),{digest:'NEXT_REDIRECT'})};`,
-    '@/lib/auth/business-user': `export const requireBusinessUserForModule=async(module,cap)=>{if(module!=='EXPENSE'||cap!=='CREATE_EXPENSE')throw Error('wrong permission');const s=globalThis.__expenseAdd;return {businessId:'business',access:{granted:true,effectiveBusinessRole:s.role},user:{role:s.role,branchId:s.assigned,userId:'owner',name:'Test',email:'test.invalid'}}};`,
+    '@/lib/auth/business-user': `export const requireBusinessUserForModule=async(module,cap)=>{if(module!=='EXPENSE'||!['CREATE_EXPENSE','EDIT_EXPENSE_DRAFT'].includes(cap))throw Error('wrong permission');const s=globalThis.__expenseAdd;return {businessId:'business',access:{granted:true,effectiveBusinessRole:s.role},user:{role:s.role,branchId:s.assigned,userId:'owner',name:'Test',email:'test.invalid'}}};`,
     '@/lib/audit': `export const getAuditRequestContext=async()=>({});`,
     '@/lib/expense/source-integration': `export const saveExpenseIntegrationSettings=async()=>{};`,
     '@/lib/prisma': `export const prisma={branch:{findMany:async({where})=>{if(where.businessId!=='business'||where.status!=='ACTIVE')throw Error('scope lost');return globalThis.__expenseAdd.branches},findFirst:async({where})=>where.businessId==='business'&&where.status==='ACTIVE'?globalThis.__expenseAdd.branches.find(b=>b.id===where.id)??null:null}};`,
-    '@/lib/expense/service': `${serviceNames.map(n=>`export const ${n}=async()=>{};`).join('')} export const expenseErrorMessage=e=>e.message;export const createBusinessExpense=async data=>{globalThis.__expenseAdd.created.push(data);return {id:'created',expenseNumber:'EXP-1'}};`,
+    '@/lib/expense/service': `${serviceNames.map(n=>`export const ${n}=async()=>{};`).join('')} export const getBusinessExpenseDetail=async()=>({branchId:globalThis.__expenseAdd.existingBranchId});export const updateDraftBusinessExpense=async data=>globalThis.__expenseAdd.updated.push(data);export const expenseErrorMessage=e=>e.message;export const createBusinessExpense=async data=>{globalThis.__expenseAdd.created.push(data);return {id:'created',expenseNumber:'EXP-1'}};`,
   };
   const plugins = [{ name: 'expense-boundaries', setup(b: import('esbuild').PluginBuild) {
     b.onResolve({filter:/.*/}, args => stubs[args.path] ? {path:args.path,namespace:'stub'} : undefined);
@@ -40,9 +42,10 @@ before(async () => {
   await build({entryPoints:['src/components/expense-document-autofill-form.tsx','src/app/(business)/expenses/actions.ts'],outdir:directory,outbase:'src',bundle:true,platform:'node',packages:'external',format:'cjs',outExtension:{'.js':'.cjs'},jsx:'automatic',plugins});
   Form = require(join(directory,'components/expense-document-autofill-form.cjs')).ExpenseDocumentAutofillForm;
   createAction = require(join(directory,'app/(business)/expenses/actions.cjs')).createExpenseAction;
+  updateAction = require(join(directory,'app/(business)/expenses/actions.cjs')).updateExpenseFactsAction;
 });
 after(async () => { delete globals.__expenseAdd; if(directory) await rm(directory,{recursive:true,force:true,maxRetries:3}); });
-beforeEach(() => { state.branches=[branch];state.role='BUSINESS_OWNER';state.assigned=branch.id;state.created=[]; });
+beforeEach(() => { state.branches=[branch];state.role='BUSINESS_OWNER';state.assigned=branch.id;state.created=[];state.updated=[];state.existingBranchId=branch.id; });
 
 async function withForm(overrides: Partial<Parameters<typeof ExpenseDocumentAutofillForm>[0]>, run:(doc:Document, win:Window & typeof globalThis)=>void | Promise<void>) {
   const dom = new JSDOM('<div id="root"></div>');
@@ -74,6 +77,20 @@ test('one real branch plus business-wide eligibility hides all branch options an
 test('multiple authorised branches keep selection and business-wide option',async()=>withForm({branches:[branch,second]},doc=>{
   assert.deepEqual([...select(doc,'Branch').options].map(o=>o.value),['',branch.id,second.id]);
 }));
+
+test('single topology Owner expresses Business-wide explicitly without a branch selector',async()=>withForm({outletMode:'single_outlet'},(doc,win)=>{
+  const scope=select(doc,'Expense scope');assert.equal(scope.value,'THIS_OUTLET');change(scope,'BUSINESS_WIDE',win);
+  assert.equal(doc.querySelector<HTMLInputElement>('[name="expenseScope"]')?.value,'BUSINESS_WIDE');assert.equal(doc.querySelector('[name="branchId"]'),null);
+}));
+test('single Staff has fixed outlet intent and no Business-wide choice',async()=>withForm({outletMode:'single_outlet',includeBusinessWide:false},doc=>{
+  assert.equal(doc.querySelector<HTMLInputElement>('[name="expenseScope"]')?.value,'THIS_OUTLET');assert.doesNotMatch(doc.body.textContent??'',/Business-wide/);
+}));
+test('multi topology keeps branch selection even when Staff sees only one branch',async()=>withForm({outletMode:'legacy_multi_branch',includeBusinessWide:false},doc=>{
+  assert.equal(select(doc,'Branch').options.length,2);assert.ok(doc.querySelector('[name="branchId"]'));assert.equal(doc.querySelector('[name="expenseScope"]'),null);
+}));
+test('zero-location authorized Owner can express Business-wide without an outlet fallback',async()=>withForm({outletMode:'no_location',branches:[],defaultBranchId:null},doc=>{
+  assert.equal(doc.querySelector<HTMLInputElement>('[name="expenseScope"]')?.value,'BUSINESS_WIDE');assert.equal(doc.querySelector('[name="branchId"]'),null);assert.match(doc.body.textContent??'',/Business-wide/);
+}));
 test('unpaid disclosure removes required controls and switching back keeps existing cleared-payment contract',async()=>withForm({},(doc,win)=>{
   const status=select(doc,'Payment Status');
   const paymentLabels=()=>[...doc.querySelectorAll('label')].map(l=>l.textContent??'').join('|');
@@ -92,7 +109,8 @@ test('enabled autofill retains photo upload and manual entry controls',async()=>
   assert.ok(buttons.includes('Take photo'));assert.ok(buttons.includes('Upload receipt'));
   assert.ok(doc.querySelector('input[capture="environment"]'));
 }));
-test('scanned receipt keeps review and attachment but does not expose a single outlet',async()=>withForm({autofillEnabled:true},async(doc,win)=>{
+test('scanned receipt keeps review and locks its single-outlet expense scope attribution',async()=>withForm({autofillEnabled:true,outletMode:'single_outlet'},async(doc,win)=>{
+  assert.equal(select(doc,'Expense scope').disabled,false);
   const result:ExpenseDocumentScanDto={id:second.id,expiresAt:'2026-10-06T00:00:00Z',documentType:'EXPENSE_RECEIPT',confidence:'HIGH',rawDocumentDate:'05/10/2026',fieldConfidence:{merchantName:1,documentDate:1,totalAmount:1,paymentStatus:1,paymentDate:null},suggested:{expenseDate:'2026-10-05',payeeName:'Test shop',amount:'12.34',description:'Test supplies',categoryId:second.id,categoryName:'Supplies',categoryConfidence:'HIGH',paymentStatus:'UNPAID',paymentMethod:null,paymentDate:null,paymentReference:null,invoiceNumber:null},warnings:[],duplicateCandidates:[]};
   const previousFetch=globalThis.fetch;
   globalThis.fetch=async(input,init)=>{assert.equal(input,'/api/expenses/document-scans');assert.equal(init?.method,'POST');return new Response(JSON.stringify(result));};
@@ -104,6 +122,8 @@ test('scanned receipt keeps review and attachment but does not expose a single o
     assert.ok(![...doc.querySelectorAll('dt')].some(n=>n.textContent==='Branch'));
     assert.equal(doc.querySelector<HTMLInputElement>('[name="documentScanId"]')?.value,second.id);
     assert.equal(doc.querySelector<HTMLInputElement>('[name="amount"]')?.value,'12.34');
+    assert.equal(select(doc,'Expense scope').disabled,true);
+    assert.match(doc.body.textContent??'',/Choose the expense scope before uploading/);
   }finally{globalThis.fetch=previousFetch;}
 }));
 function data(requested?:string){const form=new FormData();for(const [key,value] of Object.entries({operationKey:'CREATE_EXPENSE:unit-test-key',amount:'12.34',categoryId:second.id,description:'Test supplies',expenseDate:'2026-10-05',intent:'CONFIRMED',paymentStatus:'UNPAID'}))form.set(key,value);if(requested!==undefined)form.set('branchId',requested);return form;}
@@ -119,6 +139,17 @@ test('multi branch preserves explicit selection and existing business-wide contr
   await submit(data());assert.equal(state.created[1].branchId,null);
 });
 test('staff stays in authenticated branch and group manager cannot create',async()=>{
-  state.role='STAFF';await submit(data(second.id));assert.equal(state.created[0].branchId,branch.id);
+  state.role='STAFF';assert.match(await submit(data(second.id)),/type=error/);assert.equal(state.created.length,0);
+  await submit(data(branch.id));assert.equal(state.created[0].branchId,branch.id);
   state.role='GROUP_MANAGER_READ_ONLY';state.created=[];assert.match(await submit(data()),/type=error/);assert.equal(state.created.length,0);
+});
+
+for(const originalBranch of [branch.id,null])test(`ordinary edit without scope input preserves ${originalBranch??'Business-wide'}`,async()=>{
+  state.existingBranchId=originalBranch;const form=data();form.set('expenseId',second.id);form.set('expectedRevision','0');form.set('status','DRAFT');
+  await assert.rejects(updateAction(form),/type=success/);assert.equal(state.updated[0].branchId,originalBranch);
+});
+
+test('ordinary edit rejects an explicit unauthorized branch before invoking its writer',async()=>{
+  state.role='STAFF'; const form=data(second.id);form.set('expenseId',second.id);form.set('expectedRevision','0');form.set('status','DRAFT');
+  await assert.rejects(updateAction(form),/type=error/);assert.equal(state.updated.length,0);
 });

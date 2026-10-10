@@ -22,6 +22,7 @@ export function ExpenseDocumentAutofillForm(props: {
   branches: Branch[];
   defaultBranchId: string | null;
   includeBusinessWide: boolean;
+  outletMode?: "single_outlet" | "legacy_multi_branch" | "no_location";
   autofillEnabled: boolean;
   openShifts: OpenShift[];
 }) {
@@ -50,6 +51,9 @@ export function ExpenseDocumentAutofillForm(props: {
   const [acknowledged, setAcknowledged] = useState<ReviewAcknowledgements>({ category: false, date: false, payment: false });
   const [duplicateOverride, setDuplicateOverride] = useState(false);
   const [branchId, setBranchId] = useState(props.defaultBranchId ?? "");
+  const [expenseScope, setExpenseScope] = useState<"THIS_OUTLET" | "BUSINESS_WIDE">(props.outletMode === "no_location" ? "BUSINESS_WIDE" : "THIS_OUTLET");
+  const explicitScope = props.outletMode === "single_outlet" || props.outletMode === "no_location";
+  const showBranchSelector = !explicitScope && (props.outletMode === "legacy_multi_branch" || props.branches.length !== 1);
   const [expenseDate, setExpenseDate] = useState(today());
   const [categoryId, setCategoryId] = useState("");
   const [payeeName, setPayeeName] = useState("");
@@ -252,7 +256,11 @@ export function ExpenseDocumentAutofillForm(props: {
     <input type="hidden" name="documentScanId" value={scan?.id ?? ""} />
     <input type="hidden" name="duplicateOverride" value={duplicateOverride ? "true" : "false"} />
     <input type="hidden" name="expenseDate" value={expenseDate} />
-    {props.branches.length !== 1 ? <input type="hidden" name="branchId" value={branchId} /> : null}
+    {explicitScope ? <input type="hidden" name="expenseScope" value={expenseScope} /> : showBranchSelector ? <input type="hidden" name="branchId" value={branchId} /> : null}
+    {explicitScope ? <div className={styles.editorGroup}>{props.includeBusinessWide && props.outletMode === "single_outlet" ? <label>Expense scope<select disabled={scanning || Boolean(scan)} value={expenseScope} onChange={(event) => {
+      const scope = event.target.value as "THIS_OUTLET" | "BUSINESS_WIDE";
+      setExpenseScope(scope); setBranchId(scope === "BUSINESS_WIDE" ? "" : props.defaultBranchId ?? "");
+    }}><option value="THIS_OUTLET">This outlet</option><option value="BUSINESS_WIDE">Business-wide</option></select>{props.autofillEnabled ? <small>Choose the expense scope before uploading a receipt. A scanned receipt keeps this scope; start a new expense to choose another scope.</small> : null}</label> : <p>Expense scope: {props.outletMode === "no_location" ? "Business-wide" : "This outlet"}</p>}</div> : null}
     <input type="hidden" name="categoryId" value={categoryId} />
     <input type="hidden" name="payeeName" value={payeeName} />
     <input type="hidden" name="amount" value={amount} />
@@ -307,7 +315,7 @@ export function ExpenseDocumentAutofillForm(props: {
 
         <dl className={styles.compactSummary}>
           <div><dt>Category</dt><dd>{selectedCategoryName}</dd><small>{acknowledged.category ? "Confirmed by you" : scan.suggested.categoryConfidence === "HIGH" ? "Auto classified" : scan.suggested.categoryConfidence === "MEDIUM" ? "AI suggestion · Review recommended" : "Review required"}</small></div>
-          {props.branches.length !== 1 ? <div><dt>Branch</dt><dd>{selectedBranchName}</dd></div> : null}
+          {showBranchSelector ? <div><dt>Branch</dt><dd>{selectedBranchName}</dd></div> : explicitScope ? <div><dt>Expense scope</dt><dd>{expenseScope === "BUSINESS_WIDE" ? "Business-wide" : "This outlet"}</dd></div> : null}
           <div><dt>Payment</dt><dd>{paymentSummary(paymentStatus, paymentMethod)}</dd>{paymentStatus === "PAID" && paymentDate ? <small>{humanDate(paymentDate)}{paymentReference ? ` · Ref ${paymentReference}` : ""}</small> : paymentReference ? <small>Ref {paymentReference}</small> : null}</div>
           <div><dt>Receipt</dt><dd>{scan.suggested.invoiceNumber ? `#${scan.suggested.invoiceNumber} · Attached` : "Attached ✓"}</dd></div>
         </dl>
@@ -355,7 +363,7 @@ export function ExpenseDocumentAutofillForm(props: {
           <label>Payee<input maxLength={160} placeholder="e.g. Sabah Electricity or Landlord" value={payeeName} onChange={(event) => setPayeeName(event.target.value)} /></label>
           <label>Amount (MYR) <Required /><div className={styles.moneyInput}><span>RM</span><input aria-label="Amount in MYR" type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" placeholder="0.00" required value={amount} onChange={(event) => setAmount(event.target.value)} /></div></label>
           <label className={styles.full}>Description <Required /><input minLength={3} maxLength={500} placeholder="What was this expense for?" required value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-          {props.branches.length !== 1 ? <label>Branch <Required /><select required={!props.includeBusinessWide} value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">{props.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
+          {showBranchSelector ? <label>Branch <Required /><select required={!props.includeBusinessWide} value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">{props.includeBusinessWide ? "Business-wide" : "Select branch"}</option>{props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
         </div></div>
 
         <div className={styles.editorGroup}><h3>Payment</h3><div className={styles.fieldGrid}>

@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { historyDatePeriods } from '../../src/app/(business)/expenses/history/date-periods';
 const require=createRequire(import.meta.url);
 const {JSDOM}=require('jsdom') as {JSDOM:new(html:string)=>{window:Window & typeof globalThis}};
-const item={id:'expense-1',expenseNumber:'EXP-001',expenseDate:new Date('2026-10-02'),payeeName:'Test supplier',description:'Office supplies',categoryNameSnapshot:'Supplies',branchNameSnapshot:'Internal branch',amount:{toFixed:()=> '12.34'},paymentStatus:'UNPAID',status:'CONFIRMED',sourceType:'MANUAL',attachments:[],sourceSettlement:null};
+const item={id:'expense-1',branchId:'one' as string|null,expenseNumber:'EXP-001',expenseDate:new Date('2026-10-02'),payeeName:'Test supplier',description:'Office supplies',categoryNameSnapshot:'Supplies',branchNameSnapshot:'Internal branch',amount:{toFixed:()=> '12.34'},paymentStatus:'UNPAID',status:'CONFIRMED',sourceType:'MANUAL',attachments:[],sourceSettlement:null};
 const state={items:[] as typeof item[],total:0,allTotal:0,branches:[{id:'one',name:'Main'}],canCreate:true,calls:[] as Record<string,unknown>[]};
 const globals=globalThis as typeof globalThis & {__expenseHistory?:typeof state;IS_REACT_ACT_ENVIRONMENT?:boolean};
 let directory:string;
@@ -18,6 +18,7 @@ let Page:(props:{searchParams:Promise<Record<string,string>>})=>Promise<ReactEle
 before(async()=>{
  globals.__expenseHistory=state;directory=await mkdtemp(join(process.cwd(),'node_modules/.cache/expense-history-'));
  const stubs:Record<string,string>={
+  '@/lib/expense/outlet-scope':`export const resolveExpenseOutletContext=async()=>({context:{kind:globalThis.__expenseHistory.branches.length>1?'legacy_multi_branch':globalThis.__expenseHistory.branches.length?'single_outlet':'no_location'}});`,
   'next/link':`import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
   '@/lib/auth/business-user':`export const requireBusinessUserForModule=async(m,c)=>{if(m!=='EXPENSE'||c!=='VIEW_EXPENSE')throw Error('permission changed');return {businessId:'business',access:{},user:{}}};`,
   '@/lib/business-groups/business-access':`export const hasBusinessCapability=()=>globalThis.__expenseHistory.canCreate;`,
@@ -62,6 +63,11 @@ test('explicit date/query parameters remain identical in read, export and pagina
  const row=doc.querySelector('tbody tr')!;assert.match(row.textContent??'',/Test supplier/);assert.match(row.textContent??'',/Office supplies/);assert.match(row.textContent??'',/12.34/);assert.doesNotMatch(row.textContent??'',/Internal branch|MANUAL/);
  assert.ok(row.querySelector('a[href="/expenses/expense-1"]'));
 });
+test('single history explicitly labels Business-wide rather than implying current outlet',async()=>{
+ state.items=[{...item,branchId:null}];state.total=1;const doc=await document();
+ assert.match(doc.querySelector('tbody tr')?.textContent??'',/Business-wide/);
+});
+
 test('multi scope selector remains and create permission is not widened',async()=>{
  state.branches.push({id:'two',name:'Second'});state.canCreate=false;const doc=await document();assert.ok(doc.querySelector('select[name="branchId"]'));assert.ok(!doc.querySelector('a[href="/expenses/new"]'));assert.ok(doc.querySelector('a[href="/expenses"]'));
 });
@@ -71,9 +77,10 @@ test('all dates survive pagination and open-ended links remain open-ended',async
  const next=[...doc.querySelectorAll('nav a')].find(a=>a.textContent==='Next')!;
  const params=new URL(next.getAttribute('href')!,'http://local').searchParams;
  assert.equal(params.get('from'),'');assert.equal(params.get('to'),'');
- await document({from:'2026-01-01',branchId:'unauthorised'});
+ await document({from:'2026-01-01'});
  assert.equal(state.calls[1].dateTo,null);assert.equal(state.calls[1].branchId,null);
  assert.deepEqual(state.calls[1].allowedBranchIds,['one']);
+ const reads=state.calls.length;await assert.rejects(document({branchId:'unauthorised'}),/outside your authorised scope/);assert.equal(state.calls.length,reads);
 });
 test('month presets retain the existing UTC calendar month semantics',()=>{
  assert.deepEqual(historyDatePeriods(new Date('2024-03-15T12:00:00Z'))['last-month'],{from:'2024-02-01',to:'2024-02-29'});

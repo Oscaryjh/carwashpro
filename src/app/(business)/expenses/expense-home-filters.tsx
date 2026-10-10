@@ -8,6 +8,7 @@ export function ExpenseHomeFilters(props: {
   range: string; from: string; to: string; dateLabel: string;
   sourceType: string; branchId: string; branches: Array<{ id: string; name: string }>;
   sourceOptions: Array<{ label: string; value: string }>;
+  showBranchSelector?: boolean;
 }) {
   const [range, setRange] = useState(props.range);
   const [expanded, setExpanded] = useState(false);
@@ -40,7 +41,7 @@ export function ExpenseHomeFilters(props: {
         <option value="">All sources</option>
         {props.sourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select></label> : null}
-      {props.branches.length > 1 ? <label>Scope<select name="branchId" defaultValue={props.branchId}>
+      {(props.showBranchSelector ?? props.branches.length > 1) ? <label>Scope<select name="branchId" defaultValue={props.branchId}>
         <option value="">All authorised scope</option>
         {props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
       </select></label> : props.branchId ? <input type="hidden" name="branchId" value={props.branchId} /> : null}

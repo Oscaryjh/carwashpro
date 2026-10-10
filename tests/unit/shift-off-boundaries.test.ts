@@ -22,6 +22,9 @@ before(async () => {
   globals.__shiftOffFixture = state;
   directory = await mkdtemp(join(process.cwd(), "node_modules/.cache/shift-off-"));
   const stubs: Record<string, string> = {
+    "../phase1c2-location-actions": `export async function startOutletShiftAction(){throw Error('unexpected new shift')}`,
+    "@/lib/phase1c2-outlet-context": `export async function resolvePhase1c2OutletContext(){throw Error('OFF_ROUTE_REACHED_OPERATIONAL_LOADING')}`,
+    "@/lib/outlet-ui-context": `export function outletBranches(){throw Error('OFF_ROUTE_REACHED_OPERATIONAL_LOADING')}`,
     "next/link": `import {createElement} from 'react'; export default function Link({children,...props}){return createElement('a',props,children)}`,
     "next/navigation": `export const usePathname=()=>'/closing';export const useSearchParams=()=>new URLSearchParams();export function redirect(url){throw Error('REDIRECT:'+url)};export function notFound(){throw Error('NOT_FOUND')}`,
     "next/cache": `export const revalidatePath=()=>{};`,

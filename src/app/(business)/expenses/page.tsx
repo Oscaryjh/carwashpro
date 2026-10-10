@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { resolveExpenseReadScope } from "@/lib/expense/access";
+import { resolveExpenseOutletContext } from "@/lib/expense/outlet-scope";
 import { ensureStarterExpenseCategories, getExpenseDashboard } from "@/lib/expense/service";
 import { ExpenseHomeFilters } from "./expense-home-filters";
 import styles from "./expense.module.css";
@@ -21,6 +22,8 @@ export default async function ExpenseOverviewPage({ searchParams }: { searchPara
   const context = await requireBusinessUserForModule("EXPENSE", "VIEW_EXPENSE");
   await ensureStarterExpenseCategories(context.businessId);
   const [query, scope] = await Promise.all([searchParams, resolveExpenseReadScope(context)]);
+  const outlet = await resolveExpenseOutletContext({ businessId: context.businessId, actorUserId: context.user.userId, capability: "VIEW_EXPENSE", operation: "read" });
+  if (outlet.context.kind === "denied" || (query.branchId && !scope.branches.some(branch => branch.id === query.branchId))) throw new Error("Expense location is outside your authorised scope.");
   const dates = resolveDates(query);
   const selectedBranch = scope.branches.some((branch) => branch.id === query.branchId) ? query.branchId : null;
   const sourceType = expenseSourceOptions.some((option) => option.value === query.sourceType) ? query.sourceType as SourceType : null;
@@ -32,7 +35,7 @@ export default async function ExpenseOverviewPage({ searchParams }: { searchPara
   );
   const canCreate = hasBusinessCapability(context.access, "CREATE_EXPENSE");
   const canManageCategories = hasBusinessCapability(context.access, "MANAGE_EXPENSE_CATEGORY");
-  const showBranches = scope.branches.length > 1;
+  const showBranches = outlet.context.kind === "legacy_multi_branch";
   const sources = expenseSourceOptions.flatMap((option) => {
     const row = dashboard.bySource.find((item) => item.sourceType === option.value);
     return row && (Number(row.amount) > 0 || row.count > 0) ? [{ ...row, label: option.label }] : [];
@@ -67,7 +70,7 @@ export default async function ExpenseOverviewPage({ searchParams }: { searchPara
     <ExpenseHomeFilters key={JSON.stringify([query.range, dates, sourceType, selectedBranch])}
       range={query.range === "custom" || query.range === "last-month" ? query.range : "this-month"}
       from={dates.from} to={dates.to} dateLabel={formatDateRange(dates.from, dates.to)}
-      sourceType={sourceType ?? ""} branchId={selectedBranch ?? ""} branches={scope.branches} sourceOptions={sourceOptions} />
+      sourceType={sourceType ?? ""} branchId={selectedBranch ?? ""} branches={scope.branches} sourceOptions={sourceOptions} showBranchSelector={showBranches} />
 
     <section className={styles.summaryGrid} aria-label="Expense summary">
       <Metric label="Total Expenses" value={money(dashboard.recorded)} hint="All confirmed expenses in this period" />
