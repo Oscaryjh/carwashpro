@@ -73,7 +73,9 @@ test("OFF product collection requires an explicit branch when more than one is a
 
 test("OFF Cashier exposes an authorized branch selection outside the hidden Start Shift modal",async()=>{
  const page=await readFile("src/app/(business)/cashier/page.tsx","utf8");
- assert.match(page,/selectedOrOnlyBranch\(branches, params.branchId\)/);
+ assert.match(page,/selectCashierOutletBranch\(\{ context: outletContext/);
+ assert.match(page,/outletContext.kind === "legacy_multi_branch"/);
+ assert.match(page,/explicitBranchId: params.branchId/);
  assert.match(page,/!business.cashierShiftsEnabled && branches.length > 1/);
  assert.match(page,/<form action="\/cashier" method="get"/);
 });

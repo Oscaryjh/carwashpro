@@ -10,6 +10,8 @@ import {
 } from "@/lib/appointments/staff-branch-scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
+import { resolvePosOutletContext, guardPosOutletSubmission } from "@/lib/pos-outlet-context";
+import { PosLocationGuidance } from "@/components/pos-outlet-presentation";
 import {
   addDaysToDateValue,
   addMonthsToDateValue,
@@ -40,6 +42,7 @@ import {
 type AppointmentsPageProps = {
   searchParams: Promise<{
     appointment?: string;
+    branchId?: string;
     date?: string;
     message?: string;
     page?: string;
@@ -65,6 +68,25 @@ export default async function AppointmentsPage({
     await requireBusinessUser("VIEW_APPOINTMENTS");
   const resolvedIndustryType = industryType ?? "AUTO_DETAILING";
   const params = await searchParams;
+  const outlet = await resolvePosOutletContext({ businessId, actorUserId: user.userId, capability: "VIEW_APPOINTMENTS", operation: "read",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId } : {}) });
+  if (params.branchId !== undefined && outlet.kind === "denied") {
+    return <section className="page-section"><h1>Appointments</h1><p>Operating location access is unavailable.</p></section>;
+  }
+  async function createOutletAppointment(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUser("MODIFY_APPOINTMENTS");
+    try {
+      await guardPosOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId,
+        capability: "MODIFY_APPOINTMENTS", operation: "write", rendered: outlet, formData });
+    } catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : "Operating location changed. Reload this page." }; }
+    return createAppointmentInlineAction(formData);
+  }
+  // Creation choices are current-location scoped; historical readers/edit choices remain unchanged.
+  const creationStaffUsers = outlet.kind === "single_outlet" ? await prisma.user.findMany({
+    where: buildAppointmentStaffWhere({ businessId, branchId: outlet.internalBranchId }),
+    orderBy: [{ name: "asc" }], select: { id: true, name: true, role: true },
+  }) : undefined;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const showPageMessage =
@@ -263,6 +285,7 @@ export default async function AppointmentsPage({
           price: true,
           category: true,
           durationMinutes: true,
+          branchId: true,
           taxable: true,
           taxRate: true,
           staffAssignments: {
@@ -407,9 +430,13 @@ export default async function AppointmentsPage({
         </div>
 
         {showPageMessage ? <div className={messageType}>{message}</div> : null}
+        {outlet.kind === "no_location" ? <PosLocationGuidance owner={user.role === "BUSINESS_OWNER"} /> : null}
 
         <div className="panel appointment-calendar-panel">
           <AppointmentCalendar
+            singleOutletBranchId={outlet.kind === "single_outlet" ? outlet.internalBranchId : undefined}
+            creationUnavailable={outlet.kind === "no_location" || outlet.kind === "denied"}
+            creationStaffMembers={creationStaffUsers}
             appointments={calendarAppointments.map((appointment) =>
               toCalendarItem(
                 appointment,
@@ -427,7 +454,7 @@ export default async function AppointmentsPage({
             catalogDiscounts={[]}
             isSalonBusiness={resolvedIndustryType === "SALON_BEAUTY"}
             initialAppointmentId={params.appointment}
-            createAppointmentAction={createAppointmentInlineAction}
+            createAppointmentAction={createOutletAppointment}
             convertAppointmentAction={convertAppointmentToJobAction}
             datePickerCounts={datePickerCounts}
             datePickerHrefPrefix={makeAppointmentDateHrefPrefix({
@@ -455,6 +482,7 @@ export default async function AppointmentsPage({
             })}
             selectedDateValue={selectedDateValue}
             recentServiceIds={recentServiceIds}
+            creationServiceIds={outlet.kind === "single_outlet" ? services.filter((service) => service.branchId === null || service.branchId === outlet.internalBranchId).map((service) => service.id) : undefined}
             services={services.map((service) => ({
               id: service.id,
               category: service.serviceCategory?.name ?? service.category ?? "Services",
@@ -738,6 +766,14 @@ function toCalendarItem(appointment: {
   taxable: boolean;
   taxRate: number | null;
 }>): AppointmentCalendarItem {
+  // Older/singular create forms persist serviceId without populating serviceIds.
+  // Keep edit state aligned with the service already displayed in the details.
+  const serviceIds = [...new Set(appointment.serviceIds.filter(
+    (id) => typeof id === "string" && id.trim().length > 0,
+  ))];
+  const effectiveServiceIds = serviceIds.length
+    ? serviceIds
+    : appointment.serviceId?.trim() ? [appointment.serviceId] : [];
   return {
     id: appointment.id,
     branchId: appointment.branchId,
@@ -757,7 +793,7 @@ function toCalendarItem(appointment: {
     serviceName: formatAppointmentServices(appointment, serviceNameById),
     serviceNames: getAppointmentServiceNames(appointment, serviceNameById),
     serviceDetails: getAppointmentServiceDetails(appointment, serviceDetailById),
-    serviceIds: appointment.serviceIds,
+    serviceIds: effectiveServiceIds,
     productIds: appointment.productIds,
     productDetails: getCountedAppointmentDetails(appointment.productIds, productDetailById),
     packageIds: appointment.packageIds,

@@ -17,6 +17,7 @@ import type { TaxDisplaySettings } from "@/lib/tax/calculator";
 import type { CashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
 
 type CashierSalesPanelProps = {
+  singleOutlet?: boolean;
   walletCheckoutScope?: string;
   walletCheckoutEnabled?: boolean;
   action: (formData: FormData) => Promise<CashierSaleState>;
@@ -60,6 +61,7 @@ function ScopedCashierSalesPanel(props: CashierSalesPanelProps) {
 }
 
 function renderCashierSalesPanel({
+  singleOutlet = false,
   walletCheckoutScope,
   walletCheckoutEnabled,
   action,
@@ -113,6 +115,7 @@ function renderCashierSalesPanel({
 
   return (
     <CashierUnifiedSaleForm
+      singleOutlet={singleOutlet}
       walletCheckoutScope={walletCheckoutScope}
       walletCheckoutEnabled={walletCheckoutEnabled}
       action={action}

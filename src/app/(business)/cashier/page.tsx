@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { BranchSelect } from "@/components/branch-select";
-import { selectedOrOnlyBranch } from "@/lib/branch-selection";
+import { PosLocationGuidance } from "@/components/pos-outlet-presentation";
+import { guardPosOutletSubmission, resolvePosOutletContext, selectCashierOutletBranch } from "@/lib/pos-outlet-context";
 import { CashierSalesPanel } from "@/components/cashier-sales-panel";
 import { isWalletAccessAllowed } from "@/lib/wallet/release-policy";
 import { getCashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
@@ -65,6 +66,9 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   }
 
   const params = await searchParams;
+  const outletContext = await resolvePosOutletContext({ businessId, actorUserId: user.userId,
+    capability: "PROCESS_CASHIER_PAYMENT", operation: "read" });
+  if (outletContext.kind === "denied") return <section className="content"><h1>Cashier POS</h1><p role="alert">Cashier access is unavailable for your operating location.</p></section>;
   const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
@@ -150,14 +154,43 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
       : requestedAppointment && requestedAppointment.status !== "COMPLETED"
         ? "Complete the appointment before checkout."
         : null;
-  const operationalAppointmentBranchId = requestedAppointment?.branchId &&
-    branches.some((branch) => branch.id === requestedAppointment.branchId)
-    ? requestedAppointment.branchId
-    : null;
-  const requestedCollectionBranch = selectedOrOnlyBranch(branches, params.branchId);
-  const cashierBranchId = operationalAppointmentBranchId ?? (business.cashierShiftsEnabled
-    ? openShift?.branchId ?? user.branchId ?? (branches.length === 1 ? branches[0].id : "")
-    : requestedCollectionBranch?.id ?? "");
+  if (outletContext.kind === "no_location" && !requestedAppointment && !openShift) return <section className="content"><h1>Cashier POS</h1><PosLocationGuidance owner={user.role === "BUSINESS_OWNER"} /></section>;
+  let cashierBranchId: string;
+  try {
+    cashierBranchId = selectCashierOutletBranch({ context: outletContext,
+      appointmentBranchId: requestedAppointment?.branchId,
+      shiftBranchId: business.cashierShiftsEnabled ? openShift?.branchId : null,
+      ...(params.branchId !== undefined ? { explicitBranchId: params.branchId } : {}) });
+    // Retain the existing assigned/only-branch default in legacy topology.
+    if (!cashierBranchId && outletContext.kind === "legacy_multi_branch") cashierBranchId =
+      business.cashierShiftsEnabled ? user.branchId ?? (branches.length === 1 ? branches[0].id : "")
+        : branches.length === 1 ? branches[0].id : "";
+  } catch (error) {
+    return <section className="content"><h1>Cashier POS</h1><p className="error" role="alert">{error instanceof Error ? error.message : "Operating location is unavailable."}</p></section>;
+  }
+  async function completeOutletSale(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUser("PROCESS_CASHIER_PAYMENT");
+    try {
+      const current = await guardPosOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId,
+        capability: "PROCESS_CASHIER_PAYMENT", operation: "write", rendered: outletContext, formData });
+      const appointmentId = formData.get("appointmentId")?.toString();
+      const [appointment, shift] = await Promise.all([
+        appointmentId ? prisma.appointment.findFirst({ where: { id: appointmentId, businessId: fresh.businessId,
+          ...authorizedOperationalBranchWhere(fresh.user) }, select: { branchId: true } }) : null,
+        prisma.cashierShift.findFirst({ where: { businessId: fresh.businessId, cashierId: fresh.user.userId, status: "OPEN" }, select: { branchId: true } }),
+      ]);
+      if (appointmentId && !appointment) throw new Error("This appointment could not be found.");
+      // Re-read Shift mode; never use the rendered mode as location authority.
+      const settings = await prisma.business.findUniqueOrThrow({ where: { id: fresh.businessId }, select: { cashierShiftsEnabled: true } });
+      selectCashierOutletBranch({ context: current, appointmentBranchId: appointment?.branchId,
+        shiftBranchId: settings.cashierShiftsEnabled ? shift?.branchId : null,
+        explicitBranchId: formData.get("branchId")?.toString() });
+    } catch (error) {
+      return { status: "error" as const, message: error instanceof Error ? error.message : "Operating location changed. Reload this page.", invoice: null };
+    }
+    return completeCashierSaleAction(formData);
+  }
   const now = new Date();
   const serviceIds = requestedAppointment
     ? [
@@ -346,7 +379,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
-        {!business.cashierShiftsEnabled && branches.length > 1 && !requestedAppointment ? (
+        {outletContext.kind === "legacy_multi_branch" && !business.cashierShiftsEnabled && branches.length > 1 && !requestedAppointment ? (
           <form action="/cashier" method="get" className="form">
             <BranchSelect branches={branches} selectedBranchId={cashierBranchId} />
             <button type="submit">Use branch</button>
@@ -362,7 +395,8 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           walletCheckoutScope={`${businessId}:${user.userId}`}
           walletCheckoutEnabled={await isWalletAccessAllowed({ businessId })}
           catalogCreateAccess={getCashierCatalogCreateAccess(user, moduleContext.enabledModules, industryType)}
-          action={completeCashierSaleAction}
+          action={completeOutletSale}
+          singleOutlet={outletContext.kind === "single_outlet"}
           appointmentError={appointmentError}
           branchId={cashierBranchId}
           branches={branches}

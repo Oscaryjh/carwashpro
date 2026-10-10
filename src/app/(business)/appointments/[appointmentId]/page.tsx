@@ -4,6 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { authorizedOperationalBranchWhere } from "@/lib/branches";
+import { resolvePosOutletContext } from "@/lib/pos-outlet-context";
 import {
   formatDateValue,
   toBusinessDateValue,
@@ -38,6 +39,7 @@ export default async function AppointmentDetailPage({
     "VIEW_APPOINTMENTS",
   );
   const { appointmentId } = await params;
+  const outlet = await resolvePosOutletContext({ businessId, actorUserId: user.userId, capability: "VIEW_APPOINTMENTS", operation: "read" });
   const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { legacy } = await searchParams;
   const appointment = await prisma.appointment.findFirst({
@@ -204,7 +206,8 @@ export default async function AppointmentDetailPage({
 
         <div className="grid">
           <Info label="Status" value={formatAppointmentStatus(appointment.status)} />
-          <Info label="Branch" value={appointment.branch?.name ?? "All branches"} />
+          {outlet.kind !== "single_outlet" || appointment.branchId !== outlet.internalBranchId
+            ? <Info label="Branch" value={appointment.branch?.name ?? "All branches"} /> : null}
           <Info label="Customer" value={`${appointment.customer.name} - ${appointment.customer.phone}`} />
           {industryType !== "SALON_BEAUTY" && appointment.vehicle ? (
             <Info

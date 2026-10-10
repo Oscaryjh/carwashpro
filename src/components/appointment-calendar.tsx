@@ -97,6 +97,10 @@ export type AppointmentCalendarItem = {
 };
 
 type AppointmentCalendarProps = {
+  singleOutletBranchId?: string;
+  creationUnavailable?: boolean;
+  creationStaffMembers?: { id: string; name: string; role: string }[];
+  creationServiceIds?: string[];
   appointments: AppointmentCalendarItem[];
   branches: {
     id: string;
@@ -220,6 +224,10 @@ function normalizeCalendarAppointment(
 }
 
 export function AppointmentCalendar({
+  singleOutletBranchId,
+  creationUnavailable = false,
+  creationStaffMembers,
+  creationServiceIds,
   appointments = [],
   branches = [],
   createAppointmentAction,
@@ -317,16 +325,21 @@ export function AppointmentCalendar({
   const selectedProducts = countSelectedItems(selectedProductIds, products);
   const selectedPackages = countSelectedItems(selectedPackageIds, packages);
   const newAppointmentStaffMembers = isSalonBusiness
-    ? staffMembers
-    : filterStaffForServices(staffMembers, selectedServiceIds, services);
+    ? creationStaffMembers ?? staffMembers
+    : filterStaffForServices(creationStaffMembers ?? staffMembers, selectedServiceIds, services);
   const editAppointmentStaffMembers = filterStaffForServices(
     staffMembers,
     editAppointmentServiceIds,
     services,
   );
-  const selectableServices = isSalonBusiness
-    ? getServicesForStaff(services, newAppointmentStaffId)
-    : services;
+  const creationServices = creationServiceIds ? services.filter((service) => creationServiceIds.includes(service.id)) : services;
+  const newSelectableServices = isSalonBusiness
+    ? getServicesForStaff(creationServices, newAppointmentStaffId)
+    : creationServices;
+  // Creation-only outlet filtering must not change historical edit choices.
+  const selectableServices = appointmentEditor === "service"
+    ? (isSalonBusiness ? getServicesForStaff(services, editAppointmentStaffId) : services)
+    : newSelectableServices;
   const recentServices = getRecentServices(selectableServices, recentServiceIds, 5);
   const serviceCategories = [
     RECENT_SERVICES_CATEGORY,
@@ -480,6 +493,7 @@ export function AppointmentCalendar({
   }
 
   function openNewAppointmentForSlot(date: string, time: string, staffId: string) {
+    if (creationUnavailable) return;
     setNewAppointmentDate(date);
     setNewAppointmentTime(time);
     setNewAppointmentVisitType(
@@ -875,6 +889,7 @@ export function AppointmentCalendar({
           </button>
           <button
             aria-label="New appointment"
+            disabled={creationUnavailable}
             className="appointment-calendar-icon-link"
             onClick={() => {
               setNewAppointmentDate(toDateValue(new Date()));
@@ -1200,7 +1215,7 @@ export function AppointmentCalendar({
         </div>
       ) : null}
 
-      {isNewAppointmentOpen ? (
+      {isNewAppointmentOpen && !creationUnavailable ? (
         <div className="appointment-create-modal-backdrop" role="presentation">
           <section
             aria-labelledby="new-appointment-title"
@@ -1374,7 +1389,9 @@ export function AppointmentCalendar({
                     )}
                   </section> : null}
 
-                  {branches.length === 1 ? (
+                  {singleOutletBranchId ? (
+                    <input name="branchId" type="hidden" value={singleOutletBranchId} />
+                  ) : branches.length === 1 ? (
                     <input name="branchId" type="hidden" value={branches[0].id} />
                   ) : (
                     <label>

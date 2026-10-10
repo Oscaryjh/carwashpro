@@ -1,6 +1,6 @@
 "use client";
 
-import { BranchSelect } from "@/components/branch-select";
+import { PosOutletBranchField } from "@/components/pos-outlet-presentation";
 import { MemberWalletSummary } from "@/components/wallet/member-wallet-summary";
 import { walletPanelAction } from "@/app/(business)/crm/wallet/actions";
 import { parseMoneyToCents } from "@/lib/commercial/money";
@@ -81,6 +81,7 @@ type CustomerPackageBalanceOption = {
 };
 
 type CashierUnifiedSaleFormProps = {
+  singleOutlet?: boolean;
   walletCheckoutScope?: string;
   walletCheckoutEnabled?: boolean;
   action: (formData: FormData) => Promise<CashierSaleState>;
@@ -106,6 +107,7 @@ type CashierUnifiedSaleFormProps = {
 };
 
 export function CashierUnifiedSaleForm({
+  singleOutlet = false,
   walletCheckoutScope,
   walletCheckoutEnabled = false,
   action,
@@ -878,7 +880,7 @@ export function CashierUnifiedSaleForm({
         if (readWalletCheckoutRecovery(sessionStorage, walletCheckoutScope!)) { setWalletRecoveryBlocked(true); return; }
         const intent = createWalletCheckoutIntent(formData, walletScope, [
           { label: "Customer", value: customer?.name ?? "" },
-          { label: "Branch", value: branches.find(row => row.id === branchId)?.name ?? branchId },
+          ...(!singleOutlet ? [{ label: "Branch", value: branches.find(row => row.id === branchId)?.name ?? branchId }] : []),
           ...lines.map(line => ({ label: line.name, value: `${line.quantity} × ${formatMoney(line.price)}` })),
           { label: "Total", value: formatMoney(amountDue) }, { label: "Wallet", value: formatMoney(walletCents / 100) },
           { label: "External payment", value: fullWallet ? "None" : `${selectedPaymentMethod?.label}: ${formatMoney(externalDue)}` },
@@ -1704,7 +1706,7 @@ export function CashierUnifiedSaleForm({
               >
                 <input name="returnTo" type="hidden" value={shiftReturnPath} />
                 <div className={styles.shiftModalFields}>
-                  <BranchSelect branches={branches} selectedBranchId={branchId} />
+                  <PosOutletBranchField singleOutlet={singleOutlet} branches={branches} branchId={branchId} />
                   <label>
                     <span>Opening cash float</span>
                     <input

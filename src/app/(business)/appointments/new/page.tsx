@@ -1,7 +1,8 @@
 import { AppointmentCustomerPicker } from "@/components/appointment-customer-picker";
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { BackButton } from "@/components/back-button";
-import { BranchSelect } from "@/components/branch-select";
+import { PosLocationGuidance, PosOutletBranchField } from "@/components/pos-outlet-presentation";
+import { guardPosOutletSubmission, resolvePosOutletContext } from "@/lib/pos-outlet-context";
 import {
   buildAppointmentStaffWhere,
   NO_APPOINTMENT_BRANCH_ID,
@@ -21,6 +22,7 @@ type NewAppointmentPageProps = {
   searchParams: Promise<{
     date?: string;
     time?: string;
+    branchId?: string;
   }>;
 };
 
@@ -32,8 +34,19 @@ export default async function NewAppointmentPage({
   );
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   const params = await searchParams;
+  const outlet = await resolvePosOutletContext({ businessId, actorUserId: user.userId, capability: "VIEW_APPOINTMENTS", operation: "read",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId } : {}) });
+  if (outlet.kind === "denied") return <section className="content"><h1>New Appointment</h1><p role="alert">Appointment access is unavailable for your operating location.</p></section>;
+  if (outlet.kind === "no_location") return <section className="content"><h1>New Appointment</h1><PosLocationGuidance owner={user.role === "BUSINESS_OWNER"} /></section>;
+  async function createOutletAppointment(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUser("MODIFY_APPOINTMENTS");
+    await guardPosOutletSubmission({ businessId: fresh.businessId, actorUserId: fresh.user.userId,
+      capability: "MODIFY_APPOINTMENTS", operation: "write", rendered: outlet, formData });
+    return createAppointmentAction(formData);
+  }
   const staffWhere =
-    user.role === "BUSINESS_OWNER"
+    outlet.kind === "single_outlet" ? buildAppointmentStaffWhere({ businessId, branchId: outlet.internalBranchId }) : user.role === "BUSINESS_OWNER"
       ? { businessId, status: "active" as const, appointmentBookable: true }
       : buildAppointmentStaffWhere({
           at: new Date(),
@@ -50,6 +63,7 @@ export default async function NewAppointmentPage({
       where: {
         businessId,
         status: "ACTIVE",
+        ...(outlet.kind === "single_outlet" ? { OR: [{ branchId: null }, { branchId: outlet.internalBranchId }] } : {}),
       },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
@@ -89,7 +103,7 @@ export default async function NewAppointmentPage({
 
         <div className="panel appointment-create-panel">
           {appointmentSubjectCount ? (
-            <form action={createAppointmentAction} className="appointment-create-form">
+            <form action={createOutletAppointment} className="appointment-create-form">
               <input name="scheduledDate" type="hidden" value={defaultDate} />
               <input name="scheduledTime" type="hidden" value={defaultTime} />
               <input name="notes" type="hidden" value="" />
@@ -117,7 +131,8 @@ export default async function NewAppointmentPage({
                 </div>
 
                 <div className="appointment-create-secondary">
-                  <BranchSelect branches={branches} />
+                  <PosOutletBranchField singleOutlet={outlet.kind === "single_outlet"} branches={branches}
+                    branchId={outlet.kind === "single_outlet" ? outlet.internalBranchId : params.branchId} />
                   <label>
                     <span>Service optional</span>
                     <select name="serviceId" defaultValue="">
