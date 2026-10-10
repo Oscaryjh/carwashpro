@@ -72,6 +72,10 @@ export function AttendanceSettingsForm({
       }}
     >
       <input name="branchId" type="hidden" value={branch.id} />
+      {locationManagedElsewhere && <>
+        <input name="attendanceOutletMode" type="hidden" value="single_outlet" />
+        <input name="attendanceOutletBranchId" type="hidden" value={branch.id} />
+      </>}
       <input
         name="isEnabled"
         type="hidden"
@@ -90,8 +94,8 @@ export function AttendanceSettingsForm({
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <div>
-            <p>BRANCH ATTENDANCE</p>
-            <h2>{branch.name}</h2>
+            <p>{locationManagedElsewhere ? "ATTENDANCE" : "BRANCH ATTENDANCE"}</p>
+            <h2>{locationManagedElsewhere ? "Attendance rules" : branch.name}</h2>
           </div>
           <span
             className={`${styles.attendanceStatus} ${

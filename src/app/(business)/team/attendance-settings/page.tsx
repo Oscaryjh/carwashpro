@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,7 @@ export default async function AttendanceSettingsPage() {
   const { access, businessId } = await requireBusinessUser(
     "VIEW_ATTENDANCE_SETTINGS",
   );
-  const scope = await resolveAttendanceScope(access);
+  const { currentScope: scope, topology } = await resolveAttendanceOutletContext(access);
   const canManage = hasBusinessCapability(access, "MODIFY_ATTENDANCE_SETTINGS");
   const locationTarget = await resolveCompanyLocationTarget(access);
   const [business, branches] = await Promise.all([
@@ -36,7 +36,7 @@ export default async function AttendanceSettingsPage() {
           <span className="hr-module-eyebrow">HR &amp; Payroll</span>
           <h1>Attendance Settings</h1>
           <p>
-            Configure secure branch geofence rules for {business?.name ?? "this business"}.
+            Configure secure {topology.kind === "single_outlet" ? "clock-in location" : "branch geofence"} rules for {business?.name ?? "this business"}.
             The same rules apply to Staff App clock-ins and Attendance APIs.
           </p>
         </div>
@@ -50,8 +50,8 @@ export default async function AttendanceSettingsPage() {
               <article className={styles.branchCard} key={branch.id}>
                 <div className={styles.branchHeading}>
                   <div>
-                    <span>BRANCH</span>
-                    <h2>{branch.name}</h2>
+                    {topology.kind !== "single_outlet" && <span>BRANCH</span>}
+                    <h2>{topology.kind === "single_outlet" ? "Attendance rules" : branch.name}</h2>
                   </div>
                   <span
                     className={
@@ -106,7 +106,7 @@ export default async function AttendanceSettingsPage() {
         </div>
       ) : (
         <div className="empty-state">
-          No active branch is available in your authorized scope.
+          {topology.kind === "no_location" ? "Set up a clock-in location in Business details before configuring Attendance." : "No active location is available in your authorized scope."}
         </div>
       )}
     </section>

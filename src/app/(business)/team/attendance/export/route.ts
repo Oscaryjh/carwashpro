@@ -1,11 +1,13 @@
 import type { EmployeeAttendanceStatus } from "@prisma/client";
 import {
   buildAttendanceSessionWhere,
-  resolveAttendanceScope,
+  resolveAttendanceBranchFilter,
+  AttendanceBranchFilterError,
 } from "@/lib/attendance/scope";
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
 
 const statuses = new Set<EmployeeAttendanceStatus>([
   "OPEN",
@@ -19,12 +21,19 @@ export async function GET(request: Request) {
   const { access } = await requireBusinessUser(
     "VIEW_ATTENDANCE_EMPLOYEES",
   );
-  const scope = await resolveAttendanceScope(access);
+  const { currentScope: scope } = await resolveAttendanceOutletContext(access);
   const url = new URL(request.url);
-  const requestedBranchId = url.searchParams.get("branchId")?.trim() ?? "";
-  const branchId = scope.allowedBranchIds.includes(requestedBranchId)
-    ? requestedBranchId
-    : "";
+  const branchInputs = url.searchParams.getAll("branchId");
+  let branchId: string | undefined;
+  try {
+    branchId = resolveAttendanceBranchFilter(scope,
+      branchInputs.length === 0 ? undefined : branchInputs.length === 1 ? branchInputs[0] : branchInputs);
+  } catch (error) {
+    if (error instanceof AttendanceBranchFilterError) {
+      return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+    }
+    throw error;
+  }
   const requestedStatus = url.searchParams.get("status")?.trim() ?? "";
   const status = statuses.has(requestedStatus as EmployeeAttendanceStatus)
     ? (requestedStatus as EmployeeAttendanceStatus)

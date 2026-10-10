@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { assertFreshAttendanceOutletInput } from "@/lib/attendance/outlet-server";
 import { parseBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { getAuditRequestContext } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -29,7 +30,7 @@ import { addEmployeeRecurringRestDay, saveEmployeeRosterSchedule } from "@/lib/r
 export async function bulkRosterAssignmentAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("EDIT_ROSTER");
+    const context = await rosterWriteContext("EDIT_ROSTER", formData);
     const branchId = text(formData, "branchId");
     const branch = await prisma.branch.findFirst({ where: { id: branchId, businessId: context.businessId }, select: { attendanceSetting: { select: { timezone: true } }, business: { select: { timezone: true } } } });
     if (!branch) throw new Error("Select an authorised branch.");
@@ -61,7 +62,7 @@ export async function bulkRosterAssignmentAction(formData: FormData) {
 export async function saveRosterAssignmentAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("EDIT_ROSTER");
+    const context = await rosterWriteContext("EDIT_ROSTER", formData);
     const branchId = text(formData, "branchId");
     const branch = await prisma.branch.findFirst({
       where: { id: branchId, businessId: context.businessId },
@@ -108,7 +109,7 @@ export async function saveRosterAssignmentAction(formData: FormData) {
 export async function saveRosterShiftTemplateAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("MANAGE_SHIFT_TEMPLATES");
+    const context = await rosterWriteContext("MANAGE_SHIFT_TEMPLATES", formData);
     const templateId = text(formData, "templateId") || undefined;
     await saveRosterShiftTemplate({
       context,
@@ -142,7 +143,7 @@ export async function saveRosterShiftTemplateAction(formData: FormData) {
 export async function saveEmployeeRosterScheduleAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("EDIT_ROSTER");
+    const context = await rosterWriteContext("EDIT_ROSTER", formData);
     const restPolicy = text(formData, "restPolicy") as "FIXED" | "VARIABLE";
     const fixedRestWeekdays = formData.getAll("fixedRestWeekdays").map(Number).filter((value) => Number.isInteger(value));
     await saveEmployeeRosterSchedule({
@@ -167,7 +168,7 @@ export async function saveEmployeeRosterScheduleAction(formData: FormData) {
 export async function addEmployeeRecurringRestDayAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("EDIT_ROSTER");
+    const context = await rosterWriteContext("EDIT_ROSTER", formData);
     const workDate = utcDate(dateText(formData, "workDate"));
     const weekday = workDate.getUTCDay() || 7;
     const result = await addEmployeeRecurringRestDay({
@@ -189,7 +190,7 @@ export async function addEmployeeRecurringRestDayAction(formData: FormData) {
 export async function removeRosterAssignmentAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("EDIT_ROSTER");
+    const context = await rosterWriteContext("EDIT_ROSTER", formData);
     await removeRosterAssignment({
       context,
       assignmentId: text(formData, "assignmentId"),
@@ -205,7 +206,7 @@ export async function removeRosterAssignmentAction(formData: FormData) {
 export async function copyPreviousRosterWeekAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("CREATE_ROSTER");
+    const context = await rosterWriteContext("CREATE_ROSTER", formData);
     await copyPreviousRosterWeek({
       context,
       branchId: text(formData, "branchId"),
@@ -221,7 +222,7 @@ export async function copyPreviousRosterWeekAction(formData: FormData) {
 export async function publishRosterAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("PUBLISH_ROSTER");
+    const context = await rosterWriteContext("PUBLISH_ROSTER", formData);
     const result = await publishRoster({
       context,
       input: {
@@ -241,7 +242,7 @@ export async function publishRosterAction(formData: FormData) {
 export async function publishRosterMonthAction(formData: FormData) {
   const returnTo = rosterReturnTo(formData);
   try {
-    const context = await rosterWriteContext("PUBLISH_ROSTER");
+    const context = await rosterWriteContext("PUBLISH_ROSTER", formData);
     const branchId = text(formData, "branchId");
     const month = monthText(formData, "month");
     const reason = text(formData, "reason") || null;
@@ -326,8 +327,11 @@ export async function publishRosterMonthAction(formData: FormData) {
   }
 }
 
-async function rosterWriteContext(capability: BusinessCapability): Promise<RosterServiceContext> {
+async function rosterWriteContext(capability: BusinessCapability, formData: FormData): Promise<RosterServiceContext> {
   const { access, user, businessId } = await requireBusinessUser(capability);
+  if (formData.has("attendanceOutletMode") || formData.has("attendanceOutletBranchId") || String(formData.get("branchId") ?? "")) {
+    await assertFreshAttendanceOutletInput(access, formData);
+  }
   const [scope, request] = await Promise.all([resolveAttendanceScope(access), getAuditRequestContext()]);
   return {
     businessId,

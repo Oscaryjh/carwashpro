@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { resolveAttendanceBranchFilter, AttendanceBranchFilterError } from "@/lib/attendance/scope";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
+import { AttendanceOutletProvider } from "@/components/attendance-outlet-form";
+import { notFound } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
@@ -8,17 +11,22 @@ import { listRosterShiftTemplates } from "@/lib/roster/shift-template-service";
 import { EmployeeScheduleForm } from "./employee-schedule-form";
 import styles from "../roster.module.css";
 
-type Props = { searchParams: Promise<{ branchId?: string; type?: string; message?: string; setup?: string }> };
+type Props = { searchParams: Promise<{ branchId?: string | string[]; type?: string; message?: string; setup?: string }> };
 export const dynamic = "force-dynamic";
 
 export default async function EmployeeSchedulesPage({ searchParams }: Props) {
   const { access, businessId } = await requireBusinessUser("VIEW_ROSTER");
-  const [params, scope] = await Promise.all([searchParams, resolveAttendanceScope(access)]);
+  const [params, outlet] = await Promise.all([searchParams, resolveAttendanceOutletContext(access)]);
+  const scope = outlet.currentScope;
+  let explicitBranchId: string | undefined;
+  try { explicitBranchId = resolveAttendanceBranchFilter(scope, params.branchId); }
+  catch (error) { if (error instanceof AttendanceBranchFilterError) notFound(); throw error; }
+  if (!scope.allowedBranchIds.length) return <section className="content hr-module-page"><h1>Default schedules</h1><p>Set up an active clock-in location, or ask your Owner for access, before managing schedules.</p></section>;
   const [branches, business] = await Promise.all([
     prisma.branch.findMany({ where: { businessId, id: { in: [...scope.allowedBranchIds] }, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { timezone: true } }),
   ]);
-  const branchId = branches.some((branch) => branch.id === params.branchId) ? params.branchId! : branches[0]?.id;
+  const branchId = explicitBranchId ?? outlet.currentBranchId ?? branches[0]?.id;
   const [members, templates, versions] = branchId ? await Promise.all([
     prisma.employeeBusinessMembership.findMany({ where: { businessId, status: "ACTIVE", branchAssignments: { some: { businessId, branchId, status: "ACTIVE", OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: new Date() } }] } } }, select: { id: true, fullName: true, employeeCode: true }, orderBy: { fullName: "asc" } }),
     listRosterShiftTemplates({ context: { businessId, allowedBranchIds: scope.allowedBranchIds }, branchId }),
@@ -32,7 +40,7 @@ export default async function EmployeeSchedulesPage({ searchParams }: Props) {
   const selectedSchedule = selectedMembershipId ? latest.get(selectedMembershipId) : undefined;
   const selectedEffectiveFrom = selectedSchedule ? laterDate(today, nextUtcDate(selectedSchedule.effectiveFrom)) : today;
 
-  return <section className={`content hr-module-page ${styles.page}`}>
+  return <AttendanceOutletProvider branchId={outlet.currentBranchId}><section className={`content hr-module-page ${styles.page}`}>
     <header className="page-header hr-module-header"><div><span className="hr-module-eyebrow">HR · SCHEDULING SETTINGS</span><h1>Default schedules</h1><p>Set the shift each employee normally follows. Use the weekly roster only for days that are different.</p></div><div className="hr-module-actions"><Link className="secondary-light-button" href={`/team/roster/templates?branchId=${encodeURIComponent(branchId ?? "")}`}>Back to shift settings</Link></div></header>
     {params.message ? <p className={params.type === "error" ? styles.warning : styles.success} role="status"><strong>{params.message}</strong></p> : null}
     {branches.length > 1 ? <form className={`${styles.templateToolbar} ${styles.employeeScheduleToolbar}`} method="get"><label><span>Branch</span><select defaultValue={branchId} name="branchId">{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label><button type="submit">View branch</button></form> : null}
@@ -60,7 +68,7 @@ export default async function EmployeeSchedulesPage({ searchParams }: Props) {
       })}</div>
     </section>
     {canEdit && branchId && selectedMembershipId ? <section className={`settings-card ${styles.employeeScheduleSetup}`} id="schedule-editor"><div className={styles.employeeScheduleForm}><EmployeeScheduleForm branchId={branchId} effectiveFrom={selectedEffectiveFrom} employees={members} initialSchedule={selectedSchedule ? { defaultShiftTemplateId: selectedSchedule.defaultShiftTemplateId, fixedRestWeekdays: selectedSchedule.fixedRestWeekdays, requiredRestDays: selectedSchedule.requiredRestDays, restPolicy: selectedSchedule.restPolicy } : undefined} key={selectedMembershipId} returnTo={returnTo} selectedEmployeeId={selectedMembershipId} shifts={templates} /></div></section> : null}
-  </section>;
+  </section></AttendanceOutletProvider>;
 }
 
 const weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

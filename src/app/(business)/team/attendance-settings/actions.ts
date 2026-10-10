@@ -10,6 +10,7 @@ import { upsertBranchAttendanceSetting } from "@/lib/attendance/branch-setting-s
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { resolveCompanyLocationTarget } from "@/lib/attendance/company-location";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertFreshAttendanceOutletInput } from "@/lib/attendance/outlet-server";
 
 export type BranchAttendanceSettingActionState = {
   status: "idle" | "error" | "success";
@@ -26,6 +27,7 @@ export async function saveBranchAttendanceSettingAction(
       "MODIFY_ATTENDANCE_SETTINGS",
     );
     const scope = await resolveAttendanceScope(access);
+    await assertFreshAttendanceOutletInput(access, formData);
     const branchId = String(formData.get("branchId") ?? "").trim();
     const request = await getAuditRequestContext();
     const locationTarget = await resolveCompanyLocationTarget(access);

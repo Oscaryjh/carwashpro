@@ -187,11 +187,14 @@ test("attendance record where builders override tampered business and branch fil
     allowedBranchIds: ["branch-a-1", "branch-a-2"],
   };
   const builders = [
-    buildAttendanceSessionWhere,
     buildAttendancePunchWhere,
     buildAttendanceExceptionWhere,
     buildAttendanceAdjustmentWhere,
   ];
+
+  assert.deepEqual(buildAttendanceSessionWhere(scope, {
+    businessId: "business-b", branchId: "branch-b-1", status: "OPEN",
+  }), { businessId: "business-a", branchId: { in: [] }, status: "OPEN" });
 
   for (const buildWhere of builders) {
     assert.deepEqual(

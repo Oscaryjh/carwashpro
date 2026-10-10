@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { EmployeeAttendanceStatus, Prisma } from "@prisma/client";
 import {
   buildAttendanceSessionWhere,
-  resolveAttendanceScope,
+  resolveAttendanceBranchFilter,
+  AttendanceBranchFilterError,
 } from "@/lib/attendance/scope";
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
-import { getOperationalBranches } from "@/lib/branches";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
 import { prisma } from "@/lib/prisma";
 import styles from "./attendance.module.css";
 
 type AttendancePageProps = {
   searchParams: Promise<{
-    branchId?: string;
+    branchId?: string | string[];
     date?: string;
     datePreset?: string;
     status?: string;
@@ -88,10 +90,10 @@ function getInitials(value: string) {
 }
 
 export default async function StaffAttendancePage({ searchParams }: AttendancePageProps) {
-  const { access, user, businessId } = await requireBusinessUser(
+  const { access, businessId } = await requireBusinessUser(
     "VIEW_ATTENDANCE_EMPLOYEES",
   );
-  const scope = await resolveAttendanceScope(access);
+  const { currentScope: scope } = await resolveAttendanceOutletContext(access);
   const params = await searchParams;
   const canModify = hasBusinessCapability(
     access,
@@ -101,12 +103,13 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
     access,
     "VIEW_TEAM_DIRECTORY",
   );
-  const branches = (await getOperationalBranches(businessId, user)).filter(
-    (branch) => scope.allowedBranchIds.includes(branch.id),
-  );
-  const requestedBranchId = params.branchId && branches.some((branch) => branch.id === params.branchId)
-    ? params.branchId
-    : "";
+  let requestedBranchId: string | undefined;
+  try {
+    requestedBranchId = resolveAttendanceBranchFilter(scope, params.branchId);
+  } catch (error) {
+    if (error instanceof AttendanceBranchFilterError) notFound();
+    throw error;
+  }
   const dateFilter = params.datePreset === "all" || params.date === "all"
     ? "all"
     : params.date || getTodayValue();

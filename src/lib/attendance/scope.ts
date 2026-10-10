@@ -65,6 +65,20 @@ type AttendanceEmployeeScopedWhere<TWhere extends AttendanceWhereInput> = Omit<
 const ATTENDANCE_SCOPE_DENIED =
   "Attendance scope is not available for this access context.";
 
+export class AttendanceBranchFilterError extends Error {
+  constructor() { super("Attendance location is not available in your authorized scope."); }
+}
+
+/** Undefined alone means no filter. Explicit empty/repeated/foreign inputs
+ * must never be normalized to a Business-wide query. */
+export function resolveAttendanceBranchFilter(scope: AttendanceScope, input: unknown): string | undefined {
+  if (input === undefined) return undefined;
+  if (typeof input !== "string" || !input.trim() || !scope.allowedBranchIds.includes(input.trim())) {
+    throw new AttendanceBranchFilterError();
+  }
+  return input.trim();
+}
+
 export async function resolveAttendanceScope(
   access: ResolvedBusinessAccess,
   database: AttendanceScopeDatabase = prisma,
@@ -167,7 +181,21 @@ export function buildAttendanceSessionWhere<
   scope: AttendanceScope,
   where?: TWhere,
 ): AttendanceScopedWhere<TWhere> {
-  return withAttendanceScope(scope, where);
+  const scoped = withAttendanceScope(scope, where);
+  const explicit = where?.branchId;
+  if (explicit === undefined) return scoped;
+  if (typeof explicit === "string") {
+    return { ...scoped, branchId: { in: scope.allowedBranchIds.filter(id => id === explicit) } };
+  }
+  if (explicit === null || typeof explicit !== "object" || Array.isArray(explicit)) {
+    return { ...scoped, branchId: { in: [] } };
+  }
+  // Preserve Prisma predicates (including nested AND/OR) under the immutable
+  // authorized scope. Never replace an explicit constraint with wider access.
+  return {
+    ...scoped,
+    AND: [{ ...where, businessId: scope.businessId }],
+  };
 }
 
 export function buildAttendancePunchWhere<

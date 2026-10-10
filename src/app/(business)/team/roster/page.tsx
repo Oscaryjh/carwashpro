@@ -1,6 +1,10 @@
+import { AttendanceOutletForm } from "@/components/attendance-outlet-form";
+import { AttendanceOutletProvider } from "@/components/attendance-outlet-form";
+import { notFound } from "next/navigation";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { resolveAttendanceBranchFilter, AttendanceBranchFilterError } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { resolveBranchHolidays } from "@/lib/holidays/service";
@@ -23,24 +27,29 @@ import { MonthlyRosterView, ShiftRosterView, StaffRosterView, StaffScheduleGridV
 import styles from "./roster.module.css";
 
 type Props = {
-  searchParams: Promise<{ assignDate?: string; assignMember?: string; branchId?: string; day?: string; staffId?: string; week?: string; view?: string; q?: string; type?: string; message?: string }>;
+  searchParams: Promise<{ assignDate?: string; assignMember?: string; branchId?: string | string[]; day?: string; staffId?: string; week?: string; view?: string; q?: string; type?: string; message?: string }>;
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function RosterPage({ searchParams }: Props) {
   const context = await requireBusinessUser("VIEW_ROSTER");
-  const [params, scope, business] = await Promise.all([
+  const [params, outlet, business] = await Promise.all([
     searchParams,
-    resolveAttendanceScope(context.access),
+    resolveAttendanceOutletContext(context.access),
     prisma.business.findUniqueOrThrow({ where: { id: context.businessId }, select: { timezone: true } }),
   ]);
+  const scope = outlet.currentScope;
+  let explicitBranchId: string | undefined;
+  try { explicitBranchId = resolveAttendanceBranchFilter(scope, params.branchId); }
+  catch (error) { if (error instanceof AttendanceBranchFilterError) notFound(); throw error; }
+  if (!scope.allowedBranchIds.length) return <section className="content hr-module-page"><h1>Roster</h1><p>Set up an active clock-in location, or ask your Owner for access, before managing Roster.</p></section>;
   const branches = await prisma.branch.findMany({
     where: { businessId: context.businessId, id: { in: [...scope.allowedBranchIds] }, status: "ACTIVE" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  const branchId = branches.some((item) => item.id === params.branchId) ? params.branchId! : branches[0]?.id;
+  const branchId = explicitBranchId ?? outlet.currentBranchId ?? branches[0]?.id;
   const now = new Date();
   const localToday = localDate(now, business.timezone);
   const selectedDate = parseDate(params.week) ?? localToday;
@@ -203,7 +212,7 @@ export default async function RosterPage({ searchParams }: Props) {
   const monthPublicationTo = monthWeekData.length ? addDays(monthWeekData.at(-1)!.weekStart, 6) : undefined;
 
   return (
-    <section className={`content hr-module-page ${styles.page}`}>
+    <AttendanceOutletProvider branchId={outlet.currentBranchId}><section className={`content hr-module-page ${styles.page}`}>
       {feedback ? <div className={`${styles.feedback} ${params.type === "error" ? styles.feedbackError : styles.feedbackSuccess}`} role="status"><span aria-hidden="true">{params.type === "error" ? "!" : "✓"}</span><div><strong>{feedback.title}</strong><small>{feedback.detail ?? (unpublishedChanges ? "Review and publish when you are ready." : "Your roster is up to date.")}</small>{feedback.actionHref ? <Link className={styles.feedbackAction} href={feedback.actionHref}>{feedback.actionLabel}</Link> : null}</div></div> : null}
       <nav aria-label="Roster views" className={styles.viewTabs}>
         <Link aria-current={view === "month" ? "page" : undefined} className={view === "month" ? styles.activeViewTab : undefined} href={href(branchId, selectedDate, "month", query)}><span aria-hidden="true" className={styles.viewTabIcon}>▦</span><span><strong>Month</strong><small>Calendar overview</small></span></Link>
@@ -242,7 +251,7 @@ export default async function RosterPage({ searchParams }: Props) {
             <p>One action creates {monthPendingWeeks} remaining weekly roster version{monthPendingWeeks === 1 ? "" : "s"}. Weekly versions keep later changes and Attendance evidence traceable.</p>
             {monthPublicationFrom && monthPublicationTo && (monthPublicationFrom < range.from || monthPublicationTo > range.to) ? <p className={styles.monthBoundaryNote}><strong>Calendar edge weeks:</strong> this batch covers {formatWeekRange(monthPublicationFrom, monthPublicationTo)} so the first and last weeks stay complete.</p> : null}
             {monthBlockedWeeks.length ? <div className={styles.monthPublishBlocker} role="status"><strong>{monthBlockedWeeks.length} week{monthBlockedWeeks.length === 1 ? "" : "s"} need attention</strong><ul>{monthBlockedWeeks.map((item) => <li key={dateValue(item.weekStart)}><span>{formatWeekRange(item.weekStart, addDays(item.weekStart, 6))}</span><small>{monthBlockerReason(item, canAmend)}</small></li>)}</ul></div> : null}
-            <form action={publishRosterMonthAction} className={styles.monthPublishForm}>
+            <AttendanceOutletForm action={publishRosterMonthAction} className={styles.monthPublishForm}>
               <input name="branchId" type="hidden" value={branchId} />
               <input name="month" type="hidden" value={dateValue(selectedDate).slice(0, 7)} />
               <input name="operationKey" type="hidden" value={`roster-month-${branchId}-${dateValue(selectedDate).slice(0, 7)}-${randomUUID()}`} />
@@ -257,7 +266,7 @@ export default async function RosterPage({ searchParams }: Props) {
               </fieldset> : null}
               {monthRequiresRetrospectiveReason ? <label><span>Reason for past schedule corrections *</span><small>Only required because this month contains unpublished changes to dates that have already started.</small><input maxLength={500} minLength={3} name="reason" placeholder="e.g. Approved roster correction" required /></label> : null}
               <button disabled={Boolean(monthBlockedWeeks.length) || !monthWeekData.length} type="submit">{monthEmptyWeeks.length ? "Confirm & publish" : "Publish"} {monthName}</button>
-            </form>
+            </AttendanceOutletForm>
           </div>
         </details> : <span className={styles.monthPublishedBadge}>Published</span>}
       </section> : null}
@@ -269,16 +278,16 @@ export default async function RosterPage({ searchParams }: Props) {
         </div>
         <div className={styles.publishBarActions}>
           <div className={styles.publishSecondaryActions}>
-            {canCreate && branchId && !period?.assignments.length ? <form action={copyPreviousRosterWeekAction}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="returnTo" type="hidden" value={returnTo} /><button className="secondary-light-button" type="submit">Copy previous week</button></form> : null}
+            {canCreate && branchId && !period?.assignments.length ? <AttendanceOutletForm action={copyPreviousRosterWeekAction}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="returnTo" type="hidden" value={returnTo} /><button className="secondary-light-button" type="submit">Copy previous week</button></AttendanceOutletForm> : null}
             {canCreate && canEdit && resolvedWeek?.attention.length ? <a className="secondary-light-button" href="#rest-days">Assign Rest Days</a> : null}
             {period && unpublishedChanges ? <details className={styles.reviewPopover}><summary>Review {unpublishedChanges} change{unpublishedChanges === 1 ? "" : "s"}</summary><div><h3>Draft changes</h3>{changeRows(currentComparisonAssignments, latestPublication?.assignments ?? [], business.timezone, memberNameById).map((row) => <p key={row.key}><strong>{row.employee}</strong><span>{row.date}</span><small>{row.before} → {row.after}</small></p>)}</div></details> : null}
           </div>
-          {canPublish && period && (period.publicationRevision === 0 || canAmend) ? <form action={publishRosterAction} className={styles.publishForm}><input name="rosterPeriodId" type="hidden" value={period.id} /><input name="expectedDraftRevision" type="hidden" value={period.draftRevision} /><input name="operationKey" type="hidden" value={`roster-publish-${period.id}-${period.draftRevision}-${randomUUID()}`} /><input name="returnTo" type="hidden" value={returnTo} />{requiresRetrospectiveReason ? <label><span>Reason for changing a past or already-started date *</span><small>Required because this Draft changes schedule evidence that has already started.</small><input maxLength={500} minLength={3} name="reason" placeholder="e.g. Approved schedule correction" required /></label> : null}<button disabled={!resolvedWeek?.assignments.length || Boolean(resolvedWeek.attention.length) || !unpublishedChanges} type="submit">Publish to Staff App</button></form> : null}
+          {canPublish && period && (period.publicationRevision === 0 || canAmend) ? <AttendanceOutletForm action={publishRosterAction} className={styles.publishForm}><input name="rosterPeriodId" type="hidden" value={period.id} /><input name="expectedDraftRevision" type="hidden" value={period.draftRevision} /><input name="operationKey" type="hidden" value={`roster-publish-${period.id}-${period.draftRevision}-${randomUUID()}`} /><input name="returnTo" type="hidden" value={returnTo} />{requiresRetrospectiveReason ? <label><span>Reason for changing a past or already-started date *</span><small>Required because this Draft changes schedule evidence that has already started.</small><input maxLength={500} minLength={3} name="reason" placeholder="e.g. Approved schedule correction" required /></label> : null}<button disabled={!resolvedWeek?.assignments.length || Boolean(resolvedWeek.attention.length) || !unpublishedChanges} type="submit">Publish to Staff App</button></AttendanceOutletForm> : null}
         </div>
       </section> : null}
       {resolvedWeek?.attention.length ? <section className={styles.rosterAttention} role="alert"><div><strong>Roster requires attention</strong><p>Variable Rest Day requirements must be assigned before Publish.</p></div><ul>{resolvedWeek.attention.map((item) => <li key={item.membershipId}><strong>{item.employeeName}</strong><span>{item.assigned} of {item.required} Rest Days assigned</span></li>)}</ul></section> : null}
 
-      {canEdit && branchId && period && resolvedWeek?.attention.length ? <section className={`settings-card ${styles.restDayWorkspace}`} id="rest-days"><div className={styles.libraryHeading}><div><span className={styles.sectionKicker}>THIS WEEK REST DAYS</span><h2>Complete variable Rest Day schedules</h2></div><p>Choose only the missing Rest Days. Other days continue to inherit each employee&apos;s Default Shift.</p></div>{resolvedWeek.attention.map((item) => <article key={item.membershipId}><div><strong>{item.employeeName}</strong><small>{item.required - item.assigned} more Rest Day{item.required - item.assigned === 1 ? "" : "s"} required</small></div><div className={styles.restDayChoices}>{days.map((day) => { const dayKey = dateValue(day); const hasLeave = visibleLeaves.some((leave) => leave.membershipId === item.membershipId && dateValue(leave.leaveDate) === dayKey); return <form action={saveRosterAssignmentAction} key={dayKey}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="expectedDraftRevision" type="hidden" value={period.draftRevision} /><input name="returnTo" type="hidden" value={returnTo} /><input name="membershipId" type="hidden" value={item.membershipId} /><input name="workDate" type="hidden" value={dayKey} /><input name="kind" type="hidden" value="REST_DAY" /><input name="startTime" type="hidden" value="09:00" /><input name="endTime" type="hidden" value="18:00" /><input name="breakMinutes" type="hidden" value="0" /><button disabled={hasLeave} title={hasLeave ? "Approved Leave already controls this date" : `Set ${dayKey} as Rest Day`} type="submit"><strong>{day.toLocaleDateString("en-MY", { weekday: "short", timeZone: "UTC" })}</strong><small>{day.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: "UTC" })}{hasLeave ? " · Leave" : ""}</small></button></form>; })}</div></article>)}</section> : null}
+      {canEdit && branchId && period && resolvedWeek?.attention.length ? <section className={`settings-card ${styles.restDayWorkspace}`} id="rest-days"><div className={styles.libraryHeading}><div><span className={styles.sectionKicker}>THIS WEEK REST DAYS</span><h2>Complete variable Rest Day schedules</h2></div><p>Choose only the missing Rest Days. Other days continue to inherit each employee&apos;s Default Shift.</p></div>{resolvedWeek.attention.map((item) => <article key={item.membershipId}><div><strong>{item.employeeName}</strong><small>{item.required - item.assigned} more Rest Day{item.required - item.assigned === 1 ? "" : "s"} required</small></div><div className={styles.restDayChoices}>{days.map((day) => { const dayKey = dateValue(day); const hasLeave = visibleLeaves.some((leave) => leave.membershipId === item.membershipId && dateValue(leave.leaveDate) === dayKey); return <AttendanceOutletForm action={saveRosterAssignmentAction} key={dayKey}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="expectedDraftRevision" type="hidden" value={period.draftRevision} /><input name="returnTo" type="hidden" value={returnTo} /><input name="membershipId" type="hidden" value={item.membershipId} /><input name="workDate" type="hidden" value={dayKey} /><input name="kind" type="hidden" value="REST_DAY" /><input name="startTime" type="hidden" value="09:00" /><input name="endTime" type="hidden" value="18:00" /><input name="breakMinutes" type="hidden" value="0" /><button disabled={hasLeave} title={hasLeave ? "Approved Leave already controls this date" : `Set ${dayKey} as Rest Day`} type="submit"><strong>{day.toLocaleDateString("en-MY", { weekday: "short", timeZone: "UTC" })}</strong><small>{day.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: "UTC" })}{hasLeave ? " · Leave" : ""}</small></button></AttendanceOutletForm>; })}</div></article>)}</section> : null}
 
       <section className={`settings-card ${styles.scheduleCard} ${view === "month" ? styles.monthScheduleCard : ""}`}>
         {view !== "month" && view !== "coverage" ? <div className={styles.scheduleHeading}>
@@ -309,21 +318,21 @@ export default async function RosterPage({ searchParams }: Props) {
         </header>
         <div className={styles.editorToolList}>
         <RosterToolDialog badge="1" defaultOpen={Boolean(defaultAssignmentMember || defaultAssignmentDate)} description="Change one employee on one day" title="Custom shift">
-        <form action={saveRosterAssignmentAction} className={styles.editor} id="roster-editor">
+        <AttendanceOutletForm action={saveRosterAssignmentAction} className={styles.editor} id="roster-editor">
           <input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="expectedDraftRevision" type="hidden" value={period?.draftRevision ?? 0} /><input name="returnTo" type="hidden" value={returnTo} />
           <RosterAssignmentFields days={dayOptions} defaultDate={defaultAssignmentDate} defaultEmployee={defaultAssignmentMember} employees={employeeOptions} templates={templateOptions} />
           <div className={styles.editorActions}><button type="submit">Save change to Draft</button></div>
-        </form>
+        </AttendanceOutletForm>
         </RosterToolDialog>
 
         <RosterToolDialog badge="2" description="Apply one schedule to several employees on the same day" title="Bulk assign">
-          <form action={bulkRosterAssignmentAction} className={styles.editor} id="bulk-assign"><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="expectedDraftRevision" type="hidden" value={period?.draftRevision ?? 0} /><input name="returnTo" type="hidden" value={returnTo} /><RosterAssignmentFields bulk days={dayOptions} employees={employeeOptions} templates={templateOptions} /><div className={styles.editorActions}><button type="submit">Save bulk assignment to Draft</button></div></form>
+          <AttendanceOutletForm action={bulkRosterAssignmentAction} className={styles.editor} id="bulk-assign"><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="expectedDraftRevision" type="hidden" value={period?.draftRevision ?? 0} /><input name="returnTo" type="hidden" value={returnTo} /><RosterAssignmentFields bulk days={dayOptions} employees={employeeOptions} templates={templateOptions} /><div className={styles.editorActions}><button type="submit">Save bulk assignment to Draft</button></div></AttendanceOutletForm>
         </RosterToolDialog>
         </div>
-        {!period?.assignments.length ? <details className={styles.copyWeekAction}><summary>Copy previous week&apos;s changes</summary><form action={copyPreviousRosterWeekAction}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="returnTo" type="hidden" value={returnTo} /><p>Use this only when last week&apos;s exceptions are still relevant.</p><button className="secondary-light-button" type="submit">Copy changes</button></form></details> : null}
+        {!period?.assignments.length ? <details className={styles.copyWeekAction}><summary>Copy previous week&apos;s changes</summary><AttendanceOutletForm action={copyPreviousRosterWeekAction}><input name="branchId" type="hidden" value={branchId} /><input name="weekStart" type="hidden" value={dateValue(weekStart)} /><input name="returnTo" type="hidden" value={returnTo} /><p>Use this only when last week&apos;s exceptions are still relevant.</p><button className="secondary-light-button" type="submit">Copy changes</button></AttendanceOutletForm></details> : null}
       </section> : null}
 
-    </section>
+    </section></AttendanceOutletProvider>
   );
 }
 

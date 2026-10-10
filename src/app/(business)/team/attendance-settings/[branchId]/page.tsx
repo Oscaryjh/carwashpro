@@ -55,7 +55,7 @@ export default async function AttendanceSettingsDetailPage({
       <div className="page-header hr-module-header">
         <div>
           <span className="hr-module-eyebrow">HR &amp; Payroll / Attendance Settings</span>
-          <h1>{branch.name}</h1>
+          <h1>{locationTarget.kind === "single" ? "Attendance rules" : branch.name}</h1>
           <p>Attendance geofence and device-location acceptance settings.</p>
         </div>
         <div className="hr-module-actions">

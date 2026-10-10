@@ -9,10 +9,11 @@ import { parseBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { getAuditRequestContext } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { assertFreshAttendanceOutletInput } from "@/lib/attendance/outlet-server";
 
 export async function recordExpectedAttendanceAction(formData: FormData) {
   try {
-    const context = await writeContext();
+    const context = await writeContext(formData);
     const branchId = String(formData.get("branchId") ?? "");
     const branch = await prisma.branch.findFirst({
       where: { id: branchId, businessId: context.businessId },
@@ -48,7 +49,7 @@ export async function recordExpectedAttendanceAction(formData: FormData) {
 
 export async function detectAttendanceP2DayAction(formData: FormData) {
   try {
-    const context = await writeContext();
+    const context = await writeContext(formData);
     await materializeAttendanceP2Day({
       context,
       membershipId: String(formData.get("membershipId") ?? ""),
@@ -61,8 +62,11 @@ export async function detectAttendanceP2DayAction(formData: FormData) {
   }
 }
 
-async function writeContext() {
+async function writeContext(formData: FormData) {
   const { access, user, businessId } = await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (formData.has("branchId") || formData.has("attendanceOutletMode") || formData.has("attendanceOutletBranchId")) {
+    await assertFreshAttendanceOutletInput(access, formData);
+  }
   const [scope, request] = await Promise.all([resolveAttendanceScope(access), getAuditRequestContext()]);
   return { businessId, allowedBranchIds: scope.allowedBranchIds, actor: user, request };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { AttendanceOutletForm } from "@/components/attendance-outlet-form";
 import { useState } from "react";
 import { saveEmployeeRosterScheduleAction } from "../actions";
 import styles from "../roster.module.css";
@@ -27,7 +28,7 @@ export function EmployeeScheduleForm({
   const [membershipId, setMembershipId] = useState(selectedEmployeeId ?? "");
   const [restPolicy, setRestPolicy] = useState<"FIXED" | "VARIABLE">(initialSchedule?.restPolicy ?? "FIXED");
   return (
-    <form action={saveEmployeeRosterScheduleAction} className={styles.scheduleSettingsGrid}>
+    <AttendanceOutletForm action={saveEmployeeRosterScheduleAction} className={styles.scheduleSettingsGrid}>
       <input name="returnTo" type="hidden" value={returnTo} />
       <input name="branchId" type="hidden" value={branchId} />
       <section className={styles.scheduleFormSection}>
@@ -62,7 +63,7 @@ export function EmployeeScheduleForm({
         <p>Saving creates a new effective version. Past schedules and published roster history stay unchanged.</p>
         <button type="submit">Save default schedule</button>
       </footer>
-    </form>
+    </AttendanceOutletForm>
   );
 }
 

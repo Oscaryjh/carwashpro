@@ -1,5 +1,9 @@
+import { AttendanceOutletForm } from "@/components/attendance-outlet-form";
+import { AttendanceOutletProvider } from "@/components/attendance-outlet-form";
+import { notFound } from "next/navigation";
+import { resolveAttendanceOutletContext } from "@/lib/attendance/outlet-server";
 import Link from "next/link";
-import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { resolveAttendanceBranchFilter, AttendanceBranchFilterError } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
@@ -11,20 +15,25 @@ import { DefaultSchedulesDialog } from "./default-schedules-dialog";
 import { ShiftTemplateCreateDialog, ShiftTemplateCreateDialogTrigger } from "./shift-template-create-dialog";
 
 type Props = {
-  searchParams: Promise<{ branchId?: string; type?: string; message?: string }>;
+  searchParams: Promise<{ branchId?: string | string[]; type?: string; message?: string }>;
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function RosterShiftTemplatesPage({ searchParams }: Props) {
   const { access, businessId } = await requireBusinessUser("VIEW_ROSTER");
-  const [params, scope] = await Promise.all([searchParams, resolveAttendanceScope(access)]);
+  const [params, outlet] = await Promise.all([searchParams, resolveAttendanceOutletContext(access)]);
+  const scope = outlet.currentScope;
+  let explicitBranchId: string | undefined;
+  try { explicitBranchId = resolveAttendanceBranchFilter(scope, params.branchId); }
+  catch (error) { if (error instanceof AttendanceBranchFilterError) notFound(); throw error; }
+  if (!scope.allowedBranchIds.length) return <section className="content hr-module-page"><h1>Set up Attendance</h1><p>Set up an active clock-in location, or ask your Owner for access, before managing shifts.</p></section>;
   const branches = await prisma.branch.findMany({
     where: { businessId, id: { in: [...scope.allowedBranchIds] }, status: "ACTIVE" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  const branchId = branches.some((branch) => branch.id === params.branchId) ? params.branchId! : branches[0]?.id;
+  const branchId = explicitBranchId ?? outlet.currentBranchId ?? branches[0]?.id;
   const selectedBranchName = branches.find((branch) => branch.id === branchId)?.name;
   const [templates, members, scheduleVersions] = branchId ? await Promise.all([
     listRosterShiftTemplates({
@@ -49,7 +58,7 @@ export default async function RosterShiftTemplatesPage({ searchParams }: Props) 
     `/team/roster?branchId=${encodeURIComponent(branchId ?? "")}&view=${view}`;
 
   return (
-    <section className={`content hr-module-page ${styles.page}`}>
+    <AttendanceOutletProvider branchId={outlet.currentBranchId}><section className={`content hr-module-page ${styles.page}`}>
       <nav aria-label="Roster views" className={styles.viewTabs}>
         <Link href={rosterHref("month")}><span aria-hidden="true" className={styles.viewTabIcon}>▦</span><span><strong>Month</strong><small>Calendar overview</small></span></Link>
         <Link href={rosterHref("week")}><span aria-hidden="true" className={styles.viewTabIcon}>☷</span><span><strong>Week</strong><small>Team by day</small></span></Link>
@@ -106,7 +115,7 @@ export default async function RosterShiftTemplatesPage({ searchParams }: Props) 
             <span className={styles.stepBadge}>+</span>
             <div><span className={styles.sectionKicker}>NEW TEMPLATE</span><h2>Create shift template</h2><p>Save a reusable set of working hours, break rules and a roster colour.</p></div>
           </div>
-          <form action={saveRosterShiftTemplateAction} className={styles.templateCreateForm}>
+          <AttendanceOutletForm action={saveRosterShiftTemplateAction} className={styles.templateCreateForm}>
             <input name="returnTo" type="hidden" value={returnTo} />
             <div className={styles.templateSection}>
               <div className={styles.templateSectionHeading}><span>1</span><div><h3>Shift details</h3><p>Name this shift. It will be saved for {selectedBranchName ?? "the current branch"}.</p></div></div>
@@ -139,7 +148,7 @@ export default async function RosterShiftTemplatesPage({ searchParams }: Props) 
               <div><strong>Ready to add this shift?</strong><small>The new template will be active immediately and can be used in Draft rosters.</small></div>
               <button type="submit">Create shift template</button>
             </div>
-          </form>
+          </AttendanceOutletForm>
           </section>
         </ShiftTemplateCreateDialog>
       ) : null}
@@ -156,7 +165,7 @@ export default async function RosterShiftTemplatesPage({ searchParams }: Props) 
                 <span className={`${styles.badge} ${template.active ? styles.badgeSuccess : styles.badgeWarning}`}>{template.active ? "Active" : "Inactive"}</span>
               </summary>
               {canManage ? (
-                <form action={saveRosterShiftTemplateAction} className={styles.templateForm}>
+                <AttendanceOutletForm action={saveRosterShiftTemplateAction} currentOutletGuard={template.branchId !== null} className={styles.templateForm}>
                   <input name="returnTo" type="hidden" value={returnTo} />
                   <input name="templateId" type="hidden" value={template.id} />
                   <input name="expectedRevision" type="hidden" value={template.revision} />
@@ -170,14 +179,14 @@ export default async function RosterShiftTemplatesPage({ searchParams }: Props) 
                   <ColorSelect value={template.colorToken} />
                   <label><span>Status</span><select defaultValue={template.active ? "ACTIVE" : "INACTIVE"} name="status"><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
                   <button type="submit">Save</button>
-                </form>
+                </AttendanceOutletForm>
               ) : null}
             </details>
           ))}
           {!templates.length ? <div className={styles.emptyState}><strong>No shift templates yet</strong><p>Create Morning, PM, Full Day or Night templates for this branch.</p></div> : null}
         </div>
       </section>
-    </section>
+    </section></AttendanceOutletProvider>
   );
 }
 
