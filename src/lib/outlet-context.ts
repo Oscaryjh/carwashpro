@@ -11,6 +11,31 @@ export type OutletDatabase = Pick<typeof prisma,
 type GrantedAccess = Extract<ResolvedBusinessAccess, { granted: true }>;
 type OperationalBranch = Readonly<{ id: string; name: string }>;
 
+export type BusinessOutletTopology =
+  | { kind: "no_location" }
+  | { kind: "legacy_multi_branch" }
+  | { kind: "single_outlet"; internalBranchId: string; branchNameSnapshot: string };
+
+function readOperationalBranches(businessId: string, database: Pick<OutletDatabase, "branch">) {
+  return database.branch.findMany({
+    where: { businessId, status: "ACTIVE" },
+    select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
+  });
+}
+
+/** Presentation/topology only. HR retains its own capability and person scope
+ * authority; this result never grants access or authorizes a write. */
+export async function resolveBusinessOutletTopology(
+  businessId: string,
+  database: Pick<OutletDatabase, "branch"> = prisma,
+): Promise<BusinessOutletTopology> {
+  if (!businessId) throw new Error("Business is required for workplace topology.");
+  const branches = await readOperationalBranches(businessId, database);
+  if (!branches.length) return { kind: "no_location" };
+  if (branches.length > 1) return { kind: "legacy_multi_branch" };
+  return { kind: "single_outlet", internalBranchId: branches[0].id, branchNameSnapshot: branches[0].name };
+}
+
 // The module owns scope semantics. There is intentionally no default Owner/Staff
 // scope policy here. A business-wide Expense is not a branch-scoped inventory write.
 export type OutletScope =
@@ -79,10 +104,7 @@ export async function resolveCurrentOutletContext(
     throw error;
   }
 
-  const activeBranches = await database.branch.findMany({
-    where: { businessId: input.businessId, status: "ACTIVE" },
-    select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
-  });
+  const activeBranches = await readOperationalBranches(input.businessId, database);
   const scope = await input.resolveScope({
     businessId: input.businessId, access, capability: input.capability,
     operation: input.operation, activeBranches, database,

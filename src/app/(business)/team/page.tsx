@@ -14,6 +14,9 @@ import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
+import type { BusinessOutletTopology } from "@/lib/outlet-context";
+import { readPeopleWorkplaceProfile } from "@/lib/team/people-outlet-server";
 import {
   buildCurrentPeopleAssignmentWhere,
   buildPeopleMembershipScopeWhere,
@@ -85,6 +88,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const hrEnabled = moduleContext.enabledModules.has("HR");
 
   const params = await searchParams;
+  const outletTopology = await resolveBusinessOutletTopology(businessId);
   const configurationFocus =
     params.focus === "roles" || params.focus === "levels" ? params.focus : null;
   const configurationTitle =
@@ -525,6 +529,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           <div className="team-workspace-content">
             {section === "people" ? (
               <PeopleSection
+                outletTopology={outletTopology}
                 branchesAvailable={Boolean(branches.length)}
                 canManageTeam={canManageTeam}
                 employeeOnlyMemberships={employeeOnlyMemberships}
@@ -596,6 +601,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
       {params.modal === "create" && canManageTeam ? (
         <StaffCreateModal
+          outletTopology={outletTopology}
           action={createStaffAction}
           allowHrFields={hrEnabled}
           allowPayrollFields={canEditCompensation}
@@ -611,6 +617,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       ) : null}
       {params.modal === "edit" && editingStaff && canManageTeam ? (
         <StaffEditModal
+          outletTopology={outletTopology}
+          workplaceProfile={editingStaff.employeeBusinessMembership ? await readPeopleWorkplaceProfile(
+            businessId, editingStaff.employeeBusinessMembership.id, editingStaff.branchId,
+          ) : undefined}
           action={updateStaffAction}
           allowHrFields={hrEnabled}
           allowPayrollFields={canEditCompensation}
@@ -933,6 +943,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 }
 
 function PeopleSection({
+  outletTopology,
   branchesAvailable,
   canManageTeam,
   employeeOnlyMemberships,
@@ -940,6 +951,7 @@ function PeopleSection({
   query,
   staff,
 }: {
+  outletTopology: BusinessOutletTopology;
   branchesAvailable: boolean;
   canManageTeam: boolean;
   employeeOnlyMemberships: EmployeeOnlyRow[];
@@ -1026,10 +1038,12 @@ function PeopleSection({
                 </span>
               </div>
               <div className="team-staff-facts">
-                <span>
+                {!(outletTopology.kind === "single_outlet" && member.branchId === outletTopology.internalBranchId &&
+                  employment?.branchAssignments.length === 1 && employment.branchAssignments[0].isPrimary &&
+                  employment.branchAssignments[0].branchId === outletTopology.internalBranchId) ? <span>
                   <small>Primary branch</small>
                   {branchNames(member)}
-                </span>
+                </span> : null}
                 <span>
                   <small>Services</small>
                   {member.serviceStaffAssignments.length} assigned
@@ -1107,10 +1121,11 @@ function PeopleSection({
               </span>
             </div>
             <div className="team-staff-facts">
-              <span>
+              {!(outletTopology.kind === "single_outlet" && employee.branchAssignments.length === 1 &&
+                employee.branchAssignments[0].isPrimary && employee.branchAssignments[0].branchId === outletTopology.internalBranchId) ? <span>
                 <small>Branches</small>
                 {employeeBranchNames(employee)}
-              </span>
+              </span> : null}
               <span>
                 <small>Services</small>0 assigned
               </span>

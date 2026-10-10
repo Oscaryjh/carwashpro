@@ -15,6 +15,8 @@ import {
   normalizeStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
+import { preparePeopleOutletForm, assertPeopleLocationPayload } from "@/lib/team/people-outlet";
 import {
   createTeamMember,
   createCoreStaff,
@@ -204,6 +206,15 @@ export async function createStaffAction(formData: FormData) {
   }
 
   try {
+    assertPeopleLocationPayload(formData);
+    if (formData.has("userId") || formData.has("employeeId")) throw new Error("Unexpected person identity on create.");
+    if (formData.has("peopleOutletMode")) {
+      const currentScope = await resolveAttendanceScope(access);
+      formData = preparePeopleOutletForm({ formData,
+        topology: await resolveBusinessOutletTopology(businessId),
+        allowedBranchIds: currentScope.allowedBranchIds,
+      }).formData;
+    }
     if (formData.get("peopleCoreOnly") === "on") {
       const input = parseCoreStaffForm(formData);
       const scope = await resolveAttendanceScope(access);
@@ -329,6 +340,8 @@ export async function updateStaffAction(formData: FormData) {
   }
 
   try {
+    assertPeopleLocationPayload(formData);
+    if (formData.has("employeeId")) throw new Error("Use the Staff identity for this form.");
     const userId = z.string().uuid().parse(formData.get("userId"));
     const scope = await resolveAttendanceScope(access);
     const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
@@ -434,6 +447,8 @@ export async function updateStaffAction(formData: FormData) {
       select: {
         employeeBusinessMembership: {
           select: {
+            branchAssignments: true,
+            status: true,
             baseSalary: true,
             id: true,
             normalWorkMinutesPerDay: true,
@@ -444,6 +459,7 @@ export async function updateStaffAction(formData: FormData) {
           },
         },
         email: true,
+        branchId: true,
         id: true,
         loginEnabled: true,
         passwordHash: true,
@@ -455,6 +471,18 @@ export async function updateStaffAction(formData: FormData) {
     if (!staff) {
       throw new Error("Staff user not found in the authorized branch scope.");
     }
+
+    const workplaceForm = formData.has("peopleOutletMode") ? preparePeopleOutletForm({
+      formData, topology: await resolveBusinessOutletTopology(businessId),
+      allowedBranchIds: scope.allowedBranchIds,
+      existing: staff.employeeBusinessMembership ? {
+        status: staff.employeeBusinessMembership.status,
+        updatedAt: staff.employeeBusinessMembership.updatedAt,
+        assignments: staff.employeeBusinessMembership.branchAssignments,
+        posHomeBranchId: staff.branchId,
+      } : { status: "ACTIVE", assignments: [], posHomeBranchId: staff.branchId },
+    }) : undefined;
+    if (workplaceForm) formData = workplaceForm.formData;
 
     if (!staff.employeeBusinessMembership) {
       if (formData.get("createEmploymentProfile") === "on") {
@@ -679,6 +707,7 @@ export async function updateStaffAction(formData: FormData) {
           terminatedAt,
         ),
         employeeId: staff.employeeBusinessMembership.id,
+        ...(workplaceForm?.preservedAssignments ? { assignments: workplaceForm.preservedAssignments } : {}),
       },
       compensationAccess: access,
       request: auditRequest,

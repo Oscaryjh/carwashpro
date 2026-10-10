@@ -15,6 +15,8 @@ import {
   type AttendanceEmployeeActionState,
 } from "./actions";
 import styles from "./employee.module.css";
+import type { BusinessOutletTopology } from "@/lib/outlet-context";
+import { canSimplifyPeopleWorkplace } from "@/lib/team/people-outlet";
 
 export type AttendanceEmployeeFormBranch = {
   id: string;
@@ -50,6 +52,7 @@ export type AttendanceEmployeeFormValues = {
 };
 
 type AttendanceEmployeeFormProps = {
+  outletTopology?: BusinessOutletTopology;
   branches: AttendanceEmployeeFormBranch[];
   businessName: string;
   employee?: AttendanceEmployeeFormValues;
@@ -61,6 +64,7 @@ const initialActionState: AttendanceEmployeeActionState = {
 };
 
 export function AttendanceEmployeeForm({
+  outletTopology,
   branches,
   businessName,
   employee,
@@ -93,11 +97,13 @@ export function AttendanceEmployeeForm({
       assignment.status === "ACTIVE" &&
       availableBranchIds.has(assignment.branchId),
   );
+  const singleCreateBranch = !employee && outletTopology?.kind === "single_outlet" && availableBranchIds.has(outletTopology.internalBranchId)
+    ? outletTopology.internalBranchId : undefined;
   const initialPrimaryBranchId =
     initialAssignments.find((assignment) => assignment.isPrimary)?.branchId ??
-    "";
+    singleCreateBranch ?? "";
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
-    initialAssignments.map((assignment) => assignment.branchId),
+    singleCreateBranch ? [singleCreateBranch] : initialAssignments.map((assignment) => assignment.branchId),
   );
   const [canClockInBranchIds, setCanClockInBranchIds] = useState<string[]>(
     initialAssignments
@@ -121,6 +127,9 @@ export function AttendanceEmployeeForm({
   const reactivationConfirmedRef = useRef<HTMLInputElement>(null);
   const submitGuardRef = useRef(false);
   const today = formatDateInput(new Date());
+  const simplifiedWorkplace = canSimplifyPeopleWorkplace(outletTopology, employee ? {
+    status: employee.status, assignments: employee.assignments,
+  } : undefined) && status === (employee?.status ?? "ACTIVE");
 
   useEffect(() => {
     if (!pending) {
@@ -336,6 +345,11 @@ export function AttendanceEmployeeForm({
       className={styles.form}
       onSubmit={handleSubmit}
     >
+      {simplifiedWorkplace && outletTopology?.kind === "single_outlet" ? <>
+        <input name="peopleOutletMode" type="hidden" value="single_outlet" />
+        <input name="peopleOutletBranchId" type="hidden" value={outletTopology.internalBranchId} />
+        <input name="peopleCanClockIn" type="hidden" value={canClockInBranchIds.includes(outletTopology.internalBranchId) ? "on" : "off"} />
+      </> : null}
       {employee ? (
         <>
           <input name="employeeId" type="hidden" value={employee.employeeId} />
@@ -496,7 +510,13 @@ export function AttendanceEmployeeForm({
         ) : null}
       </section>
 
-      <section className={styles.formSection}>
+      {simplifiedWorkplace && outletTopology?.kind === "single_outlet" ? <section className={styles.formSection}>
+        <label className={styles.attendanceToggle}>
+          <span>Can clock in</span>
+          <input type="checkbox" checked={canClockInBranchIds.includes(outletTopology.internalBranchId)} disabled={pending || status !== "ACTIVE"}
+            onChange={event => updateCanClockInBranch(outletTopology.internalBranchId, event.target.checked)} />
+        </label>
+      </section> : <section className={styles.formSection}>
         <div className={styles.formHeading}>
           <span>02</span>
           <div>
@@ -631,7 +651,7 @@ export function AttendanceEmployeeForm({
         <FieldErrors errors={state.fieldErrors?.branchIds} />
         <FieldErrors errors={state.fieldErrors?.canClockInBranchIds} />
         <FieldErrors errors={state.fieldErrors?.assignments} />
-      </section>
+      </section>}
 
       <section className={styles.formSection}>
         <div className={styles.formHeading}>

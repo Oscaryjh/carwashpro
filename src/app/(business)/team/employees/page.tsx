@@ -8,6 +8,7 @@ import {
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
 import styles from "./employee.module.css";
 
 type EmployeesPageProps = {
@@ -41,6 +42,7 @@ export default async function EmployeesPage({
 }: EmployeesPageProps) {
   const context = await requireBusinessUser("VIEW_ATTENDANCE_EMPLOYEES");
   const scope = await resolveAttendanceScope(context.access);
+  const outletTopology = await resolveBusinessOutletTopology(scope.businessId);
   const params = await searchParams;
   const now = new Date();
   const businessWide = canUseBusinessWideEmployeeScope(context.access);
@@ -301,7 +303,7 @@ export default async function EmployeesPage({
             Business
             <input aria-label="Business" readOnly value={business.name} />
           </label>
-          <label>
+          {outletTopology.kind !== "single_outlet" ? <label>
             Branch
             <select defaultValue={branchId} name="branchId">
               <option value="">All authorized branches</option>
@@ -311,7 +313,7 @@ export default async function EmployeesPage({
                 </option>
               ))}
             </select>
-          </label>
+          </label> : branchId ? <input type="hidden" name="branchId" value={branchId} /> : null}
           <label>
             Employment type
             <select defaultValue={employmentType} name="employmentType">

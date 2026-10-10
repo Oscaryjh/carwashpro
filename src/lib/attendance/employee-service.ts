@@ -865,9 +865,7 @@ async function reconcileAssignments({
       continue;
     }
 
-    const updated = await transaction.employeeBranchAssignment.update({
-      where: { id: assignmentToUpdate.id },
-      data: {
+    const assignmentData = {
         isPrimary: desired.isPrimary,
         canClockIn: desired.canClockIn,
         effectiveFrom:
@@ -880,7 +878,17 @@ async function reconcileAssignments({
               now
             : desired.effectiveUntil,
         status: desired.status,
-      },
+    };
+    // Profile-only saves retain the exact unchanged workplace row, including its
+    // effective dates and updatedAt. Actual changes keep validated reconciliation.
+    if (assignmentToUpdate.isPrimary === assignmentData.isPrimary &&
+        assignmentToUpdate.canClockIn === assignmentData.canClockIn &&
+        assignmentToUpdate.status === assignmentData.status &&
+        assignmentToUpdate.effectiveFrom.getTime() === assignmentData.effectiveFrom.getTime() &&
+        assignmentToUpdate.effectiveUntil?.getTime() === assignmentData.effectiveUntil?.getTime()) continue;
+    const updated = await transaction.employeeBranchAssignment.update({
+      where: { id: assignmentToUpdate.id },
+      data: assignmentData,
     });
     changes.push({
       kind: "UPDATED",

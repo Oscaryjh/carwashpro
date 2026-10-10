@@ -8,6 +8,8 @@ import {
 } from "@/lib/auth/staff-permissions";
 import { modulesForStaffPermission, type ModuleKey } from "@/lib/modules/registry";
 import { workHoursToMinutesInput } from "@/lib/team/work-duration";
+import type { BusinessOutletTopology } from "@/lib/outlet-context";
+import type { PeopleWorkplacePresentation } from "@/lib/team/people-outlet";
 
 export type StaffFormStaff = {
   appointmentBookable: boolean;
@@ -28,6 +30,8 @@ type StaffBranch = {
 };
 
 type StaffFormProps = {
+  outletTopology?: BusinessOutletTopology;
+  workplaceProfile?: PeopleWorkplacePresentation;
   action: (formData: FormData) => Promise<void>;
   allowHrFields?: boolean;
   allowPayrollFields?: boolean;
@@ -60,6 +64,8 @@ type StaffFormProps = {
 type AccessType = "LOGIN" | "NO_LOGIN";
 
 export function StaffForm({
+  outletTopology,
+  workplaceProfile,
   action,
   allowHrFields = true,
   allowPayrollFields = true,
@@ -122,6 +128,9 @@ export function StaffForm({
   const [employmentStatus, setEmploymentStatus] = useState<
     "ACTIVE" | "SUSPENDED" | "TERMINATED"
   >(employeeProfile?.status ?? "ACTIVE");
+  const simplifiedWorkplace = outletTopology?.kind === "single_outlet" && (!isEdit || workplaceProfile?.canSimplify === true) &&
+    (!isEdit || (allowHrFields && Boolean(workplaceProfile))) && !createEmploymentProfile &&
+    employmentStatus === (employeeProfile?.status ?? "ACTIVE");
   const [defaultWorkHours, setDefaultWorkHours] = useState("");
   const [defaultBreakChoice, setDefaultBreakChoice] = useState("");
   const [customBreakMinutes, setCustomBreakMinutes] = useState("");
@@ -157,6 +166,14 @@ export function StaffForm({
 
   return (
     <form className="form" action={action}>
+      {simplifiedWorkplace && outletTopology?.kind === "single_outlet" ? <>
+        <input type="hidden" name="peopleOutletMode" value="single_outlet" />
+        <input type="hidden" name="peopleOutletBranchId" value={outletTopology.internalBranchId} />
+        {workplaceProfile?.updatedAt ? <input type="hidden" name="peopleOutletExpectedUpdatedAt"
+          value={new Date(workplaceProfile.updatedAt).toISOString()} /> : null}
+        {hasEmploymentForm ? <input type="hidden" name="peopleCanClockIn"
+          value={canClockInBranchIds.includes(outletTopology.internalBranchId) ? "on" : "off"} /> : null}
+      </> : null}
       <input
         name="peopleCoreOnly"
         type="hidden"
@@ -401,7 +418,7 @@ export function StaffForm({
               </label>
             </>
           ) : null}
-          <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
+          {!simplifiedWorkplace ? <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
             <div className="staff-branch-heading">
               <span>{isLegacyOnlyEdit ? "Branch" : "Work branches"}</span>
             </div>
@@ -420,7 +437,7 @@ export function StaffForm({
                     />
                     <span className="staff-branch-fixed-copy">
                       <strong>{branches[0].name}</strong>
-                      <small>Only active branch</small>
+                      <small>Available workplace</small>
                     </span>
                     <span className="staff-branch-fixed-state">Auto-assigned</span>
                   </div>
@@ -490,7 +507,7 @@ export function StaffForm({
                   : "Select every branch where this employee may work."}
               </small>
             ) : null}
-          </div>
+          </div> : null}
         </div>
 
         {employmentStatus === "TERMINATED" && (!isEdit || employeeProfile) ? (
@@ -500,7 +517,13 @@ export function StaffForm({
           </div>
         ) : null}
 
-        {attendanceEnabled && selectedBranchIds.length ? (
+        {simplifiedWorkplace && hasEmploymentForm && outletTopology?.kind === "single_outlet" ? (
+          <label className="staff-appointment-setting">
+            <input type="checkbox" checked={canClockInBranchIds.includes(outletTopology.internalBranchId)}
+              onChange={event => setCanClockInBranchIds(event.target.checked ? [outletTopology.internalBranchId] : [])} />
+            <span><strong>Can clock in</strong><small>Allow clock-in at the current workplace when Attendance is enabled.</small></span>
+          </label>
+        ) : attendanceEnabled && selectedBranchIds.length ? (
           <fieldset className="service-staff-fieldset">
             <legend>Branches allowed for clock in</legend>
             <div className="service-staff-grid">
@@ -682,7 +705,7 @@ export function StaffForm({
                 </label>
               </div>
             ) : null}
-            <fieldset className="service-staff-fieldset">
+            {!simplifiedWorkplace ? <fieldset className="service-staff-fieldset">
               <legend>Authorized Branches</legend>
               <div className="service-staff-grid">
                 {branches.map((branch) => (
@@ -709,7 +732,7 @@ export function StaffForm({
                 These are the same work-branch assignments shown above. The primary
                 branch is this person&apos;s POS home branch.
               </small>
-            </fieldset>
+            </fieldset> : null}
           </section>
         ) : null}
 

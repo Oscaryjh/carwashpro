@@ -16,6 +16,8 @@ import {
   requireBusinessUserWithAnyCapability,
 } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
+import { preparePeopleOutletForm, assertPeopleLocationPayload } from "@/lib/team/people-outlet";
 
 export type AttendanceEmployeeActionState = {
   status: "idle" | "error" | "success";
@@ -32,6 +34,11 @@ export async function createAttendanceEmployeeAction(
       "MODIFY_ATTENDANCE_EMPLOYEES",
     );
     const scope = await resolveAttendanceScope(access);
+    assertPeopleLocationPayload(formData);
+    if (formData.has("userId") || formData.has("employeeId")) throw new Error("Unexpected person identity on create.");
+    if (formData.has("peopleOutletMode")) formData = preparePeopleOutletForm({
+      formData, topology: await resolveBusinessOutletTopology(businessId), allowedBranchIds: scope.allowedBranchIds,
+    }).formData;
     const request = await getAuditRequestContext();
     const input = buildEmployeeInput(formData, businessId);
     const membership = await createAttendanceEmployee({
@@ -70,6 +77,8 @@ export async function updateAttendanceEmployeeAction(
     const scope = await resolveAttendanceScope(access);
     const now = new Date();
     const employeeId = String(formData.get("employeeId") ?? "").trim();
+    assertPeopleLocationPayload(formData);
+    if (formData.has("userId")) throw new Error("Use the Employee identity for this form.");
     const existing = await prisma.employeeBusinessMembership.findFirst({
       where: {
         id: employeeId,
@@ -96,8 +105,10 @@ export async function updateAttendanceEmployeeAction(
             }),
       },
       select: {
+        branchAssignments: true,
         id: true,
         status: true,
+        updatedAt: true,
         payBasis: true,
         baseSalary: true,
         normalWorkMinutesPerDay: true,
@@ -108,8 +119,14 @@ export async function updateAttendanceEmployeeAction(
     if (!existing) {
       throw new Error("Employee is outside your authorized scope.");
     }
+    const workplaceForm = formData.has("peopleOutletMode") ? preparePeopleOutletForm({
+      formData, topology: await resolveBusinessOutletTopology(businessId), allowedBranchIds: scope.allowedBranchIds,
+      existing: { status: existing.status, updatedAt: existing.updatedAt, assignments: existing.branchAssignments },
+    }) : undefined;
+    if (workplaceForm) formData = workplaceForm.formData;
     const input = {
       ...buildEmployeeInput(formData, businessId, true),
+      ...(workplaceForm?.preservedAssignments ? { assignments: workplaceForm.preservedAssignments } : {}),
       payBasis: existing.payBasis,
       baseSalary:
         existing.baseSalary === null ? null : Number(existing.baseSalary),

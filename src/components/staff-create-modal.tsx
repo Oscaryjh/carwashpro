@@ -1,6 +1,8 @@
 import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { StaffForm, type StaffFormStaff } from "@/components/staff-form";
 import type { ModuleKey } from "@/lib/modules/registry";
+import type { BusinessOutletTopology } from "@/lib/outlet-context";
+import type { PeopleWorkplacePresentation } from "@/lib/team/people-outlet";
 
 type StaffBranch = {
   id: string;
@@ -8,6 +10,8 @@ type StaffBranch = {
 };
 
 type StaffCreateModalProps = {
+  outletTopology?: BusinessOutletTopology;
+  workplaceProfile?: PeopleWorkplacePresentation;
   action: (formData: FormData) => Promise<void>;
   allowHrFields: boolean;
   allowPayrollFields: boolean;
@@ -22,6 +26,7 @@ type StaffCreateModalProps = {
 };
 
 export function StaffCreateModal({
+  outletTopology,
   action,
   allowHrFields,
   allowPayrollFields,
@@ -50,6 +55,7 @@ export function StaffCreateModal({
           </div>
         ) : null}
         <StaffForm
+          outletTopology={outletTopology}
           action={action}
           allowHrFields={allowHrFields}
           allowPayrollFields={allowPayrollFields}
@@ -88,6 +94,8 @@ type StaffEditModalProps = StaffCreateModalProps & {
 };
 
 export function StaffEditModal({
+  outletTopology,
+  workplaceProfile,
   action,
   allowHrFields,
   allowPayrollFields,
@@ -148,6 +156,8 @@ export function StaffEditModal({
           <div className="warning">No active branch is available for staff assignment.</div>
         ) : null}
         <StaffForm
+          outletTopology={outletTopology}
+          workplaceProfile={workplaceProfile}
           action={action}
           allowHrFields={allowHrFields}
           allowPayrollFields={allowPayrollFields}

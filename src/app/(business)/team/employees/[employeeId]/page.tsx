@@ -8,6 +8,7 @@ import styles from "../employee.module.css";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
 
 type AttendanceEmployeeDetailsPageProps = {
   params: Promise<{
@@ -315,6 +316,7 @@ export default async function AttendanceEmployeeDetailsPage({
       </section>
 
       <AttendanceEmployeeForm
+        outletTopology={await resolveBusinessOutletTopology(scope.businessId)}
         branches={branches}
         businessName={business.name}
         employee={formEmployee}

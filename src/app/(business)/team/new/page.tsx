@@ -5,6 +5,7 @@ import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { createStaffAction } from "../actions";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
 
 export default async function NewStaffPage() {
   const { access, user, businessId, industryType, moduleContext } =
@@ -14,6 +15,7 @@ export default async function NewStaffPage() {
   }
 
   const branches = await getActiveBranches(businessId);
+  const outletTopology = await resolveBusinessOutletTopology(businessId);
   const hrEnabled = moduleContext.enabledModules.has("HR");
   const canEditCompensation =
     moduleContext.enabledModules.has("PAYROLL") &&
@@ -42,6 +44,7 @@ export default async function NewStaffPage() {
             <h2>Staff details</h2>
           </div>
           <StaffForm
+            outletTopology={outletTopology}
             action={createStaffAction}
             allowHrFields={hrEnabled}
             allowPayrollFields={canEditCompensation}

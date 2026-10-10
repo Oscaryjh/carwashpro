@@ -6,6 +6,8 @@ import {
 } from "@/components/employee-profile-shell";
 import { EmployeeProfileOverview } from "@/components/employee-profile-phase2a";
 import { StaffEditModal } from "@/components/staff-create-modal";
+import { resolveBusinessOutletTopology } from "@/lib/outlet-context";
+import { readPeopleWorkplaceProfile } from "@/lib/team/people-outlet-server";
 import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
 import { EmployeeProfileLeave } from "@/components/employee-profile-leave";
 import { EmployeeLeaveBalanceModal } from "@/components/employee-leave-balance-modal";
@@ -617,6 +619,9 @@ export default async function EmployeeProfilePage({
       />
       {editData ? (
         <StaffEditModal
+          outletTopology={await resolveBusinessOutletTopology(context.businessId)}
+          workplaceProfile={await readPeopleWorkplaceProfile(context.businessId,
+            editData.staff.employeeBusinessMembership.id, editData.staff.branchId)}
           action={updateStaffAction}
           allowHrFields={context.moduleContext.enabledModules.has("HR")}
           allowPayrollFields={canEditCompensation}
