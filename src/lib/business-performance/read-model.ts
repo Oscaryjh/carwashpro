@@ -48,6 +48,9 @@ async function readBusinessPerformanceReadModel(input: {
   to?: string;
   now?: Date;
   salonAccess?: SalonAccess;
+  /** Independently authorized mixed Expense scope; automatic outlet selection
+   * must not remove the existing business-wide Expense bucket. */
+  expenseScope?: { allowedBranchIds: readonly string[]; includeBusinessWide: boolean; branchId?: string };
 }, database: ReadDatabase = prisma) {
   const business = await database.business.findUniqueOrThrow({
     where: { id: input.businessId },
@@ -82,13 +85,13 @@ async function readBusinessPerformanceReadModel(input: {
   const previousSales = salesForPeriod(invoices, payments, refunds, periods.previous.fromDate, periods.previous.toDateExclusive);
   const trend = buildSalesTrend(invoices, refunds, periods.current.fromDateValue, periods.current.toDateValue, business.timezone, business.businessDayCutoffTime);
 
-  const expenseScope = { allowedBranchIds: branchIds, includeBusinessWide: input.includeBusinessWide && !selectedBranchId };
+  const expenseScope = input.expenseScope ?? { allowedBranchIds: branchIds, includeBusinessWide: input.includeBusinessWide && !selectedBranchId, branchId: selectedBranchId };
   const spending = enabled.has("EXPENSE") ? await getExpenseDashboard({
-    businessId: input.businessId, ...expenseScope, branchId: selectedBranchId,
+    businessId: input.businessId, ...expenseScope,
     dateFrom: periods.current.fromDateValue, dateTo: periods.current.toDateValue,
   }, database as never) : null;
   const previousSpending = enabled.has("EXPENSE") ? await getExpenseDashboard({
-    businessId: input.businessId, ...expenseScope, branchId: selectedBranchId,
+    businessId: input.businessId, ...expenseScope,
     dateFrom: periods.previous.fromDateValue, dateTo: periods.previous.toDateValue,
   }, database as never) : null;
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { BranchSelect } from "@/components/branch-select";
-import { selectedOrOnlyBranch } from "@/lib/branch-selection";
+import { resolveReportOutletScope } from "@/lib/report-outlet-context";
 import { notFound } from "next/navigation";
 import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -24,12 +23,13 @@ export default async function PerformancePage({searchParams}:{searchParams:Promi
   if(process.env.TETAMU_PERFORMANCE_PHASE2!=="true") notFound();
   const {businessId,user,access}=await requireBusinessUserWithAnyCapability(["PERFORMANCE_VIEW_TEAM","PERFORMANCE_MANAGE_TARGETS"]);
   if(access.source!=="DIRECT_BUSINESS") notFound();
-  // Historical performance remains readable for authorised inactive locations.
-  const branches=await prisma.branch.findMany({where:{businessId,...(user.role==="BUSINESS_OWNER"?{}:{id:user.branchId??"00000000-0000-0000-0000-000000000000"})},select:{id:true,name:true},orderBy:{name:"asc"}});
   const p=await searchParams;
-  const requestedBranch = p.branch ?? user.branchId;
-  const branch=selectedOrOnlyBranch(branches, requestedBranch);
-  if (!branch && !requestedBranch && branches.length > 1) return <main className={styles.page}><h1>Performance</h1><p>Select a branch to view its performance.</p><form method="get" className={styles.filters}><BranchSelect branches={branches} name="branch" /><button type="submit">View</button></form></main>;
+  const outlet=await resolveReportOutletScope({businessId,actorUserId:user.userId,surface:"performance",...(p.branch!==undefined?{explicitBranchInput:p.branch}:{})});
+  if(outlet.kind==="denied") notFound();
+  if(outlet.kind==="no_location") return <main className={styles.page}><h1>Performance</h1><p>No active location is available. Contact your business owner. Existing authorised historical links remain available.</p></main>;
+  const branches=outlet.branches;
+  const branch=outlet.selection.kind==="branch"?branches.find(b=>b.id===(outlet.selection.kind==="branch"?outlet.selection.branchId:undefined)):undefined;
+  if (!branch && branches.length > 1) return <main className={styles.page}><h1>Performance</h1><p>Select a branch to view its performance.</p><form method="get" className={styles.filters}><label>Branch<select name="branch" required defaultValue=""><option value="" disabled>Select branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><button type="submit">View</button></form></main>;
   if(!branch) notFound();
   const business=await prisma.business.findUniqueOrThrow({where:{id:businessId},select:{timezone:true}});
   const now=new Date(),today=localPerformanceDate(now,performanceTimezone(business.timezone));
@@ -43,8 +43,8 @@ export default async function PerformancePage({searchParams}:{searchParams:Promi
   const selectedMember=data.members.find(m=>m.id===p.employee);
   const visibleMembers=data.members.filter(m=>!p.q||`${m.fullName} ${m.employeeCode}`.toLowerCase().includes(p.q.toLowerCase()));
   return <main className={styles.page}>
-    <header className={styles.header}><div><h1>Performance</h1><p>Sales received and tips for this branch, less related refunds. Excludes tax, payroll and commission.</p></div>{!canManage&&<span className={styles.badge}>Branch view only</span>}</header>
-    <form className={`${styles.filters} ${styles.periodFilters}`} method="get"><input type="hidden" name="tab" value={tab}/><BranchSelect branches={branches} selectedBranchId={branch.id} name="branch" /><label className={styles.yearControl}>Year<input aria-label="Performance year" name="year" type="number" min="2001" max="2200" defaultValue={year}/></label><label className={styles.monthControl}>Month<select name="month" defaultValue={month}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{performanceMonth(i+1)}</option>)}</select></label><button type="submit">View</button></form>
+    <header className={styles.header}><div><h1>Performance</h1><p>Sales received and tips{outlet.topologyMode==="legacy_multi_branch"?" for this branch":""}, less related refunds. Excludes tax, payroll and commission.</p></div>{!canManage&&outlet.topologyMode==="legacy_multi_branch"&&<span className={styles.badge}>Branch view only</span>}{outlet.historical&&<p>Historical records · {branch.name}</p>}</header>
+    <form className={`${styles.filters} ${styles.periodFilters}`} method="get"><input type="hidden" name="tab" value={tab}/>{outlet.topologyMode==="legacy_multi_branch"?<label>Branch<select name="branch" defaultValue={branch.id}>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>:<input type="hidden" name="branch" value={branch.id}/>}<label className={styles.yearControl}>Year<input aria-label="Performance year" name="year" type="number" min="2001" max="2200" defaultValue={year}/></label><label className={styles.monthControl}>Month<select name="month" defaultValue={month}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{performanceMonth(i+1)}</option>)}</select></label><button type="submit">View</button></form>
     <nav className={styles.tabs} aria-label="Performance sections">{[["overview","Overview"],["targets","Targets"],["details","Performance details"]].map(([key,label])=><Link key={key} href={href({tab:key,page:"",employee:"",status:"",component:""})} aria-current={tab===key?"page":undefined}>{label}</Link>)}</nav>
     <div className={styles.meta}><span>Last updated {date(data.asOf)}</span><span>Year-to-date · {data.timezone}</span><details className={styles.coverage}><summary>Coverage</summary><p>{data.annual.started?`${date(data.annual.from)} – ${date(new Date(Math.min(new Date(data.annual.toExclusive).getTime()-1,now.getTime())).toISOString())}`:"This business year has not started. Targets can be set in advance."} · {data.timezone}</p></details></div>
     {!data.annual.complete&&<aside className={styles.warning}>Data incomplete: only verified subtotals are shown. Levels and completion rates are not yet confirmed. Not captured: {data.annual.uncapturedCount}, pending verification: {data.annual.pendingCount}, source evidence gaps: {data.annual.basisGapCount}. <Link href={href({tab:"details",status:"",page:"",range:"year"})}>View sources</Link></aside>}

@@ -34,7 +34,7 @@ before(async () => {
     "@/lib/business-performance/read-model": "export const getBusinessPerformanceReadModel=async()=>globalThis.__dashboardPresentation();",
     "@/lib/tenant": "export const getBusinessContext=async()=>({businessId:'local',user:{},access:{source:'DIRECT_BUSINESS'}});",
     "@/lib/auth/staff-permissions": "export const assertStaffPermission=()=>{};",
-    "@/lib/expense/access": "export const resolveExpenseReadScope=async()=>({branches:[{id:'a',name:'A'}],allowedBranchIds:['a'],includeBusinessWide:true});",
+    "@/lib/report-outlet-context": "export const resolveReportOutletScope=async()=>({kind:'ready',topologyMode:'legacy_multi_branch',access:{source:'DIRECT_BUSINESS'},branches:[{id:'a',name:'A'}],selection:{kind:'authorized_branches',branchIds:['a']},businessScopeAllowed:true,expenseScope:{allowedBranchIds:['a'],includeBusinessWide:true}});",
     "@/lib/modules/entitlements": "export const isBusinessModuleEnabled=async()=>false;",
     "@/lib/prisma": "export const prisma={};",
     "next/link": "import {createElement} from 'react';export default ({children,...p})=>createElement('a',p,children);",

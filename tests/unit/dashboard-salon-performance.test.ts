@@ -108,6 +108,8 @@ before(async () => {
   globals.__dashboardSalonTest = { db, state };
   const stubs: Record<string, string> = {
     "@/lib/prisma": "export const prisma=globalThis.__dashboardSalonTest.db;",
+    "@/lib/report-outlet-context": "export async function resolveReportOutletScope(input){const s=globalThis.__dashboardSalonTest.state;const branches=(await globalThis.__dashboardSalonTest.db.branch.findMany({where:{businessId:'business',status:'ACTIVE'}})).filter(b=>s.role==='BUSINESS_OWNER'||s.group||s.branchIds.includes(b.id));const explicit=Object.hasOwn(input,'explicitBranchInput')&&input.explicitBranchInput!=='';if(explicit&&!branches.some(b=>b.id===input.explicitBranchInput))return {kind:'denied'};return {kind:'ready',topologyMode:'legacy_multi_branch',access:{granted:true,businessId:'business',source:s.group?'GROUP_ACCESS':'DIRECT_BUSINESS',effectiveBusinessRole:s.group?'GROUP_MANAGER_READ_ONLY':s.role,branchId:s.branchIds[0],permissions:[]},branches,selection:explicit?{kind:'branch',branchId:input.explicitBranchInput}:{kind:'authorized_branches',branchIds:branches.map(b=>b.id)},businessScopeAllowed:s.role==='BUSINESS_OWNER'||s.group,expenseScope:{allowedBranchIds:branches.map(b=>b.id),includeBusinessWide:!explicit}}}",
+    "next/navigation": "export function notFound(){throw Error('NOT_FOUND')}",
     "@/lib/modules/entitlements": "export const isBusinessModuleEnabled=async()=>false;export const loadBusinessModuleContext=async()=>({enabledModules:new Set(globalThis.__dashboardSalonTest.state.pos?['POS']:[])});",
     "@/lib/expense/service": "export const getExpenseDashboard=()=>{throw Error('unexpected expense read')};",
     "@/lib/expense/source-integration": "export const reconcileExpenseSources=()=>{throw Error('unexpected expense read')};",
@@ -218,8 +220,7 @@ test("Empty Performance month action preserves only the authorised selected bran
   const html = renderToStaticMarkup(await api.Dashboard({ searchParams: Promise.resolve(params) }));
   const action = html.match(/<a[^>]+href="([^"]+)"[^>]*>View this month<\/a>/)?.[1];
   assert.equal(action, "/dashboard?range=month&amp;branchId=a");
-  const tampered = renderToStaticMarkup(await api.Dashboard({ searchParams: Promise.resolve({ ...params, branchId: "foreign" }) }));
-  assert.equal(tampered.match(/<a[^>]+href="([^"]+)"[^>]*>View this month<\/a>/)?.[1], "/dashboard?range=month");
+  await assert.rejects(api.Dashboard({ searchParams: Promise.resolve({ ...params, branchId: "foreign" }) }), /NOT_FOUND/);
 });
 
 test("Invalid custom dates retain the resolver's custom range semantics", async () => {

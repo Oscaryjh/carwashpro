@@ -85,10 +85,11 @@ test("Performance renders English overview, targets, details and recovery states
       outdir: directory, outExtension: { ".js": ".cjs" }, bundle: true, platform: "node", format: "cjs", packages: "external",
       jsx: "automatic", loader: { ".css": "empty" }, logLevel: "silent",
       plugins: [{ name: "performance-boundaries", setup(builder) {
-        builder.onResolve({ filter: /^(?:@\/lib\/(?:auth\/business-user|business-groups\/business-access|prisma|performance\/dashboard)|\.\/actions|next\/navigation)$/ }, args => ({ path: args.path, namespace: "copy-boundary" }));
+        builder.onResolve({ filter: /^(?:@\/lib\/(?:report-outlet-context|auth\/business-user|business-groups\/business-access|prisma|performance\/dashboard)|\.\/actions|next\/navigation)$/ }, args => ({ path: args.path, namespace: "copy-boundary" }));
         builder.onLoad({ filter: /.*/, namespace: "copy-boundary" }, args => {
           const s = `globalThis[${JSON.stringify(key)}]`;
-          return { contents: args.path.endsWith("auth/business-user") ? "export const requireBusinessUserWithAnyCapability=async()=>({businessId:'business',user:{role:'BUSINESS_OWNER',userId:'owner',branchId:'branch'},access:{source:'DIRECT_BUSINESS'}})" :
+          return { contents: args.path.endsWith("report-outlet-context") ? "export const resolveReportOutletScope=async()=>({kind:'ready',topologyMode:'single_outlet',selection:{kind:'branch',branchId:'branch'},branches:[{id:'branch',name:'Synthetic Outlet'}],historical:false})" :
+            args.path.endsWith("auth/business-user") ? "export const requireBusinessUserWithAnyCapability=async()=>({businessId:'business',user:{role:'BUSINESS_OWNER',userId:'owner',branchId:'branch'},access:{source:'DIRECT_BUSINESS'}})" :
             args.path.endsWith("business-access") ? `export const hasBusinessCapability=()=>${s}.canManage` :
             args.path.endsWith("/prisma") ? "export const prisma={branch:{findMany:async()=>[{id:'branch',name:'Synthetic Outlet'}]},business:{findUniqueOrThrow:async()=>({timezone:'Asia/Kuala_Lumpur'})}}" :
             args.path.endsWith("/dashboard") ? `export const readPerformanceDashboard=async()=>${s}.data` :

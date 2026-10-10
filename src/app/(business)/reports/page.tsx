@@ -15,7 +15,8 @@ import {
   assertStaffPermission,
   hasStaffPermission,
 } from "@/lib/auth/staff-permissions";
-import { branchWhere, getActiveBranches } from "@/lib/branches";
+import { branchWhere } from "@/lib/branches";
+import { resolveReportOutletScope } from "@/lib/report-outlet-context";
 import {
   getBusinessDayRange,
   getCurrentBusinessDateValue,
@@ -30,7 +31,6 @@ import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { prisma } from "@/lib/prisma";
 import {
   getDailySalesReport,
-  resolveReportBranchScope,
   type DailySalesReport,
 } from "@/lib/reports/daily-sales";
 import {
@@ -85,10 +85,12 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
 
   const businessId = context.businessId;
   const params = await searchParams;
-  const [business, branches] = await Promise.all([
-    prisma.business.findUnique({ where: { id: businessId } }),
-    getActiveBranches(businessId),
-  ]);
+  const outlet = await resolveReportOutletScope({ businessId, actorUserId: context.user.userId, surface: "reports",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId } : {}) });
+  if (outlet.kind === "denied") notFound();
+  if (outlet.kind === "no_location") return <section className="content"><div className="panel"><h1>Reports</h1><p>No active location is available. Contact your business owner.</p></div></section>;
+  const branches = outlet.branches;
+  const business = await prisma.business.findUnique({ where: { id: businessId } });
   if (!business) {
     return (
       <section className="content">
@@ -140,27 +142,13 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   });
   const { fromDate, toDateExclusive } = businessDayRange;
 
-  const canViewAllBranches =
-    context.access.source === "GROUP_ACCESS" ||
-    hasStaffPermission(context.user, "ALL_BRANCHES");
-  const staffBranch = context.user.branchId
-    ? branches.find((branch) => branch.id === context.user.branchId)
-    : null;
-  const selectableBranches = canViewAllBranches ? branches : staffBranch ? [staffBranch] : [];
-  const branchScope = resolveReportBranchScope({
-    canViewAllBranches,
-    requestedBranchId: params.branchId,
-    staffBranchId: context.user.branchId,
-    activeBranchIds: branches.map((branch) => branch.id),
-  });
-  if (params.branchId !== undefined && !branchScope.hasAccess) notFound();
-  const selectedBranchId = branchScope.hasAccess
-    ? branchScope.branchId
-    : NO_BRANCH_ACCESS_ID;
-  const selectedBranch = branchScope.branchId
-    ? branches.find((branch) => branch.id === branchScope.branchId) ?? null
+  const selectedBranchId = outlet.selection.kind === "branch" ? outlet.selection.branchId
+    : outlet.selection.kind === "business" ? null : outlet.selection.branchIds[0] ?? NO_BRANCH_ACCESS_ID;
+  const selectedBranch = selectedBranchId
+    ? branches.find((branch) => branch.id === selectedBranchId) ?? null
     : null;
   const selectedBranchWhere = branchWhere(selectedBranchId);
+  const navigationBranchId = outlet.topologyMode === "single_outlet" && params.branchId === undefined ? null : selectedBranchId;
 
   const [
     dailySalesReport,
@@ -436,7 +424,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const salonReport =
     context.industryType === "SALON_BEAUTY"
       ? await getSalonReportData({
-          salonAccess: { access: context.access, requestedBranchId: params.branchId === "" ? undefined : params.branchId },
+          salonAccess: { access: outlet.access, requestedBranchId: selectedBranchId ?? undefined },
           businessId,
           fromDate,
           toDateExclusive,
@@ -444,12 +432,10 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       : null;
   const moduleContext = await loadBusinessModuleContext(businessId);
   const expenseSummary = moduleContext.enabledModules.has("EXPENSE") ? await getExpenseDashboard({
-    allowedBranchIds: selectedBranchId ? [selectedBranchId] : selectableBranches.map((branch) => branch.id),
-    branchId: selectedBranchId,
+    ...outlet.expenseScope,
     businessId,
     dateFrom: fromValue,
     dateTo: toValue,
-    includeBusinessWide: canViewAllBranches && !selectedBranchId,
   }) : null;
 
   return (
@@ -474,15 +460,15 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         <ReportFilterPanel
           activeRange={activeRange}
           fromValue={fromValue}
-          selectedBranchId={selectedBranchId}
+          selectedBranchId={navigationBranchId}
           toValue={toValue}
         />
 
         <SalesOverview report={dailySalesReport} />
         <DailyTransactions report={dailySalesReport} today={activeRange === "today"} timezone={business.timezone}
-          baseHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays })} />
+          baseHref={buildReportHref({ range: activeRange, branchId: navigationBranchId, fromValue, toValue, showEmptyDays })} />
         <CollectedPayments report={dailySalesReport}
-          baseHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays })} />
+          baseHref={buildReportHref({ range: activeRange, branchId: navigationBranchId, fromValue, toValue, showEmptyDays })} />
         {salonReport && !canViewDashboard ? <SalonReportSections data={salonReport} /> : null}
         {expenseSummary ? <ReportCard title="Business Performance">
           <MetricList items={[
@@ -494,7 +480,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         {(!salonReport || hasAdvancedReportDetails({ report: dailySalesReport, expense: expenseSummary })) ? <details className={styles.moreDetails}>
           <summary>More details</summary>
           <AdvancedReportDetails report={dailySalesReport} expense={expenseSummary}
-            baseHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays })} />
+            baseHref={buildReportHref({ range: activeRange, branchId: navigationBranchId, fromValue, toValue, showEmptyDays })} />
         {!salonReport ? <div className="report-kpis report-secondary-kpis">
           <Metric label="Service Sales" value={money(fromCents(netServiceSalesCents))} />
           <Metric label="SST / Tax" value={money(fromCents(taxCollectedCents))} />
@@ -753,10 +739,10 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         {isDateInput(params.day) && dailySalesReport.selectedDay ? (
           <DayTransactionsDrawer
             report={dailySalesReport}
-            paginationHref={buildReportHref({ range: activeRange, branchId: selectedBranchId, fromValue, toValue, showEmptyDays, day: params.day })}
+            paginationHref={buildReportHref({ range: activeRange, branchId: navigationBranchId, fromValue, toValue, showEmptyDays, day: params.day })}
             closeHref={buildReportHref({
               range: activeRange,
-              branchId: selectedBranchId,
+              branchId: navigationBranchId,
               fromValue,
               toValue,
               showEmptyDays,
@@ -767,7 +753,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           <PaymentMethodDrawer
             closeHref={buildReportHref({
               range: activeRange,
-              branchId: selectedBranchId,
+              branchId: navigationBranchId,
               fromValue,
               toValue,
               showEmptyDays,

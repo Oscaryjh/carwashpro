@@ -49,6 +49,7 @@ before(async () => {
   // authenticated context, database I/O and unrelated financial I/O are doubles.
   const stubs: Record<string, string> = {
     "@/lib/prisma": `export const prisma=globalThis.__reportsFallback.database;`,
+    "@/lib/report-outlet-context": `export async function resolveReportOutletScope(input){const s=globalThis.__reportsFallback.state;const a=s.access;const explicit=Object.hasOwn(input,'explicitBranchInput');if(!a.granted||(explicit&&input.explicitBranchInput!=='branch'))return {kind:'denied'};const broad=a.effectiveBusinessRole==='BUSINESS_OWNER'||a.effectiveBusinessRole==='GROUP_MANAGER_READ_ONLY'||a.permissions.includes('ALL_BRANCHES');return {kind:'ready',topologyMode:'legacy_multi_branch',access:a,branches:[{id:'branch',name:'Branch'}],selection:explicit||!broad?{kind:'branch',branchId:'branch'}:{kind:'business'},businessScopeAllowed:broad,expenseScope:{allowedBranchIds:['branch'],includeBusinessWide:broad&&!explicit}}}`,
     "@/lib/tenant": `export const requireBusinessContext=async()=>{const s=globalThis.__reportsFallback.state;return {businessId:'business',industryType:s.industry,access:s.access,user:s.user}};`,
     "next/navigation": `export function redirect(){throw Error('REDIRECT')};export function notFound(){throw Error('NOT_FOUND')};export function useRouter(){throw Error('unexpected drawer navigation')};`,
     "next/link": `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)};`,

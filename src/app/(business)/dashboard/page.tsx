@@ -3,7 +3,8 @@ import { SalonPerformanceSection } from "@/components/dashboard/salon-performanc
 import { WalletFinancialSummary } from "@/components/wallet/wallet-financial-summary";
 import type { ReactNode } from "react";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
-import { resolveExpenseReadScope } from "@/lib/expense/access";
+import { resolveReportOutletScope } from "@/lib/report-outlet-context";
+import { notFound } from "next/navigation";
 import { getBusinessPerformanceReadModel, type PerformanceRange } from "@/lib/business-performance/read-model";
 import { prisma } from "@/lib/prisma";
 import { getBusinessContext } from "@/lib/tenant";
@@ -25,11 +26,16 @@ export default async function DashboardPage({ searchParams }: Props) {
   const businessId = context.businessId!;
   const params = await searchParams;
   const aiEnabled = await isBusinessModuleEnabled(businessId, "AI");
-  const scope = await resolveExpenseReadScope({ access: context.access, businessId, user: context.user });
-  const selectedBranchId = params.branchId && scope.allowedBranchIds?.includes(params.branchId) ? params.branchId : null;
+  const scope = await resolveReportOutletScope({ businessId, actorUserId: context.user.userId, surface: "dashboard",
+    ...(params.branchId !== undefined ? { explicitBranchInput: params.branchId } : {}) });
+  if (scope.kind === "denied") notFound();
+  if (scope.kind === "no_location") return <section className="content"><div className="panel"><h1>Business performance</h1><p>No active location is available. Contact your business owner.</p></div></section>;
+  const selectedBranchId = scope.selection.kind === "branch" ? scope.selection.branchId : null;
+  const navigationBranchId = scope.topologyMode === "single_outlet" && params.branchId === undefined ? null : selectedBranchId;
   const model = await getBusinessPerformanceReadModel({
-    salonAccess: { access: context.access, requestedBranchId: params.branchId === "" ? undefined : params.branchId },
-    businessId, allowedBranchIds: scope.allowedBranchIds ?? [], includeBusinessWide: Boolean(scope.includeBusinessWide),
+    salonAccess: { access: scope.access, requestedBranchId: selectedBranchId ?? undefined },
+    businessId, allowedBranchIds: scope.branches.map(b => b.id), includeBusinessWide: scope.businessScopeAllowed,
+    expenseScope: scope.expenseScope,
     selectedBranchId, range: params.range, from: params.from, to: params.to,
   });
   const spending = model.businessSpending;
@@ -47,8 +53,13 @@ export default async function DashboardPage({ searchParams }: Props) {
     <div className="page-header dashboard-header"><div><h1>Business performance</h1><p>{model.scope.businessName}</p>{aiEnabled ? <Link href={aiHref(params, selectedBranchId)}>Ask AI about this period</Link> : null}</div><div className="performance-period"><span>Business period</span><strong>{model.dateRange.from} — {model.dateRange.to}</strong><small>{model.dateRange.timezone} · cutoff {model.dateRange.businessDayCutoffTime}</small></div></div>
 
     <div className="panel performance-filter-panel">
-      <nav className="dashboard-range-tabs" aria-label="Performance date range">{ranges.map((range) => <Link className={model.dateRange.range === range.key ? "active" : ""} href={href(range.key, selectedBranchId)} key={range.key}>{range.label}</Link>)}</nav>
-      <form className={`performance-filter-form ${styles.filters}`} action="/dashboard"><input type="hidden" name="range" value={model.dateRange.range} />{model.dateRange.range === "custom" ? <><label><span>From</span><input type="date" name="from" defaultValue={model.dateRange.from} /></label><label><span>To</span><input type="date" name="to" defaultValue={model.dateRange.to} /></label></> : null}{scope.branches.length > 1 ? <label><span>Branch</span><select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All authorised branches</option>{scope.branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : <><label><span>Branch</span><strong>{scope.branches[0]?.name ?? "No authorised branch"}</strong></label>{selectedBranchId ? <input type="hidden" name="branchId" value={selectedBranchId} /> : null}</>}{model.dateRange.range === "custom" || scope.branches.length > 1 ? <button>Apply</button> : null}</form>
+      <nav className="dashboard-range-tabs" aria-label="Performance date range">{ranges.map((range) => <Link className={model.dateRange.range === range.key ? "active" : ""} href={href(range.key, navigationBranchId)} key={range.key}>{range.label}</Link>)}</nav>
+      <form className={`performance-filter-form ${styles.filters}`} action="/dashboard">
+        <input type="hidden" name="range" value={model.dateRange.range} />
+        {model.dateRange.range === "custom" ? <><label><span>From</span><input type="date" name="from" defaultValue={model.dateRange.from} /></label><label><span>To</span><input type="date" name="to" defaultValue={model.dateRange.to} /></label></> : null}
+        {scope.topologyMode === "legacy_multi_branch" ? <label><span>Branch</span><select name="branchId" defaultValue={selectedBranchId ?? ""}>{scope.businessScopeAllowed ? <option value="">All authorised branches</option> : null}{scope.branches.map(branch => <option value={branch.id} key={branch.id}>{branch.name}</option>)}</select></label> : navigationBranchId ? <input type="hidden" name="branchId" value={navigationBranchId} /> : null}
+        {model.dateRange.range === "custom" || scope.topologyMode === "legacy_multi_branch" ? <button>Apply</button> : null}
+      </form>
     </div>
 
     <div className={`dashboard-kpis performance-primary-kpis ${styles.primary}`}>
@@ -69,11 +80,11 @@ export default async function DashboardPage({ searchParams }: Props) {
 
     {sales ? <Panel title="Net Sales Trend"><div className={`performance-trend ${styles.compactTrend}`} role="img" aria-label="Net Sales Trend">{sales.trend.map((point) => <div className="performance-trend-point" key={point.date}><span>{moneyCents(point.netSalesCents)}</span><div style={{ height: `${Math.max(3, Math.round(Math.abs(point.netSalesCents) / maxTrend * 130))}px` }} /><time>{point.date.slice(5)}</time></div>)}</div><p>Previous comparable period: <strong>{moneyCents(sales.previousNetSalesCents)}</strong></p></Panel> : null}
 
-    <SalonPerformanceSection data={model.salonPerformance} query={params} range={model.dateRange.range} monthHref={href("month", selectedBranchId)}>
+    <SalonPerformanceSection data={model.salonPerformance} query={{ ...params, branchId: selectedBranchId ?? undefined }} range={model.dateRange.range} monthHref={href("month", navigationBranchId)}>
       {model.topServices.length ? <Ranking title="Top Services" rows={model.topServices} empty="No service sales in this period." quantityLabel="sold" /> : null}
     </SalonPerformanceSection>
     {(!model.salonPerformance && model.topServices.length) || model.topProducts.length ? <div className={styles.rankings}>{!model.salonPerformance && model.topServices.length ? <Ranking title="Top Services" rows={model.topServices} empty="No service sales in this period." quantityLabel="sold" /> : null}{model.topProducts.length ? <Ranking title="Top Products" rows={model.topProducts} empty="No product sales in this period." /> : null}</div> : null}
-    {meaningfulBranches.length > 1 ? <Panel title="Branch Performance" meta="Ranked by Net Sales"><div className={styles.branchTable}><table><thead><tr><th>Branch</th><th>Net Sales</th><th>Transactions</th><th>Operating Balance</th></tr></thead><tbody>{meaningfulBranches.map(row => <tr key={row.branchId}><td>{row.branchName}</td><td>{moneyCents(row.netSalesCents)}</td><td>{row.transactions}</td><td>{row.incomeVsSpending === null ? "Not included" : money(row.incomeVsSpending)}</td></tr>)}</tbody></table></div></Panel> : null}
+    {scope.topologyMode === "legacy_multi_branch" && meaningfulBranches.length > 1 ? <Panel title="Branch Performance" meta="Ranked by Net Sales"><div className={styles.branchTable}><table><thead><tr><th>Branch</th><th>Net Sales</th><th>Transactions</th><th>Operating Balance</th></tr></thead><tbody>{meaningfulBranches.map(row => <tr key={row.branchId}><td>{row.branchName}</td><td>{moneyCents(row.netSalesCents)}</td><td>{row.transactions}</td><td>{row.incomeVsSpending === null ? "Not included" : money(row.incomeVsSpending)}</td></tr>)}</tbody></table></div></Panel> : null}
 
     {hasWalletActivity ? <section className={styles.secondary} aria-label="Wallet summary"><h2>Wallet</h2><div className={styles.metrics}><Metric label="Top-ups" value={moneyCents(wallet.topUpPrincipalCents)} /><Metric label="Wallet used" value={moneyCents(wallet.redemptionPaidCents + wallet.redemptionBonusCents)} /><Metric label="Wallet refunds" value={moneyCents(wallet.refundPaidCents + wallet.refundBonusCents)} /></div><p>Top-ups show principal only, not sales. Wallet used and refunds include paid and bonus credit. Reversals and restored credit are in More details.</p></section> : null}
 
