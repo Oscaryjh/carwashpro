@@ -41,7 +41,7 @@ test("search and status empty results provide Clear filters rather than false se
   fixture.products[0].stocks[0].quantity=10;assert.match(await inventory({status:"out"}),/Clear filters/);
 });
 test("no authorized store and missing stock rows have context guidance rather than deleted-product advice",async()=>{
-  reset();fixture.branches=[];assert.match(await inventory(),/No store stock is available in your current access/);
+  reset();fixture.branches=[];assert.match(await inventory(),/This business does not have an operating location set up yet\./);
   reset();fixture.products[0].stocks=[];assert.match(await inventory(),/No stock quantities are set up for these stores yet/);
 });
 test("inactive tracked balances remain visible without an Add Stock action, while active low stock retains it",async()=>{

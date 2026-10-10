@@ -2,7 +2,7 @@ import Link from "next/link";
 import styles from "@/components/inventory-hub.module.css";
 import type { InventoryMovementType, Prisma } from "@prisma/client";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
+import { outletBranches, resolveInventoryOutletReadContext } from "@/lib/outlet-ui-context";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 50;
@@ -16,11 +16,17 @@ const movementTypes: InventoryMovementType[] = ["OPENING_BALANCE", "SALE", "REFU
 type MovementPageProps = { searchParams: Promise<{ branchId?: string; dateFrom?: string; dateTo?: string; movementType?: string; page?: string; q?: string }> };
 
 export default async function MovementPage({ searchParams }: MovementPageProps) {
-  const { businessId, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
-  const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId);
-  const branches = await getInventoryReadBranches(businessId, access);
+  const { businessId, user, access } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
+  const params = await searchParams;
+  const context = await resolveInventoryOutletReadContext({ businessId, actorUserId: user.userId,
+    ...(Object.prototype.hasOwnProperty.call(params, "branchId") ? { explicitBranchInput: params.branchId } : {}),
+  });
+  if (context.kind === "denied") return <section className="content"><h1>Stock History</h1><p role="alert">You do not have access to stock history in this location.</p></section>;
+  if (context.kind === "no_location") return <section className="content"><h1>Stock History</h1><p role="status">This business does not have an operating location set up yet.</p><p>{access.effectiveBusinessRole === "BUSINESS_OWNER" ? "Contact the Platform Admin or complete the existing business setup." : "Ask the business owner to complete the setup."}</p></section>;
+  const single = context.kind === "single_outlet";
+  const branches = outletBranches(context);
   const allowedBranchIds = branches.map((branch) => branch.id);
-  const selectedBranchId = allowedBranchIds.includes(params.branchId ?? "") ? params.branchId! : null;
+  const selectedBranchId = context.kind === "single_outlet" ? context.internalBranchId : allowedBranchIds.includes(params.branchId ?? "") ? params.branchId! : null;
   const type = movementTypes.includes(params.movementType as InventoryMovementType) ? params.movementType as InventoryMovementType : null;
   const query = params.q?.trim() ?? "";
   const page = Math.max(1, Number(params.page) || 1);
@@ -61,7 +67,7 @@ export default async function MovementPage({ searchParams }: MovementPageProps) 
       <div className="page-header"><div><h1>Stock History</h1><p>See why stock changed, who recorded it and the quantity before and after.</p></div><Link className="secondary-link-button" href="/inventory">Back to inventory</Link></div>
       <form className="filter-bar">
         <input name="q" defaultValue={query} placeholder="Product, SKU, reason, reference" />
-        {branches.length > 1 ? <select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All stores</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select> : null}
+        {!single && branches.length > 1 ? <select name="branchId" defaultValue={selectedBranchId ?? ""}><option value="">All stores</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select> : null}
         <select name="movementType" defaultValue={type ?? ""}><option value="">All changes</option>{movementTypes.map((movementType) => <option key={movementType} value={movementType}>{movementType === "ADJUSTMENT_IN" ? "Stock corrected (increase)" : movementType === "ADJUSTMENT_OUT" ? "Stock corrected (decrease)" : movementLabels[movementType]}</option>)}</select>
         <input aria-label="From date" defaultValue={params.dateFrom ?? ""} name="dateFrom" type="date" />
         <input aria-label="To date" defaultValue={params.dateTo ?? ""} name="dateTo" type="date" />
@@ -69,11 +75,11 @@ export default async function MovementPage({ searchParams }: MovementPageProps) 
       </form>
       <div className="panel">
         {rows.length ? <div className={styles.historyTable}><table>
-          <thead><tr><th>Date</th><th>Product</th><th>Store</th><th>Change</th><th>Reason</th><th>User</th></tr></thead>
+          <thead><tr><th>Date</th><th>Product</th>{!single ? <th>Store</th> : null}<th>Change</th><th>Reason</th><th>User</th></tr></thead>
           <tbody>{rows.map(row => <tr key={row.id}>
             <td>{row.createdAt.toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" })}</td>
             <td>{row.product.name}<small>{row.product.sku ?? ""}</small></td>
-            <td>{row.branch.name}</td>
+            {!single ? <td>{row.branch.name}</td> : null}
             <td className={styles.change}>{row.quantityDelta > 0 ? "+" : ""}{row.quantityDelta}</td>
             <td><strong>{movementLabels[row.type]}</strong><div>{row.reason}</div>
               <details><summary>Details</summary><dl>

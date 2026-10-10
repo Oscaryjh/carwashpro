@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { hasBusinessCapability, type ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import styles from "./inventory-hub.module.css";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
-export function InventoryHubNavigation({ access, purchasing, branchId, branchCount = 0 }: { access: ResolvedBusinessAccess; purchasing: boolean; branchId?: string; branchCount?: number }) {
+export function InventoryHubNavigation({ access, purchasing, branchId, branchCount = 0, outlet }: { access: ResolvedBusinessAccess; purchasing: boolean; branchId?: string; branchCount?: number; outlet?: OutletPresentation }) {
   const can = (capability: Parameters<typeof hasBusinessCapability>[1]) => hasBusinessCapability(access, capability);
   const writable = access.granted && access.effectiveBusinessRole !== "GROUP_MANAGER_READ_ONLY" && access.effectiveBusinessRole !== "PLATFORM_ADMIN";
   const manage = writable && can("MANAGE_INVENTORY");
   const createPO = writable && can("CREATE_PURCHASE_ORDER");
-  const transfer = branchCount > 1 && writable && access.granted && access.effectiveBusinessRole === "BUSINESS_OWNER" && can("TRANSFER_INVENTORY");
+  const transfer = outlet?.kind !== "single_outlet" && branchCount > 1 && writable && access.granted && access.effectiveBusinessRole === "BUSINESS_OWNER" && can("TRANSFER_INVENTORY");
   const href = (view?: string) => {
     const query = new URLSearchParams();
     if (view) query.set("view", view);

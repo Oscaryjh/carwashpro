@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { BranchOption } from "@/lib/branches";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
 type InventoryCommandFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -11,9 +12,10 @@ type InventoryCommandFormProps = {
   products: Array<{ id: string; name: string; sku: string | null; stocks: Array<{ branchId: string; quantity: number; revision: number }> }>;
   initialProductId?: string;
   initialBranchId?: string;
+  outlet?: OutletPresentation;
 };
 
-export function InventoryCommandForm({ action, branches, mode, products, initialProductId, initialBranchId }: InventoryCommandFormProps) {
+export function InventoryCommandForm({ action, branches, mode, products, initialProductId, initialBranchId, outlet = { kind: "legacy_multi_branch" } }: InventoryCommandFormProps) {
   const [operationKey] = useState(() => `inventory:${mode.toLowerCase()}:${crypto.randomUUID()}`);
   const [productId, setProductId] = useState(products.some(p => p.id === initialProductId) ? initialProductId! : "");
   const [branchId, setBranchId] = useState(branches.some(b => b.id === initialBranchId) ? initialBranchId! : branches.length === 1 ? branches[0].id : "");
@@ -26,6 +28,7 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
   const stockIn = mode === "STOCK_IN";
   const validQuantityToAdd = quantityToAdd !== "" && Number.isSafeInteger(Number(quantityToAdd)) && Number(quantityToAdd) > 0;
   const transfer = mode === "TRANSFER";
+  const single = !transfer && outlet.kind === "single_outlet";
   const selectedStock = products
     .find((product) => product.id === productId)
     ?.stocks.find((stock) => stock.branchId === branchId);
@@ -37,7 +40,9 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
   const reason = adjustment ? note.trim() : `${reasonPrefix}${note.trim() ? `: ${note.trim()}` : ""}`;
   const delta = actualQuantity === "" ? "" : Number(actualQuantity) - (selectedStock?.quantity ?? 0);
   const validActual = actualQuantity !== "" && Number.isSafeInteger(Number(actualQuantity)) && Number(actualQuantity) >= 0 && delta !== 0 && Boolean(productId && branchId);
-  if (!branches.length) return <p role="alert">No active store location is available. Contact your administrator.</p>;
+  if (!transfer && outlet.kind === "denied") return <p role="alert">You do not have access to this inventory operation.</p>;
+  if (!transfer && outlet.kind === "no_location") return <p role="alert">This business does not have an operating location set up yet. {outlet.owner ? "Contact the Platform Admin or complete the existing business setup." : "Ask the business owner to complete the setup."}</p>;
+  if (!branches.length || (single && !branches.some(branch => branch.id === outlet.internalBranchId))) return <p role="alert">No active store location is available. Contact your administrator.</p>;
   if (transfer && branches.length < 2) return <p>Transfers require at least two authorised locations within this business. Stock cannot be transferred to another business here.</p>;
   const productField = (
         <label>
@@ -53,7 +58,7 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
   if (stockIn) return (
     <form action={action} className="form stock-in-form">
       <input name="operationKey" type="hidden" value={operationKey} />
-      {branches.length === 1 ? <p className="stock-in-context">Store: <strong>{branches[0].name}</strong><input type="hidden" name="branchId" value={branchId} /></p> : <label className="stock-in-store">
+      {single ? <input type="hidden" name="branchId" value={branchId} /> : branches.length === 1 ? <p className="stock-in-context">Store: <strong>{branches[0].name}</strong><input type="hidden" name="branchId" value={branchId} /></p> : <label className="stock-in-store">
         <span>Store</span>
         <select name="branchId" value={branchId} onChange={event => setBranchId(event.target.value)} required>
           <option value="">Select store</option>
@@ -85,7 +90,7 @@ export function InventoryCommandForm({ action, branches, mode, products, initial
       <input name="operationKey" type="hidden" value={operationKey} />
       <div className="field-grid">
         {!transfer ? productField : null}
-        {branches.length === 1 && !transfer ? <div><span>Store</span><p>{branches[0].name}</p><input type="hidden" name="branchId" value={branchId} /></div> : <label>
+        {single ? <input type="hidden" name="branchId" value={branchId} /> : branches.length === 1 && !transfer ? <div><span>Store</span><p>{branches[0].name}</p><input type="hidden" name="branchId" value={branchId} /></div> : <label>
           <span>{transfer ? "From Store" : "Store"}</span>
           <select name={transfer ? "sourceBranchId" : "branchId"} onChange={(event) => { setBranchId(event.target.value); setActualQuantity(""); }} value={branchId} required>
             <option value="">Select store</option>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Product, ProductCategory } from "@prisma/client";
 import type { BranchOption } from "@/lib/branches";
+import type { OutletPresentation } from "@/lib/outlet-ui-context";
 
 type ProductFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -21,13 +22,18 @@ type ProductFormProps = {
   canViewInventory?: boolean;
   modalLayout?: boolean;
   companySstRate?: number | null;
+  outlet?: OutletPresentation;
 };
 
-export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled, canViewInventory = false, modalLayout = false, companySstRate }: ProductFormProps) {
+export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled, canViewInventory = false, modalLayout = false, companySstRate, outlet = { kind: "legacy_multi_branch" } }: ProductFormProps) {
   const isCreate = !product;
   const [trackInventory, setTrackInventory] = useState(product?.trackInventory ?? false);
   const [taxable, setTaxable] = useState(product?.taxable ?? false);
   const [hiddenRateError, setHiddenRateError] = useState(false);
+  const single = outlet.kind === "single_outlet";
+  const stockBranches = outlet.kind === "single_outlet" ? branches.filter(branch => branch.id === outlet.internalBranchId)
+    : outlet.kind === "legacy_multi_branch" ? branches : [];
+  if (outlet.kind === "denied") return <p role="alert">You do not have access to these products.</p>;
   const hasCompanyRate = typeof companySstRate === "number" && Number.isFinite(companySstRate) && companySstRate >= 0 && companySstRate <= 100;
   const priceField = <label>
     <span>Price</span>
@@ -160,7 +166,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           {modalLayout ? <span className="product-toggle-state" aria-hidden="true">{trackInventory ? "On" : "Off"}</span> : null}
           <span className="service-taxable-copy">
             <strong>Track stock</strong>
-            <small>Turn this on if you want Tetamu POS to keep track of how many units you have in each store.</small>
+            <small>{single ? "Turn this on if you want Tetamu POS to keep track of how many units you have." : "Turn this on if you want Tetamu POS to keep track of how many units you have in each store."}</small>
           </span>
         </label>
       ) : null}
@@ -173,22 +179,22 @@ export function ProductForm({ action, branches, categories, product, submitLabel
             : "Enter 0 if you have none. You can add stock later from Inventory."}
         </p>
         {product?.trackInventory && canViewInventory ? <Link href="/inventory">Open Inventory</Link> : null}
-        {branches.length ? (
+        {stockBranches.length ? (
           <div className="field-grid">
-            {branches.map((branch) => {
+            {stockBranches.map((branch) => {
               const stock = product?.stocks.find((item) => item.branchId === branch.id);
               return (
                 <div key={branch.id}>
-                  <p className="field-helper">Store: {branch.name}</p>
+                  {!single ? <p className="field-helper">Store: {branch.name}</p> : null}
                   <label>
                     <span>{product?.trackInventory ? "Current quantity" : "Starting quantity"}</span>
-                    <input aria-label={`${branch.name} ${product?.trackInventory ? "current" : "starting"} quantity`} name={`stock_${branch.id}`} min="0" readOnly={Boolean(product?.trackInventory)} step="1" type="number" defaultValue={stock?.quantity ?? 0} />
+                    <input aria-label={single ? (product?.trackInventory ? "Current quantity" : "Starting quantity") : `${branch.name} ${product?.trackInventory ? "current" : "starting"} quantity`} name={`stock_${branch.id}`} min="0" readOnly={Boolean(product?.trackInventory)} step="1" type="number" defaultValue={stock?.quantity ?? 0} />
                   </label>
                   <details className="product-advanced-settings">
                     <summary>Low stock alert</summary>
                     <label>
                       <span>Low stock alert at</span>
-                      <input aria-label={`${branch.name} low stock alert at`} name={`reorder_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.reorderLevel ?? 0} />
+                      <input aria-label={single ? "Low stock alert at" : `${branch.name} low stock alert at`} name={`reorder_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.reorderLevel ?? 0} />
                       <small className="field-helper">Show a low stock warning when quantity reaches this level.</small>
                     </label>
                   </details>
@@ -197,7 +203,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
             })}
           </div>
         ) : (
-          <p role="status" className="empty-state compact-empty-state">Stock tracking is on, but there is no active store available for stock quantities yet. Ask the business owner to set up an active store.</p>
+          <p role="status" className="empty-state compact-empty-state">{outlet.kind === "no_location" ? <>This business does not have an operating location set up yet. {outlet.owner ? "Contact the Platform Admin or complete the existing business setup." : "Ask the business owner to complete the setup."}</> : "Stock tracking is on, but there is no active store available for stock quantities yet. Ask the business owner to set up an active store."}</p>
         )}
       </fieldset> : null}
       </div>

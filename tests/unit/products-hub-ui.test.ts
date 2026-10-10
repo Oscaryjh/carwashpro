@@ -18,6 +18,7 @@ let CategoriesPage: () => void;
 before(async () => {
   globals.__productsHub = state;
   const stubs: Record<string, string> = {
+    "@/lib/outlet-ui-context": "const branches=[{id:'a',name:'Main'},{id:'b',name:'Second'}];export const resolveProductsOutletContext=async()=>({kind:'legacy_multi_branch',businessId:'biz',branches});export const resolveInventoryOutletReadContext=resolveProductsOutletContext;export const outletBranches=c=>c.branches;export const outletPresentation=()=>({kind:'legacy_multi_branch'});export const outletBranchInput=()=>({});export const assertOutletSubmissionSnapshot=()=>{};export const assertProductStockFields=()=>{};",
     "next/link": "import{createElement}from'react';export default({children,...props})=>createElement('a',props,children)",
     "next/navigation": "export const useRouter=()=>({back(){}});export const notFound=()=>{throw Error('NOT_FOUND')};export const redirect=(url)=>{throw Error(url)}",
     "@/lib/auth/business-user": "const ctx={user:{role:'BUSINESS_OWNER'},businessId:'biz',access:{source:'DIRECT_BUSINESS'},moduleContext:{enabledModules:new Set(['POS','INVENTORY'])}};export const requireBusinessUser=async()=>ctx;export const requireBusinessUserForModule=async()=>ctx",

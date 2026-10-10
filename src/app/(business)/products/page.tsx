@@ -7,8 +7,8 @@ import { ProductCreateModal } from "@/components/product-create-modal";
 import { ProductSettingsMenu } from "@/components/products/product-settings-menu";
 import styles from "@/components/products/products-hub.module.css";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
-import { requireBusinessUser } from "@/lib/auth/business-user";
-import { getActiveBranches } from "@/lib/branches";
+import { requireBusinessUser, requireBusinessUserForModule } from "@/lib/auth/business-user";
+import { assertOutletSubmissionSnapshot, assertProductStockFields, outletBranchInput, outletBranches, outletPresentation, resolveProductsOutletContext } from "@/lib/outlet-ui-context";
 import { prisma } from "@/lib/prisma";
 import { createProductAction } from "./actions";
 import {
@@ -26,6 +26,7 @@ type ProductsPageProps = {
     type?: string;
     message?: string;
     page?: string;
+    branchId?: string;
   }>;
 };
 
@@ -38,6 +39,22 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     assertStaffPermission(user, "PRODUCTS");
   }
   const params = await searchParams;
+  const outletContext = await resolveProductsOutletContext({ businessId, actorUserId: user.userId,
+    ...(Object.prototype.hasOwnProperty.call(params, "branchId") ? { explicitBranchInput: params.branchId } : {}),
+  });
+  if (outletContext.kind === "denied") return <section className="content"><p role="alert">You do not have access to these products.</p></section>;
+  const outlet = outletPresentation(outletContext, access.effectiveBusinessRole === "BUSINESS_OWNER");
+  const snapshot = { ...outlet, businessId };
+  const single = outletContext.kind === "single_outlet";
+  async function createWithCurrentOutlet(formData: FormData) {
+    "use server";
+    const fresh = await requireBusinessUserForModule("POS");
+    assertStaffPermission(fresh.user, "PRODUCTS");
+    const current = await resolveProductsOutletContext({ businessId: fresh.businessId, actorUserId: fresh.user.userId, ...outletBranchInput(formData) });
+    assertOutletSubmissionSnapshot(snapshot, current);
+    assertProductStockFields(formData, current);
+    await createProductAction(formData);
+  }
   const query = params.q?.trim() ?? "";
   const status = params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const categoryId = params.categoryId ?? "";
@@ -52,7 +69,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const [products, matchingCount, categories] = await Promise.all([
     prisma.product.findMany({
       where: productWhere,
-      include: { productCategory: true, stocks: { include: { branch: { select: { name: true } } } }, _count: { select: { invoiceItems: true } } },
+      include: { productCategory: true, stocks: { ...(outletContext.kind === "single_outlet" ? { where: { branchId: outletContext.internalBranchId } } : outletContext.kind === "no_location" ? { where: { branchId: { in: [] } } } : {}), include: { branch: { select: { name: true } } } }, _count: { select: { invoiceItems: true } } },
       orderBy: [{ status: "asc" }, { name: "asc" }],
       skip: pageSkip,
       take: CATALOG_PAGE_SIZE,
@@ -64,7 +81,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       orderBy: [{ status: "asc" }, { name: "asc" }],
     }),
   ]);
-  const branches = await getActiveBranches(businessId);
+  const branches = outletBranches(outletContext);
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const isCreateOpen = params.modal === "create" || params.type === "create";
@@ -111,7 +128,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Products list">
             <table className={`table ${styles.table}`}>
               <thead>
-                <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th><th>Total stock<small className={styles.trackingHint}>Across stores</small></th><th>Status</th><th>Actions</th></tr>
+                <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th>{single ? <th>Stock</th> : <th>Total stock<small className={styles.trackingHint}>Across stores</small></th>}<th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {products.map((product, index) => (
@@ -120,7 +137,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name || product.category ? <small className={styles.category}>{product.productCategory?.name ?? product.category}</small> : null}{product.trackInventory ? <small className={styles.trackingHint}>Stock tracking on</small> : null}</td>
                     <td>{product.sku ?? "-"}</td>
                     <td className={styles.amount}>RM{Number(product.price).toFixed(2)}</td>
-                    <td className={styles.amount}>{product.trackInventory ? product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
+                    <td className={styles.amount}>{product.trackInventory ? outletContext.kind === "single_outlet" ? product.stocks.find(stock => stock.branchId === outletContext.internalBranchId)?.quantity ?? 0 : product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
                     <td><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></td>
                     <td>
                       <div className="catalog-table-actions">
@@ -151,7 +168,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       </section>
       {isCreateOpen ? (
         <ProductCreateModal
-          action={createProductAction}
+          action={createWithCurrentOutlet}
+          outlet={outlet}
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}
           inventoryEnabled={moduleContext.enabledModules.has("INVENTORY")}

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { InventoryHubNavigation } from "@/components/inventory-hub-navigation";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
-import { getInventoryReadBranches, resolveInventoryReadScope } from "@/lib/inventory/authorization";
+import { outletBranches, outletPresentation, resolveInventoryOutletReadContext } from "@/lib/outlet-ui-context";
 import { prisma } from "@/lib/prisma";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import styles from "./inventory.module.css";
@@ -19,10 +19,17 @@ function getStockState(quantity: number, reorderLevel: number) {
 
 export default async function InventoryPage({ searchParams }: InventoryPageProps) {
   const { businessId, access, user, moduleContext } = await requireBusinessUserForModule("INVENTORY", "VIEW_INVENTORY");
-  const params = await searchParams; await resolveInventoryReadScope(businessId, access, params.branchId);
-  const branches = await getInventoryReadBranches(businessId, access);
+  const params = await searchParams;
+  const outletContext = await resolveInventoryOutletReadContext({ businessId, actorUserId: user.userId,
+    ...(Object.prototype.hasOwnProperty.call(params, "branchId") ? { explicitBranchInput: params.branchId } : {}),
+  });
+  if (outletContext.kind === "denied") return <section className="content"><h1>Inventory</h1><p role="alert">You do not have access to stock in this location.</p></section>;
+  if (outletContext.kind === "no_location") return <section className="content"><h1>Inventory</h1><p role="status">This business does not have an operating location set up yet.</p><p>{access.effectiveBusinessRole === "BUSINESS_OWNER" ? "Contact the Platform Admin or complete the existing business setup." : "Ask the business owner to complete the setup."}</p></section>;
+  const outlet = outletPresentation(outletContext);
+  const single = outletContext.kind === "single_outlet";
+  const branches = outletBranches(outletContext);
   const allowedBranchIds = branches.map((branch) => branch.id);
-  const selectedBranchId = allowedBranchIds.includes(params.branchId ?? "")
+  const selectedBranchId = outletContext.kind === "single_outlet" ? outletContext.internalBranchId : allowedBranchIds.includes(params.branchId ?? "")
     ? params.branchId!
     : branches.length === 1 ? branches[0].id : null;
   const query = params.q?.trim() ?? "";
@@ -60,13 +67,13 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
       <header className={styles.hero}>
         <div>
           <h1>Inventory</h1>
-          <p>See what is in store and choose what to do next.</p>
+          <p>{single ? "See how much stock you have and choose what to do next." : "See what is in store and choose what to do next."}</p>
         </div>
       </header>
 
       {params.message ? <p className={`form-message ${params.type === "error" ? "error" : "success"}`}>{params.message}</p> : null}
 
-      <InventoryHubNavigation access={access} purchasing={purchasing} branchId={params.branchId} branchCount={branches.length} />
+      <InventoryHubNavigation access={access} purchasing={purchasing} branchId={params.branchId} branchCount={branches.length} outlet={outlet} />
       {!purchasing ? <>
 
       <section className={styles.workspace} aria-labelledby="inventory-overview-heading">
@@ -75,7 +82,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             <span className={styles.eyebrow}>Live overview</span>
             <h2 id="inventory-overview-heading">Stock overview</h2>
           </div>
-          <span className={styles.scopeLabel}>{selectedBranchId ? branches.find((branch) => branch.id === selectedBranchId)?.name : "All accessible stores"}</span>
+          {!single ? <span className={styles.scopeLabel}>{selectedBranchId ? branches.find((branch) => branch.id === selectedBranchId)?.name : "All accessible stores"}</span> : null}
         </div>
 
         <form className={styles.filters} key={`${query}:${selectedBranchId ?? "all"}:${stockStatus || "all"}`}>
@@ -83,7 +90,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             <span>Product or SKU</span>
             <input name="q" defaultValue={query} placeholder="Search inventory" />
           </label>
-          {branches.length > 1 ? (
+          {!single && branches.length > 1 ? (
             <label>
               <span>Store</span>
               <select name="branchId" defaultValue={selectedBranchId ?? ""}>
@@ -107,7 +114,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         </form>
 
         <div className={styles.metrics}>
-          <article className={styles.metricCard}><span>Out of stock</span><strong>{outOfStock.length}</strong><small>Product/store balances at zero</small></article>
+          <article className={styles.metricCard}><span>Out of stock</span><strong>{outOfStock.length}</strong><small>{single ? "Products at zero" : "Product/store balances at zero"}</small></article>
           <article className={styles.metricCard}><span>Low stock</span><strong>{lowStock.length}</strong><small>At or below reorder level, including out of stock</small></article>
           <article className={styles.metricCard}><span>In stock</span><strong>{inStock.length}</strong><small>Above reorder level</small></article>
         </div>
@@ -121,7 +128,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         {!branches.length ? (
           <div className={styles.emptyState}><strong>No store stock is available in your current access.</strong><p>Ask the business owner to check your store access or set up an active store. Products and their stock history are kept.</p></div>
         ) : !balances.length && hasFilters ? (
-          <div className={styles.emptyState}><strong>No stock matches your current search or filters.</strong><p>Try another search or store.</p><Link href="/inventory">Clear filters</Link></div>
+          <div className={styles.emptyState}><strong>No stock matches your current search or filters.</strong><p>{single ? "Try another search or filter." : "Try another search or store."}</p><Link href="/inventory">Clear filters</Link></div>
         ) : !products.length ? (
           <div className={styles.emptyState}>
             <strong>No products are being tracked yet.</strong>
@@ -132,10 +139,10 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           <>
             <div className={styles.desktopTable}>
               <table>
-                <thead><tr><th>Product</th><th>Store</th><th>Quantity</th><th>Status</th></tr></thead>
+                <thead><tr><th>Product</th>{!single ? <th>Store</th> : null}<th>Quantity</th><th>Status</th></tr></thead>
                 <tbody>{balances.map(({ product, stock }) => {
                   const state = getStockState(stock.quantity, stock.reorderLevel);
-                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small>{product.status === "INACTIVE" ? <small>Inactive — stock and history are kept.</small> : null}</td><td>{stock.branch.name}</td><td className={styles.quantityCell}>{stock.quantity}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>{canAddStock && product.status === "ACTIVE" && stock.quantity <= stock.reorderLevel ? <Link className={styles.textLink} href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}</td></tr>;
+                  return <tr key={stock.id}><td><strong>{product.name}</strong><small>{product.sku ?? "No SKU"}</small>{product.status === "INACTIVE" ? <small>Inactive — stock and history are kept.</small> : null}</td>{!single ? <td>{stock.branch.name}</td> : null}<td className={styles.quantityCell}>{stock.quantity}</td><td><span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>{canAddStock && product.status === "ACTIVE" && stock.quantity <= stock.reorderLevel ? <Link className={styles.textLink} href={`/inventory/stock-in?${new URLSearchParams({ productId: product.id, branchId: stock.branchId })}`}>Add Stock</Link> : null}</td></tr>;
                 })}</tbody>
               </table>
             </div>
@@ -145,7 +152,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
                 return (
                   <article key={stock.id} className={styles.balanceCard}>
                     <div className={styles.balanceCardHeader}>
-                      <div><strong>{product.name}</strong><span>{product.sku ?? "No SKU"} · {stock.branch.name}</span></div>
+                      <div><strong>{product.name}</strong><span>{product.sku ?? "No SKU"}{!single ? ` · ${stock.branch.name}` : ""}</span></div>
                       <span className={`${styles.stockStatus} ${state.className}`}>{state.label}</span>
                     </div>
                     <dl>
@@ -159,7 +166,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             </div>
           </>
         ) : (
-          <div className={styles.emptyState}><strong>No stock quantities are set up for these stores yet.</strong><p>The products still exist. Ask the business owner to check their stock setup for these stores.</p></div>
+          <div className={styles.emptyState}><strong>{single ? "No stock quantities are set up yet." : "No stock quantities are set up for these stores yet."}</strong><p>{single ? "The products still exist. Ask the business owner to check their stock setup." : "The products still exist. Ask the business owner to check their stock setup for these stores."}</p></div>
         )}
       </section>
 
