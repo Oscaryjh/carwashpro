@@ -127,20 +127,44 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             <>
             <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Products list">
             <table className={`table ${styles.table}`}>
+              <colgroup>
+                <col className={styles.colNo} />
+                <col className={styles.colProduct} />
+                <col className={styles.colSku} />
+                <col className={styles.colPrice} />
+                <col className={styles.colStock} />
+                <col className={styles.colStatus} />
+                <col className={styles.colActions} />
+              </colgroup>
               <thead>
-                <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th>{single ? <th>Stock</th> : <th>Total stock<small className={styles.trackingHint}>Across stores</small></th>}<th>Status</th><th>Actions</th></tr>
+                <tr>
+                  <th className={styles.colNo}>No.</th>
+                  <th className={styles.colProduct}>Product</th>
+                  <th className={styles.colSku}>SKU</th>
+                  <th className={styles.colPrice}>Price</th>
+                  <th className={styles.colStock}>{single ? "Stock" : <>Total stock<small className={styles.trackingHint}>Across stores</small></>}</th>
+                  <th className={styles.colStatus}>Status</th>
+                  <th className={styles.colActions}>Actions</th>
+                </tr>
               </thead>
               <tbody>
                 {products.map((product, index) => (
                   <tr key={product.id}>
-                    <td className="table-number">{pageSkip + index + 1}</td>
-                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name || product.category ? <small className={styles.category}>{product.productCategory?.name ?? product.category}</small> : null}{product.trackInventory ? <small className={styles.trackingHint}>Stock tracking on</small> : null}</td>
-                    <td>{product.sku ?? "-"}</td>
-                    <td className={styles.amount}>RM{Number(product.price).toFixed(2)}</td>
-                    <td className={styles.amount}>{product.trackInventory ? outletContext.kind === "single_outlet" ? product.stocks.find(stock => stock.branchId === outletContext.internalBranchId)?.quantity ?? 0 : product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
-                    <td><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></td>
-                    <td>
-                      <div className="catalog-table-actions">
+                    <td className={`table-number ${styles.colNo}`}><div className={styles.cellPrimaryRow}>{pageSkip + index + 1}</div></td>
+                    <td className={styles.colProduct}>
+                      <div className={styles.cellPrimaryRow}><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link></div>
+                      <small className={styles.productMeta}>
+                        {product.sku ? <span className={styles.tabletSku}>{product.sku}{" • "}</span> : null}
+                        {product.productCategory?.name || product.category ? <>{product.productCategory?.name ?? product.category}{" • "}</> : null}
+                        Stock tracking {product.trackInventory ? "on" : "off"}
+                      </small>
+                    </td>
+                    <td className={styles.colSku}><div className={styles.cellPrimaryRow}>{product.sku ?? "-"}</div></td>
+                    <td className={styles.colPrice}><div className={styles.cellPrimaryRow}>RM{Number(product.price).toFixed(2)}</div></td>
+                    <td className={styles.colStock}><div className={styles.cellPrimaryRow}>{product.trackInventory ? outletContext.kind === "single_outlet" ? product.stocks.find(stock => stock.branchId === outletContext.internalBranchId)?.quantity ?? 0 : product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</div></td>
+                    <td className={styles.colStatus}><div className={`${styles.cellPrimaryRow} ${styles.statusCell}`}><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></div></td>
+                    <td className={styles.colActions}>
+                      <div className={`catalog-table-actions ${styles.cellPrimaryRow} ${styles.rowActions}`}>
                         <Link href={`/products/${product.id}`}>View</Link>
                         <DeleteProductForm
                           compact

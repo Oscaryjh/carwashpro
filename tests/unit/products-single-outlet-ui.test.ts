@@ -17,9 +17,9 @@ test("single Product list reads only internal Branch stock, never historical ina
   try {
     const pages = await compileHandoffPages(fixture);
     const html = renderToStaticMarkup(await pages.Products({ searchParams: Promise.resolve({}) }));
-    assert.match(html, /<th>Stock<\/th>/);
-    assert.match(html, />10<\/td>/);
-    assert.doesNotMatch(html, /Across stores|Total stock|>109<\/td>/);
+    assert.match(html, /<th class="colStock">Stock<\/th>/);
+    assert.match(html, /class="colStock"><div class="cellPrimaryRow">10<\/div>/);
+    assert.doesNotMatch(html, /Across stores|Total stock|>109<\/div>/);
     assert.match(html, /Not tracked/);
     assert.match(html, /Stock tracking on/);
   } finally { delete (globalThis as Record<string, unknown>).__handoffFixture; }

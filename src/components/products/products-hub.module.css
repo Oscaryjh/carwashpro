@@ -11,15 +11,32 @@
 .toolbar select { flex: 0 1 170px; }
 .toolbar button, .toolbar :global(.secondary-link-button) { min-height: 36px; padding: 7px 12px; font-size: 13px; }
 .tableScroll { width: 100%; max-width: 100%; overflow-x: auto; }
-.table { width: 100%; min-width: 650px; margin: 0; font-size: 13px; }
-.table th, .table td { padding: 10px 9px; vertical-align: middle; }
+.table { width: 100%; min-width: 740px; margin: 0; font-size: 13px; table-layout: fixed; }
+.table th, .table td { padding: 8px 9px; vertical-align: top; }
 .table th { font-size: 11px; letter-spacing: .025em; white-space: nowrap; }
 .table td { overflow-wrap: anywhere; }
-.table td:nth-child(2) { min-width: 140px; }
-.table th:nth-child(4), .table th:nth-child(5), .table .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.category { display: block; color: #64748b; margin-top: 3px; font-size: 12px; }
+.table td > a { display: inline; }
+.table col.colNo { width: 6%; }
+.table col.colProduct { width: 31%; }
+.table col.colSku { width: 16%; }
+.table col.colPrice { width: 13%; }
+.table col.colStock { width: 9%; }
+.table col.colStatus { width: 11%; }
+.table col.colActions { width: 14%; }
+.table .colNo, .table .colProduct, .table .colSku { text-align: left; }
+.table .colPrice, .table .colActions { text-align: right; }
+.table .colStock, .table .colStatus { text-align: center; }
+.table .colStock .trackingHint { white-space: normal; text-align: center; }
+.table .colPrice, .table .colStock { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Match the existing View link's 44px touch target, not the full metadata row. */
+.cellPrimaryRow { display: flex; align-items: center; min-height: 44px; }
+.colPrice > .cellPrimaryRow { justify-content: flex-end; }
+.colStock > .cellPrimaryRow, .statusCell { justify-content: center; }
+.productMeta { display: block; color: var(--muted); margin-top: 3px; font-size: 12px; font-weight: 400; }
+.tabletSku { display: none; }
 .table :global(.status) { padding: 3px 7px; font-size: 10px; white-space: nowrap; }
-.table :global(.catalog-table-actions) { gap: 8px; white-space: nowrap; }
+.table .rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; white-space: nowrap; }
+.rowActions > a, .rowActions > form { flex-shrink: 0; }
 .panel :global(.catalog-pagination) { justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; font-size: 12px; }
 .panel :global(.catalog-pagination-range) { margin-right: auto; }
 .settings { position: relative; font-size: 13px; }
@@ -29,12 +46,36 @@
 .settings a { display: block; padding: 8px 10px; border-radius: 5px; color: inherit; }
 .settings a:hover, .settings a:focus-visible { background: #edf6f5; }
 .hub a:focus-visible, .settings summary:focus-visible, .tableScroll:focus-visible { outline: 2px solid #0f766e; outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .table col.colNo { width: 5%; }
+  .table col.colProduct { width: 24%; }
+  .table col.colSku { width: 18%; }
+  .table col.colStock { width: 12%; }
+  .table col.colStatus { width: 12%; }
+  .table col.colActions { width: 16%; }
+}
 @media (max-width: 800px) {
   .header { flex-wrap: wrap; }
   .header h1 { font-size: 23px; }
   .panel { padding: 10px; }
   .toolbar select { flex: 1 1 140px; }
   .toolbar input { flex-basis: 100%; }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .table { min-width: 0; }
+  .table .colNo, .table .colSku { display: none; }
+  .table col.colProduct { width: auto; }
+  .table col.colPrice { width: 15%; }
+  .table col.colStock { width: 13%; }
+  .table col.colStatus { width: 13%; }
+  .table col.colActions { width: 112px; }
+  .table th, .table td { padding-inline: 6px; }
+  .table th.colStock, .table td.colStock { white-space: normal; }
+  .tabletSku { display: inline; }
+  .table .rowActions { gap: 8px; }
+  .toolbar input { flex-basis: 100%; }
+  .toolbar select { flex: 1 1 140px; }
+  .toolbar button, .toolbar :global(.secondary-link-button) { flex-shrink: 0; }
 }
 .stockGuidance {
   margin-block: 12px 20px;
