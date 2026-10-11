@@ -8,6 +8,7 @@ import { getAuditRequestContext } from "@/lib/audit";
 import { assertExpenseInMutationScope, resolveExpenseMutationBranch, resolveExpenseReadScope } from "@/lib/expense/access";
 import { resolveExpenseCreateBranch } from "@/lib/expense/create-branch";
 import { resolveRecurringExpenseCreateBranch } from "@/lib/expense/recurring-create-branch";
+import { authorizeRecurringExpenseTemplate } from "@/lib/expense/recurring-authorization";
 import {
   confirmBusinessExpense,
   correctConfirmedBusinessExpense,
@@ -179,11 +180,29 @@ export async function saveExpenseIntegrationSettingsAction(formData: FormData) {
   }
 }
 
+// Recurring inputs only: retain omitted/empty legacy scope semantics, but never
+// let the shared resolver replace an explicitly unauthorized location.
+async function guardRecurringExpenseExplicitBranch(
+  context: Awaited<ReturnType<typeof requireBusinessUserForModule>>,
+  formData: FormData,
+) {
+  const values = formData.getAll("branchId");
+  if (values.length > 1) throw new Error("Conflicting recurring Expense location input.");
+  if (!values.length || values[0] === "") return;
+  const value = values[0];
+  const scope = await resolveExpenseReadScope(context);
+  if (typeof value !== "string" || !scope.allowedBranchIds?.includes(value) ||
+      (context.access.granted && context.access.effectiveBusinessRole === "STAFF" && value !== context.access.branchId)) {
+    throw new Error("Recurring Expense location is outside your authorised scope.");
+  }
+}
+
 export async function createRecurringExpenseAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "MANAGE_EXPENSE_CATEGORY");
   const parsed = facts.omit({ expenseDate: true }).extend({ endDate: z.string().date().optional().or(z.literal("")), startDate: z.string().date() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring expense.");
   try {
+    await guardRecurringExpenseExplicitBranch(context, formData);
     const branchId = await resolveRecurringExpenseCreateBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     await createRecurringExpenseTemplate({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, endDate: parsed.data.endDate || null, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, startDate: parsed.data.startDate, request: await getAuditRequestContext() });
     refresh(); success("/expenses/recurring", "Recurring expense saved.");
@@ -195,7 +214,9 @@ export async function updateRecurringExpenseAction(formData: FormData) {
   const parsed = facts.omit({ expenseDate: true }).extend({ active: z.string().optional(), endDate: z.string().date().optional().or(z.literal("")), expectedRevision: z.coerce.number().int().min(0), reason: z.string().trim().min(5).max(500), startDate: z.string().date(), templateId: z.string().uuid() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring expense revision.");
   try {
-    const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
+    const source = await authorizeRecurringExpenseTemplate({ businessId: context.businessId, userId: context.user.userId, capability: "MANAGE_EXPENSE_CATEGORY", templateId: parsed.data.templateId });
+    await guardRecurringExpenseExplicitBranch(context, formData);
+    const branchId = !formData.has("branchId") ? source.branchId : await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     await updateRecurringExpenseTemplate({ active: parsed.data.active === "on", actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, endDate: parsed.data.endDate || null, expectedRevision: parsed.data.expectedRevision, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, reason: parsed.data.reason, startDate: parsed.data.startDate, templateId: parsed.data.templateId, request: await getAuditRequestContext() });
     refresh(); success("/expenses/recurring", "Recurring expense updated; generated history is unchanged.");
   } catch (error) { actionFailure("/expenses/recurring", error); }
@@ -206,6 +227,7 @@ export async function generateRecurringExpenseAction(formData: FormData) {
   const parsed = operation.extend({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), templateId: z.string().uuid() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/recurring", parsed.error.issues[0]?.message ?? "Invalid recurring period.");
   try {
+    await authorizeRecurringExpenseTemplate({ businessId: context.businessId, userId: context.user.userId, capability: "CREATE_EXPENSE", templateId: parsed.data.templateId });
     const expense = await generateRecurringExpense({ actor: actor(context.user), businessId: context.businessId, ...parsed.data, request: await getAuditRequestContext() });
     refresh(); success(`/expenses/${expense.id}`, `${expense.expenseNumber} generated as an unpaid draft.`);
   } catch (error) { actionFailure("/expenses/recurring", error); }

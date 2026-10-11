@@ -13,7 +13,7 @@ const { JSDOM } = require('jsdom') as { JSDOM: new(html: string) => { window: Wi
 const branch = { id: '11111111-1111-4111-8111-111111111111', name: 'Main' };
 const second = { id: '22222222-2222-4222-8222-222222222222', name: 'Second' };
 const recurring = { id: second.id, branchId: branch.id, categoryId: second.id, branch: { name: 'Main' }, category: { name: 'Rental' }, payeeName: 'Landlord', defaultDescription: 'Shop rental', notes: 'Private note', active: true, revision: 2, startDate: new Date('2026-10-01'), endDate: null as Date | null, createdAt: new Date('2026-10-01'), amount: { toFixed: () => '3000.00', comparedTo: () => 0 }, expenses: [{ generatedPeriod: '2026-09', id: 'expense-1' }] };
-const state = { branches: [branch], role: 'BUSINESS_OWNER', assigned: branch.id as string | null, records: [] as typeof recurring[], created: [] as Record<string, unknown>[], updated: [] as Record<string, unknown>[], generated: [] as Record<string, unknown>[] };
+const state = { branches: [branch], role: 'BUSINESS_OWNER', assigned: branch.id as string | null, sourceBranch: undefined as string | null | undefined, records: [] as typeof recurring[], created: [] as Record<string, unknown>[], updated: [] as Record<string, unknown>[], generated: [] as Record<string, unknown>[] };
 const globals = globalThis as typeof globalThis & { __recurringUI?: typeof state; IS_REACT_ACT_ENVIRONMENT?: boolean };
 let directory: string;
 let Page: (props: { searchParams: Promise<Record<string, string>> }) => Promise<ReactElement>;
@@ -26,10 +26,11 @@ before(async () => {
     'next/link': `import {createElement} from 'react';export default function Link({children,...props}){return createElement('a',props,children)}`,
     'next/cache': `export const revalidatePath=()=>{};`,
     'next/navigation': `export const redirect=url=>{throw Object.assign(new Error(url),{digest:'NEXT_REDIRECT'})};`,
-    '@/lib/auth/business-user': `export const requireBusinessUserForModule=async(m,c)=>{if(m!=='EXPENSE'||!['MANAGE_EXPENSE_CATEGORY','CREATE_EXPENSE'].includes(c))throw Error('permission changed');const s=globalThis.__recurringUI;return {businessId:'business',access:{granted:true,effectiveBusinessRole:s.role},user:{role:s.role,branchId:s.assigned,userId:'owner',name:'Test',email:'test.invalid'}}};`,
+    '@/lib/auth/business-user': `export const requireBusinessUserForModule=async(m,c)=>{if(m!=='EXPENSE'||!['MANAGE_EXPENSE_CATEGORY','CREATE_EXPENSE'].includes(c))throw Error('permission changed');const s=globalThis.__recurringUI;return {businessId:'business',access:{granted:true,businessId:'business',effectiveBusinessRole:s.role,branchId:s.assigned},user:{role:s.role,branchId:s.assigned,userId:'owner',name:'Test',email:'test.invalid'}}};`,
     '@/lib/audit': `export const getAuditRequestContext=async()=>({});`,
+    '@/lib/business-groups/business-access': `export const resolveBusinessAccess=async({requestedBusinessId})=>{const s=globalThis.__recurringUI;return {granted:true,businessId:requestedBusinessId,effectiveBusinessRole:s.role,branchId:s.assigned}};`,
     '@/lib/expense/source-integration': `export const saveExpenseIntegrationSettings=async()=>{};`,
-    '@/lib/prisma': `export const prisma={branch:{findMany:async({where})=>{if(where.businessId!=='business'||where.status!=='ACTIVE')throw Error('scope lost');return globalThis.__recurringUI.branches},findFirst:async({where})=>where.businessId==='business'&&where.status==='ACTIVE'?globalThis.__recurringUI.branches.find(b=>b.id===where.id)??null:null},expenseCategory:{findMany:async()=>[{id:'${second.id}',name:'Rental'}]},recurringExpenseTemplate:{findMany:async()=>globalThis.__recurringUI.records}};`,
+    '@/lib/prisma': `export const prisma={branch:{findMany:async({where})=>{if(where.businessId!=='business'||where.status!=='ACTIVE')throw Error('scope lost');return globalThis.__recurringUI.branches},findFirst:async({where})=>where.businessId==='business'?globalThis.__recurringUI.branches.find(b=>b.id===where.id)??null:null},expenseCategory:{findMany:async()=>[{id:'${second.id}',name:'Rental'}]},recurringExpenseTemplate:{findMany:async()=>globalThis.__recurringUI.records,findFirst:async({where})=>{const s=globalThis.__recurringUI;return where.businessId==='business'?{id:where.id,branchId:s.sourceBranch!==undefined?s.sourceBranch:s.role==='STAFF'?s.assigned:null}:null}}};`,
     '@/lib/expense/service': `${serviceNames.map(n => `export const ${n}=async()=>{};`).join('')} export const expenseErrorMessage=e=>e.message;export const createRecurringExpenseTemplate=async d=>{globalThis.__recurringUI.created.push(d)};export const updateRecurringExpenseTemplate=async d=>{globalThis.__recurringUI.updated.push(d)};export const generateRecurringExpense=async d=>{globalThis.__recurringUI.generated.push(d);return {id:'draft',expenseNumber:'EXP-1'}};`,
   };
   await build({ entryPoints: ['src/app/(business)/expenses/recurring/page.tsx', 'src/app/(business)/expenses/actions.ts'], outdir: directory, outbase: 'src', bundle: true, platform: 'node', packages: 'external', format: 'cjs', outExtension: { '.js': '.cjs' }, jsx: 'automatic', plugins: [{ name: 'io', setup(b) {
@@ -41,7 +42,7 @@ before(async () => {
   actions = require(join(directory, 'app/(business)/expenses/actions.cjs'));
 });
 after(async () => { delete globals.__recurringUI; await rm(directory, { recursive: true, force: true, maxRetries: 3 }); });
-beforeEach(() => { state.branches = [branch]; state.role = 'BUSINESS_OWNER'; state.assigned = branch.id; state.records = []; state.created = []; state.updated = []; state.generated = []; });
+beforeEach(() => { state.branches = [branch]; state.role = 'BUSINESS_OWNER'; state.assigned = branch.id; state.sourceBranch = undefined; state.records = []; state.created = []; state.updated = []; state.generated = []; });
 async function document(query: Record<string, string> = {}) { return new JSDOM(renderToStaticMarkup(await Page({ searchParams: Promise.resolve(query) }))).window.document; }
 function data(extra: Record<string, string> = {}) { const d = new FormData(); for (const [k, v] of Object.entries({ operationKey: 'RECURRING:unit-test-operation', amount: '3000.00', categoryId: second.id, description: 'Shop rental', startDate: '2026-10-01', ...extra })) d.set(k, v); return d; }
 async function submit(name: string, d: FormData) { try { await actions[name](d); assert.fail('expected redirect'); } catch (e) { assert.ok(e instanceof Error); return decodeURIComponent(e.message); } }
@@ -81,15 +82,69 @@ test('single branch create resolves real branch without trusting submitted branc
 });
 test('multi branch selection and staff assignment remain scoped; group manager cannot create', async () => {
   state.branches.push(second); await submit('createRecurringExpenseAction', data({ branchId: second.id })); assert.equal(state.created[0]?.branchId, second.id);
-  state.role = 'STAFF'; await submit('createRecurringExpenseAction', data({ branchId: second.id })); assert.equal(state.created[1]?.branchId, branch.id);
-  state.role = 'GROUP_MANAGER_READ_ONLY'; await submit('createRecurringExpenseAction', data()); assert.equal(state.created.length, 2);
+  state.role = 'STAFF'; const rejected = await submit('createRecurringExpenseAction', data({ branchId: second.id })); assert.match(rejected, /type=error/); assert.equal(state.created.length, 1);
+  state.role = 'GROUP_MANAGER_READ_ONLY'; await submit('createRecurringExpenseAction', data()); assert.equal(state.created.length, 1);
 });
+
+for (const action of ['createRecurringExpenseAction', 'updateRecurringExpenseAction']) {
+  const revision = { templateId: second.id, expectedRevision: '2', reason: 'Update defaults', active: 'on' };
+  for (const [label, value] of [
+    ['unauthorized same-business', second.id],
+    ['cross-business', '33333333-3333-4333-8333-333333333333'],
+    ['nonexistent', '44444444-4444-4444-8444-444444444444'],
+    ['malformed', 'not-a-branch'],
+  ]) test(`${action}: Staff explicit ${label} Branch is rejected before either writer`, async () => {
+    state.role = 'STAFF'; state.branches.push(second);
+    const result = await submit(action, data({ ...revision, branchId: value }));
+    assert.match(result, /type=error/);
+    assert.equal(state.created.length, 0); assert.equal(state.updated.length, 0); assert.equal(state.generated.length, 0);
+  });
+  for (const mode of ['omitted', 'own', 'empty']) test(`${action}: Staff ${mode} Branch retains assigned active location`, async () => {
+    state.role = 'STAFF'; state.branches.push(second);
+    const result = await submit(action, data({ ...revision, ...(mode === 'omitted' ? {} : { branchId: mode === 'own' ? branch.id : '' }) }));
+    assert.doesNotMatch(result, /type=error/);
+    assert.equal((action === 'createRecurringExpenseAction' ? state.created : state.updated)[0]?.branchId, branch.id);
+  });
+  test(`${action}: inactive assigned Branch is rejected before writer`, async () => {
+    state.role = 'STAFF'; state.branches = [second];
+    const result = await submit(action, data({ ...revision, branchId: branch.id }));
+    assert.match(result, /type=error/); assert.equal(state.created.length + state.updated.length, 0);
+  });
+  test(`${action}: repeated explicit Branch cannot be hidden by Object.fromEntries`, async () => {
+    state.role = 'STAFF'; state.branches.push(second);
+    const form = data({ ...revision, branchId: second.id }); form.append('branchId', branch.id);
+    const result = await submit(action, form);
+    assert.match(result, /type=error/); assert.equal(state.created.length + state.updated.length, 0);
+  });
+  test(`${action}: Owner valid Branch B and multi-Branch Business-wide remain unchanged`, async () => {
+    state.branches.push(second);
+    assert.doesNotMatch(await submit(action, data({ ...revision, branchId: second.id })), /type=error/);
+    assert.doesNotMatch(await submit(action, data({ ...revision, branchId: '' })), /type=error/);
+    const rows = action === 'createRecurringExpenseAction' ? state.created : state.updated;
+    assert.deepEqual(rows.map(row => row.branchId), [second.id, null]);
+  });
+}
 test('inactive recurring rows retain edit but no draft action; month generation payload is unchanged', async () => {
   state.records = [{ ...recurring, active: false, endDate: new Date('2026-12-31') }];
   const doc = await document(); assert.ok(doc.querySelector('.inactiveBadge')); assert.ok(!doc.querySelector('[name="period"]'));
   assert.match(doc.querySelector('tbody')?.textContent ?? '', /Oct 2026 – Dec 2026/);
   const message = await submit('generateRecurringExpenseAction', data({ templateId: second.id, period: '2026-11' }));
   assert.equal(state.generated[0]?.period, '2026-11'); assert.equal(state.generated[0]?.templateId, second.id); assert.match(message, /\/expenses\/draft/);
+});
+
+for (const action of ['updateRecurringExpenseAction', 'generateRecurringExpenseAction']) {
+  for (const source of [second.id, null]) test(`${action}: Staff source outside scope is rejected before all service writer calls`, async () => {
+    state.role = 'STAFF'; state.branches.push(second); state.sourceBranch = source;
+    const result = await submit(action, data({ templateId: second.id, branchId: branch.id, expectedRevision: '2', reason: 'Synthetic source check', active: 'on', period: '2026-11' }));
+    assert.match(result, /type=error/); assert.match(result, /authorised scope/);
+    assert.equal(state.updated.length + state.generated.length + state.created.length, 0);
+  });
+}
+
+test('omitted update location preserves original Owner template scope, not current branch or null', async () => {
+  state.branches.push(second); state.sourceBranch = second.id;
+  const result = await submit('updateRecurringExpenseAction', data({ templateId: second.id, expectedRevision: '2', reason: 'Change description', active: 'on' }));
+  assert.doesNotMatch(result, /type=error/); assert.equal(state.updated[0]?.branchId, second.id);
 });
 test('filters and pagination preserve existing query keys and page size', async () => {
   state.records = Array.from({ length: 11 }, (_, index) => ({ ...recurring, id: `record-${index}` }));

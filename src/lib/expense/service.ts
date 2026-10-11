@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { ANALYTICS_BUSINESS_DAY_DEFINITION_VERSION, ANALYTICS_METRIC_DEFINITION_VERSION } from "@/lib/analytics/constants";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 import { readCashierShiftSettings } from "@/lib/cashier/shift-settings";
+import { assertRecurringExpenseScope, authorizeRecurringExpenseTemplate } from "./recurring-authorization";
 
 export type ExpenseActor = Readonly<{ userId: string; name: string; email: string }>;
 export type ExpenseReceiptInput = Readonly<{
@@ -555,8 +556,15 @@ export async function updateRecurringExpenseTemplate(input: Omit<ExpenseFactsInp
   if (endDate && endDate < startDate) throw new ExpenseDomainError("Recurring end date cannot precede start date.", "RECURRING_DATE_INVALID");
   const fingerprint = hash({ command: "UPDATE_RECURRING_TEMPLATE", active: input.active, endDate, expectedRevision: input.expectedRevision, reason, startDate, templateId: input.templateId, ...facts.fingerprint });
   return database.$transaction(async (tx) => {
+    const authority = { businessId: input.businessId, userId: input.actor.userId, capability: "MANAGE_EXPENSE_CATEGORY" as const };
+    await authorizeRecurringExpenseTemplate({ ...authority, templateId: input.templateId }, tx);
+    await assertRecurringExpenseScope(tx, authority, facts.branchId);
     const replay = await replayCommand(tx, input.businessId, input.operationKey, "UPDATE_RECURRING_TEMPLATE", fingerprint);
-    if (replay) return tx.recurringExpenseTemplate.findFirstOrThrow({ where: { businessId: input.businessId, id: replay.resultEntityId } });
+    if (replay) {
+      const result = await tx.recurringExpenseTemplate.findFirstOrThrow({ where: { businessId: input.businessId, id: input.templateId, AND: { id: replay.resultEntityId } } });
+      await assertRecurringExpenseScope(tx, authority, result.branchId);
+      return result;
+    }
     const before = await tx.recurringExpenseTemplate.findFirst({ where: { businessId: input.businessId, id: input.templateId } });
     if (!before) throw new ExpenseDomainError("Recurring Expense template was not found.", "RECURRING_TEMPLATE_NOT_FOUND");
     if (before.revision !== input.expectedRevision) throw new ExpenseDomainError("Recurring template was updated by another user. Refresh required.", "RECURRING_TEMPLATE_UPDATED");
@@ -586,13 +594,20 @@ export async function generateRecurringExpense(input: {
   const period = parsePeriod(input.period);
   const fingerprint = hash({ command: "GENERATE_RECURRING_EXPENSE", templateId: input.templateId, period: period.key });
   return database.$transaction(async (tx) => {
+    const authority = { businessId: input.businessId, userId: input.actor.userId, capability: "CREATE_EXPENSE" as const };
+    await authorizeRecurringExpenseTemplate({ ...authority, templateId: input.templateId }, tx);
     const replay = await replayCommand(tx, input.businessId, input.operationKey, "GENERATE_RECURRING_EXPENSE", fingerprint);
-    if (replay) return tx.businessExpense.findFirstOrThrow({ where: { businessId: input.businessId, id: replay.resultEntityId } });
+    if (replay) {
+      const result = await tx.businessExpense.findFirstOrThrow({ where: { businessId: input.businessId, id: replay.resultEntityId, recurringTemplateId: input.templateId, generatedPeriod: period.key } });
+      await assertRecurringExpenseScope(tx, authority, result.branchId);
+      return result;
+    }
     const template = await tx.recurringExpenseTemplate.findFirst({ where: { active: true, businessId: input.businessId, id: input.templateId }, include: { branch: { select: { name: true } }, category: true } });
     if (!template) throw new ExpenseDomainError("Active recurring Expense template was not found.", "RECURRING_TEMPLATE_NOT_FOUND");
     if (period.date < template.startDate || (template.endDate && period.date > template.endDate)) throw new ExpenseDomainError("Requested period is outside the recurring template effective dates.", "RECURRING_PERIOD_OUTSIDE_RANGE");
     const existing = await tx.businessExpense.findFirst({ where: { businessId: input.businessId, recurringTemplateId: template.id, generatedPeriod: period.key } });
     if (existing) {
+      await assertRecurringExpenseScope(tx, authority, existing.branchId);
       await recordCommand(tx, input, "GENERATE_RECURRING_EXPENSE", fingerprint, "BusinessExpense", existing.id);
       return existing;
     }
