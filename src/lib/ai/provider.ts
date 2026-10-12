@@ -3,6 +3,7 @@ import { formatReportMoney } from "@/lib/reports/presentation";
 import { buildAiInstructions } from "./prompt";
 import { classifyAiQuestion, type AiAnswerLanguage, type AiIntent, type AiTemporalSemantics } from "./intent";
 import { AI_ANALYSIS_JSON_SCHEMA, validateAiAnalysis, type AiAnalysis, type AllowedAiMetricKey } from "./schema";
+import { isOwnerPilotContext, PILOT_AI_ANALYSIS_JSON_SCHEMA, pilotProviderIntent, validatePilotAiAnalysis } from "./pilot-schema";
 
 export type AiProviderResult = {
   analysis: AiAnalysis;
@@ -50,8 +51,9 @@ export class OpenAiProvider implements AiProvider {
 
   async analyze(input: Parameters<AiProvider["analyze"]>[0]): Promise<AiProviderResult> {
     const inferred = classifyAiQuestion(input.question);
+    const pilot = isOwnerPilotContext(input.context);
     const routing = {
-      intent: input.intent ?? inferred.intent,
+      intent: pilot ? pilotProviderIntent(input.intent ?? inferred.intent) : input.intent ?? inferred.intent,
       language: input.language ?? inferred.language,
       temporalSemantics: input.temporalSemantics ?? inferred.temporalSemantics,
     };
@@ -77,14 +79,14 @@ export class OpenAiProvider implements AiProvider {
           type: "json_schema",
           name: "tetamu_business_analysis",
           strict: true,
-          schema: AI_ANALYSIS_JSON_SCHEMA,
+          schema: pilot ? PILOT_AI_ANALYSIS_JSON_SCHEMA : AI_ANALYSIS_JSON_SCHEMA,
         },
       },
     });
     let parsed: unknown;
     try { parsed = JSON.parse(response.output_text); } catch { throw new Error("AI_RESPONSE_INVALID"); }
     return {
-      analysis: validateAiAnalysis(parsed),
+      analysis: pilot ? validatePilotAiAnalysis(parsed) : validateAiAnalysis(parsed),
       provider: "openai",
       model: this.config.model,
       actualModel: typeof response.model === "string" && response.model.trim() ? response.model : null,

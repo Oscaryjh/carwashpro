@@ -2,15 +2,10 @@ import { createHash } from "node:crypto";
 import { getBusinessDayRange, getCurrentBusinessDateValue } from "@/lib/business-day";
 import { addDaysToDateValue, isValidDateValue, startOfBusinessMonth } from "@/lib/business-time";
 import type { PilotGrant } from "./pilot-access";
+import { PILOT_ALLOWED_METRIC_KEYS } from "./pilot-schema";
 
 export const PILOT_HISTORY_PLACEHOLDER = "此旧回答无法在当前权限下重新显示";
-export const PILOT_METRIC_KEYS = new Set([
-  "NET_SALES", "GROSS_SALES", "REFUNDS", "TRANSACTIONS", "AVERAGE_TRANSACTION", "PREVIOUS_NET_SALES",
-  "PAYMENTS_COLLECTED", "PAYMENTS_CASH", "PAYMENTS_CARD", "PAYMENTS_DUITNOW", "PAYMENTS_BANK_TRANSFER",
-  "RECORDED_BUSINESS_SPENDING", "MANUAL_SPENDING", "CLAIM_SPENDING", "INCOME_VS_RECORDED_SPENDING",
-  "TRACKED_PRODUCTS", "LOW_STOCK_COUNT", "OUT_OF_STOCK_COUNT", "INVENTORY_SELLING_VALUE",
-  "APPOINTMENTS_TOTAL", "APPOINTMENTS_SCHEDULED", "APPOINTMENTS_COMPLETED", "APPOINTMENTS_CANCELLED", "APPOINTMENTS_NO_SHOW",
-]);
+export const PILOT_METRIC_KEYS = new Set<string>(PILOT_ALLOWED_METRIC_KEYS);
 
 export function pilotPeriod(input: { range?: string; from?: string; to?: string; now: Date; timezone: string; businessDayCutoffTime: string }) {
   const range = input.range ?? "month";

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { aiServiceModule } from "../helpers/ai-service-import";
 import { hasBusinessCapability, resolveBusinessAccess } from "@/lib/business-groups/business-access";
 import { createAiAllowancePolicy } from "@/lib/ai/commercial";
-import { MockAiProvider, type AiProvider } from "@/lib/ai/provider";
+import { MockAiProvider, OpenAiProvider, type AiProvider } from "@/lib/ai/provider";
 import type { AppSession } from "@/lib/auth/session";
 
 // Never let this write-bearing suite fall back to the normal Local database.
@@ -15,6 +15,22 @@ assert.equal(new URL(process.env.DATABASE_URL!).pathname, "/owner_pilot_phase1_d
 const now = new Date("2026-10-12T04:00:00Z");
 let { askTetamuAi, getAiWorkspace } = {} as Awaited<ReturnType<typeof aiServiceModule>>;
 test.before(async () => { ({ askTetamuAi, getAiWorkspace } = await aiServiceModule()); });
+
+test("canonical Pilot reader through SDK boundary has no forbidden static vocabulary", async () => {
+  const f = await fixture();
+  const user = f.session(f.owner);
+  const access = await resolveBusinessAccess({ userId: user.userId, requestedBusinessId: f.business.id, capability: "USE_AI_ANALYSIS" });
+  const requests: unknown[] = [];
+  const provider = new OpenAiProvider({ apiKey: "synthetic-unused-key", model: "gpt-5.4-mini" }, {
+    responses: { create: async (request: unknown) => {
+      requests.push(request);
+      return { output_text: JSON.stringify({ intent: "SALES", language: "en", temporalSemantics: "PERIOD", summary: "No sales in this period.", evidence: [], caveats: [], recommendations: [], followUpQuestions: [] }), model: "synthetic-returned-model" };
+    } },
+  } as never);
+  await askTetamuAi({ user, scope: { type: "BUSINESS", businessId: f.business.id, access, user }, question: "How are sales this month?", clientRequestId: randomUUID(), range: "month" }, { provider, now });
+  assert.equal(requests.length, 1);
+  assert.doesNotMatch(JSON.stringify(requests[0]), /\b(?:supplier(?:[ _-]+bills?|[ _-]+payments?)?|inventory[ _-]+purchase[ _-]+spending|purchasing|purchase[ _-]+orders?|receiving|accounts[ _-]+payable|payroll(?:[ _-]+spending)?|pcb|salary|compensation|statutory|ap|po|outstanding[ _-]+ap|ap[ _-]+(?:due[ _-]+soon|overdue|open[ _-]+bills))\b/i);
+});
 async function fixture() {
   const token = randomUUID();
   const business = await prisma.business.create({ data: { name: "Pilot synthetic", slug: token, industryType: "SALON_BEAUTY" } });
