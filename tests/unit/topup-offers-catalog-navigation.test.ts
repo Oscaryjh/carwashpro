@@ -64,7 +64,7 @@ test("Catalog removes Offers without reordering the remaining entries or adding 
   assert.ok(catalog?.children);
   assert.deepEqual(catalog.children.filter(n=>n.href==="/crm/wallet/offers"),[]);
   assert.ok(!frame.props.navItems.some(n=>n.href==="/crm/wallet/offers"));
-  assert.deepEqual(catalog.children.filter(n=>n.href!=="/crm/wallet/offers").map(n=>n.href),["/packages","/discounts"]);
+  assert.deepEqual(catalog.children.filter(n=>n.href!=="/crm/wallet/offers").map(n=>n.href),["/services","/products","/packages","/discounts"]);
 });
 
 test("Wallet OFF, missing POS dependency, Staff and Platform Admin never gain the entry",async()=>{

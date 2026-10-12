@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
+import styles from "./app-shell-sidebar.module.css";
 import { PwaInstallButton } from "@/components/pwa-install-button";
 import { SignOutForm } from "@/components/sign-out-form";
 import { shouldPollWhatsAppUnread } from "@/lib/whatsapp/unread-access";
@@ -15,6 +16,7 @@ export type NavItem = {
   icon: IconName;
   badgeCount?: number;
   children?: NavItem[];
+  separatorBefore?: boolean;
 };
 
 type AppShellFrameProps = {
@@ -25,9 +27,11 @@ type AppShellFrameProps = {
   navItems: NavItem[];
   businessSwitcher?: ReactNode;
   children: ReactNode;
+  businessNavigation?: boolean;
 };
 
 const SIDEBAR_STORAGE_KEY = "washflow-sidebar-collapsed";
+const GROUP_STORAGE_KEY = "tetamu-sidebar-open-groups-v1";
 
 export function AppShellFrame({
   brandName,
@@ -37,9 +41,16 @@ export function AppShellFrame({
   navItems,
   businessSwitcher,
   children,
+  businessNavigation = false,
 }: AppShellFrameProps) {
+  const navigationId = useId();
+  const navRef = useRef<HTMLElement>(null);
+  const activeItemRef = useRef<HTMLAnchorElement>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Only user preferences are persisted. Route and breakpoint state are derived.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const isVerticalSidebar = useSidebarMediaQuery("(min-width: 768px)");
+  const isTablet = useSidebarMediaQuery("(min-width: 768px) and (max-width: 1180px)");
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const initialWhatsAppUnreadCount =
     flattenNavItems(navItems).find((item) => item.icon === "whatsapp")
@@ -49,25 +60,45 @@ export function AppShellFrame({
   );
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryKey = searchParams?.toString() ?? "";
+  const activeHrefs = new Set(flattenNavItems(navItems)
+    .filter(item => !item.children?.length && isActiveNavItem(pathname, item.href, searchParams))
+    .map(item => item.href));
+  const activeHref = activeHrefs.values().next().value ?? "";
+  const isGroupActive = (item: NavItem) => Boolean(item.children?.some(child => activeHrefs.has(child.href)));
+
+  const tabletPreferredGroup = navItems.find(item => openGroups[item.href] &&
+    (item.icon === "crm" || item.icon === "catalog") &&
+    !isGroupActive(item))?.href;
+  const isGroupOpen = (item: NavItem) => isGroupActive(item) || Boolean(openGroups[item.href] &&
+    (!businessNavigation || !isTablet || (item.icon !== "crm" && item.icon !== "catalog") || tabletPreferredGroup === item.href));
+  const visibleGroupsKey = navItems.filter(item => item.children?.length && isGroupOpen(item)).map(item => item.href).join("|");
 
   useEffect(() => {
-    const activeGroups = Object.fromEntries(
-      navItems
-        .filter((item) =>
-          item.children?.some((child) =>
-            isActiveNavItem(pathname, child.href, searchParams),
-          ),
-        )
-        .map((item) => [item.href, true]),
-    );
-    if (Object.keys(activeGroups).length) {
-      setOpenGroups((current) => ({ ...current, ...activeGroups }));
+    try {
+      setIsCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
+      const stored: unknown = JSON.parse(window.localStorage.getItem(GROUP_STORAGE_KEY) ?? "{}");
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        setOpenGroups(Object.fromEntries(Object.entries(stored).filter(([key, value]) =>
+          (key === "/crm" || key === "/catalog" || key === "/security/mfa") && typeof value === "boolean",
+        )));
+      }
+    } catch {
+      // Preferences are optional; unavailable/malformed storage never blocks navigation.
     }
-  }, [navItems, pathname, searchParams]);
+  }, []);
 
   useEffect(() => {
-    setIsCollapsed(localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
-  }, []);
+    if (!businessNavigation || !isVerticalSidebar || isCollapsed) return;
+    const nav = navRef.current;
+    // The config selects the active link; its ref is used only for geometry.
+    const active = activeItemRef.current;
+    if (!nav || !active) return;
+    const bounds = nav.getBoundingClientRect();
+    const item = active.getBoundingClientRect();
+    if (item.bottom > bounds.bottom) nav.scrollTop += item.bottom - bounds.bottom;
+    else if (item.top < bounds.top) nav.scrollTop -= bounds.top - item.top;
+  }, [businessNavigation, pathname, queryKey, isCollapsed, isVerticalSidebar, isTablet, activeHref, visibleGroupsKey]);
 
   useEffect(() => {
     setWhatsAppUnreadCount(initialWhatsAppUnreadCount);
@@ -112,15 +143,13 @@ export function AppShellFrame({
   }, [navItems]);
 
   function toggleSidebar() {
-    setIsCollapsed((current) => {
-      const next = !current;
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-      return next;
-    });
+    const next = !isCollapsed;
+    setIsCollapsed(next);
+    savePreference(SIDEBAR_STORAGE_KEY, String(next));
   }
 
   return (
-    <div className={`app-shell${isCollapsed ? " sidebar-collapsed" : ""}`}>
+    <div className={`app-shell${isCollapsed ? " sidebar-collapsed" : ""}${businessNavigation ? ` ${styles.shell}` : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
           {brandLogoControl ? (
@@ -148,31 +177,39 @@ export function AppShellFrame({
             </Link>
           )}
         </div>
-        <nav>
+        <nav ref={navRef} aria-label="Main navigation">
           {navItems.map((item) => {
             if (item.children?.length) {
-              const groupActive = item.children.some((child) =>
-                isActiveNavItem(pathname, child.href, searchParams),
-              );
-              const groupOpen = openGroups[item.href] ?? groupActive;
+              const groupActive = isGroupActive(item);
+              const groupOpen = isGroupOpen(item);
 
+              const groupId = `${navigationId}-${item.icon}`;
               return (
+                <Fragment key={item.href}>
+                {item.separatorBefore ? <div role="separator" className={styles.divider} /> : null}
                 <div
                   className={`nav-group${groupOpen ? " open" : ""}`}
                   key={item.href}
                 >
                   <button
                     aria-expanded={groupOpen}
+                    aria-controls={groupOpen ? groupId : undefined}
                     className={`nav-group-toggle${groupActive ? " active" : ""}`}
                     onClick={() => {
                       if (isCollapsed) {
                         setIsCollapsed(false);
-                        localStorage.setItem(SIDEBAR_STORAGE_KEY, "false");
+                        savePreference(SIDEBAR_STORAGE_KEY, "false");
                       }
-                      setOpenGroups((current) => ({
-                        ...current,
-                        [item.href]: !groupOpen,
-                      }));
+                      if (groupActive) return;
+                      const next = { ...openGroups, [item.href]: !groupOpen };
+                      if (businessNavigation && next[item.href] && isTablet) {
+                        for (const other of navItems) {
+                          if (other.href !== item.href && (other.icon === "crm" || other.icon === "catalog") &&
+                            !isGroupActive(other)) next[other.href] = false;
+                        }
+                      }
+                      setOpenGroups(next);
+                      savePreference(GROUP_STORAGE_KEY, JSON.stringify(next));
                     }}
                     title={item.label}
                     type="button"
@@ -180,30 +217,38 @@ export function AppShellFrame({
                     <ShellIcon name={item.icon} />
                     <span className="nav-label">{item.label}</span>
                     <span aria-hidden="true" className="nav-group-chevron">
-                      &gt;
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m7 4 6 6-6 6" /></svg>
                     </span>
                   </button>
                   {groupOpen ? (
-                    <div className="nav-group-children">
+                    <div className="nav-group-children" id={groupId}>
                       {item.children.map((child) => (
                         <Link
+                          ref={child.href === activeHref ? activeItemRef : undefined}
                           className={
-                            isActiveNavItem(pathname, child.href, searchParams)
+                            activeHrefs.has(child.href)
                               ? "active"
                               : undefined
                           }
                           data-short={child.shortLabel}
                           href={child.href}
+                          aria-current={activeHrefs.has(child.href) ? "page" : undefined}
                           key={child.href}
                           title={child.label}
                         >
                           <ShellIcon name={child.icon} />
                           <span className="nav-label">{child.label}</span>
+                          {(child.icon === "whatsapp" ? whatsAppUnreadCount : child.badgeCount ?? 0) > 0 ? (
+                            <span className="nav-badge" aria-label={`${child.icon === "whatsapp" ? whatsAppUnreadCount : child.badgeCount} unread`}>
+                              {(child.icon === "whatsapp" ? whatsAppUnreadCount : child.badgeCount ?? 0) > 99 ? "99+" : child.icon === "whatsapp" ? whatsAppUnreadCount : child.badgeCount}
+                            </span>
+                          ) : null}
                         </Link>
                       ))}
                     </div>
                   ) : null}
                 </div>
+                </Fragment>
               );
             }
             const badgeCount =
@@ -212,13 +257,17 @@ export function AppShellFrame({
                 : (item.badgeCount ?? 0);
 
             return (
+              <Fragment key={item.href}>
+              {item.separatorBefore ? <div role="separator" className={styles.divider} /> : null}
               <Link
+                ref={item.href === activeHref ? activeItemRef : undefined}
                 className={
-                  isActiveNavItem(pathname, item.href, searchParams)
+                  activeHrefs.has(item.href)
                     ? "active"
                     : undefined
                 }
                 href={item.href}
+                aria-current={activeHrefs.has(item.href) ? "page" : undefined}
                 key={item.href}
                 title={
                   badgeCount > 0
@@ -238,6 +287,7 @@ export function AppShellFrame({
                   </span>
                 ) : null}
               </Link>
+              </Fragment>
             );
           })}
         </nav>
@@ -250,7 +300,7 @@ export function AppShellFrame({
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? ">" : "<"}
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={isCollapsed ? "m7 4 6 6-6 6" : "m13 4-6 6 6 6"} /></svg>
           </button>
           <SignOutForm />
         </div>
@@ -265,11 +315,29 @@ export function AppShellFrame({
   );
 }
 
+function useSidebarMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, [query]);
+  return matches;
+}
+
 function flattenNavItems(items: NavItem[]): NavItem[] {
   return items.flatMap((item) => [
     item,
     ...(item.children ? flattenNavItems(item.children) : []),
   ]);
+}
+
+function savePreference(key: string, value: string) {
+  try { window.localStorage.setItem(key, value); } catch {
+    // Storage can be disabled by the browser; the current UI still works.
+  }
 }
 
 function brandInitials(brandName: string) {

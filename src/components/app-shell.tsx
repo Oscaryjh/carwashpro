@@ -26,6 +26,7 @@ import { getBusinessHomeHref } from "@/lib/business-industry";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { canViewWalletHub } from "@/lib/wallet/hub-availability";
+import { organizeBusinessNavigation } from "@/components/sidebar-navigation";
 
 type AppShellProps = {
   user: AppSession;
@@ -436,7 +437,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       brandName={brandName}
       logoUrl={business?.logoUrl}
       homeHref={homeHref}
-      navItems={navItems}
+      navItems={isStoreUser ? organizeBusinessNavigation(navItems) : navItems}
+      businessNavigation={isStoreUser}
       businessSwitcher={
         (businessContexts?.canSwitch ||
           groupReportingContexts.some((group) => group.canViewAllStores)) &&

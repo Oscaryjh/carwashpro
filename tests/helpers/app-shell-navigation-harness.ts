@@ -15,7 +15,7 @@ export async function appShellNavigationHarness(sourceRoot = process.cwd()) {
   const stubs: Record<string, string> = {
     "next/link": "import{createElement}from'react';export default({children,...props})=>createElement('a',props,children);",
     "next/navigation": "export const usePathname=()=>globalThis.__appShellNavigation.pathname;export const useSearchParams=()=>new URLSearchParams(globalThis.__appShellNavigation.query);export function redirect(){throw Error('REDIRECT')};",
-    "@/lib/prisma": "export const prisma={business:{findUnique:async()=>({name:'Local',industryType:'SALON_BEAUTY',cashierShiftsEnabled:true})}};",
+    "@/lib/prisma": "export const prisma={business:{findUnique:async()=>({name:'Local',industryType:'SALON_BEAUTY',cashierShiftsEnabled:true})},whatsAppConversation:{aggregate:async()=>({_sum:{unreadCount:3}})}};",
     "@/lib/modules/entitlements": "export const loadBusinessModuleContext=async()=>({enabledModules:new Set(globalThis.__appShellNavigation.modules)});",
     // Optional in workspaces that already contain Wallet navigation; no Wallet UI/readers are bundled.
     "@/lib/wallet/hub-availability": "export const canViewWalletHub=async()=>true;",
@@ -34,6 +34,7 @@ export async function appShellNavigationHarness(sourceRoot = process.cwd()) {
     plugins: [{ name: "app-shell-navigation-io", setup(builder) {
       builder.onResolve({ filter: /.*/ }, args => stubs[args.path] ? { path: args.path, namespace: "navigation-io" } : undefined);
       builder.onLoad({ filter: /.*/, namespace: "navigation-io" }, args => ({ contents: stubs[args.path], resolveDir: sourceRoot }));
+      builder.onLoad({ filter: /\.css$/ }, () => ({ contents: "export default new Proxy({}, {get:(_,key)=>key});", loader: "js" }));
     } }],
   });
   const compiled = { exports: {} };

@@ -31,23 +31,22 @@ function navigationProps(role: "BUSINESS_OWNER" | "STAFF" | "GROUP_MANAGER_READ_
   };
 }
 
-test("Packages follows an existing Wallet entry, otherwise Cashier; authorized Catalog roles keep management", async () => {
+test("Packages appears in Catalog after Products; authorized Catalog roles keep management", async () => {
   const h = await appShellNavigationHarness();
   try {
     for (const modules of [["POS", "SALON", "WALLET"], ["POS", "SALON"]]) {
       h.state.modules = modules;
       for (const role of ["BUSINESS_OWNER", "STAFF", "GROUP_MANAGER_READ_ONLY"] as const) {
       const frame = await h.api.AppShell(navigationProps(role));
-      const nav = frame.props.navItems, hub = nav.findIndex(n => n.href === "/package-hub");
+      const nav = frame.props.navItems;
       const catalog = nav.find(n => n.label === "Catalog")?.children ?? [];
+      const hub = catalog.findIndex(n => n.href === "/package-hub");
       if (role === "BUSINESS_OWNER") {
-        const wallet = nav.findIndex(n => n.href === "/wallet");
         assert.ok(hub > 0);
-        assert.equal(hub, nav.findIndex(n => n.href === (wallet >= 0 ? "/wallet" : "/cashier")) + 1);
-        assert.equal(nav[hub + 1].href, "/services");
-        assert.equal(nav[hub + 2].href, "/products");
-        assert.equal(nav[hub + 3].href, "/appointments");
-        assert.equal(nav[hub].label, "Packages");
+        assert.equal(catalog[hub - 2].href, "/services");
+        assert.equal(catalog[hub - 1].href, "/products");
+        assert.equal(catalog[hub].label, "Packages");
+        assert.ok(!nav.some(n => n.href === "/package-hub"));
         assert.ok(!catalog.some(n => n.href === "/packages"));
       }
       else { assert.equal(hub, -1); assert.ok(catalog.some(n => n.href === "/packages")); }
@@ -66,7 +65,7 @@ test("Packages navigation preserves Owner, POS, Business and existing Staff perm
       if (mode === "business-mismatch" && props.access?.granted) props.access.businessId = "another-business";
       if (mode === "no-access") props.access = undefined;
       const nav = (await h.api.AppShell(props)).props.navItems;
-      assert.ok(!nav.some(item => item.href === "/package-hub"), mode);
+      assert.ok(!nav.flatMap(item => item.children ?? [item]).some(item => item.href === "/package-hub"), mode);
       if (mode === "staff-no-permission") assert.ok(!nav.some(item => item.children?.some(child => child.href === "/packages")));
     }
   } finally { h.close(); }
