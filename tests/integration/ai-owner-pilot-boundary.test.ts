@@ -207,4 +207,53 @@ test("Pilot replay never returns an unsafe old successful answer and rechecks mo
   assert.equal(f.captured.length, 0);
 });
 
+// Break caught: editable scope/source text or internal routing IDs enter the final SDK request.
+test("Pilot final SDK request excludes free-text markers without losing numeric facts or UI scope", async t => {
+  const f = await fixture();
+  const markers = {
+    business: "BUSINESS_NAME_MARKER_483", branch: "BRANCH_NAME_MARKER_592",
+    customer: "CUSTOMER_NAME_MARKER_613", customerNote: "CUSTOMER_NOTE_MARKER_614",
+    expenseNote: "EXPENSE_NOTE_MARKER_731", payee: "EXPENSE_PAYEE_MARKER_732",
+    expenseDescription: "EXPENSE_DESCRIPTION_MARKER_733", reference: "EXPENSE_REFERENCE_MARKER_734",
+    appointmentNote: "APPOINTMENT_NOTE_MARKER_826", phone: "PHONE_MARKER_827",
+    product: "PRODUCT_NAME_MARKER_901", productDescription: "PRODUCT_DESCRIPTION_MARKER_902",
+    service: "SERVICE_NAME_MARKER_903", serviceDescription: "SERVICE_DESCRIPTION_MARKER_904",
+    category: "CATEGORY_NAME_MARKER_905", staff: "STAFF_DISPLAY_NAME_MARKER_906",
+  };
+  await prisma.business.update({ where: { id: f.business.id }, data: { name: markers.business } });
+  await prisma.branch.update({ where: { id: f.branch.id }, data: { name: markers.branch } });
+  await prisma.user.update({ where: { id: f.owner.id }, data: { name: markers.staff } });
+  const category = await prisma.expenseCategory.create({ data: { businessId: f.business.id, name: markers.category, code: "PRIVATE" } });
+  await prisma.businessExpense.create({ data: { businessId: f.business.id, branchId: f.branch.id, expenseNumber: "SYNTHETIC", categoryId: category.id, categoryNameSnapshot: markers.category, branchNameSnapshot: markers.branch, amount: 12, expenseDate: now, description: markers.expenseDescription, notes: markers.expenseNote, payeeName: markers.payee, paymentReference: markers.reference, status: "CONFIRMED", confirmedAt: now, confirmedById: f.owner.id, createdById: f.owner.id } });
+  await prisma.invoice.create({ data: { businessId: f.business.id, branchId: f.branch.id, invoiceNumber: "INVOICE_REFERENCE_MARKER_907", total: 100, subtotal: 100, paidAmount: 100, balance: 0, status: "PAID", issuedAt: now } });
+  await prisma.payment.create({ data: { businessId: f.business.id, branchId: f.branch.id, amount: 100, method: "CASH", purpose: "SALE", paidAt: now } });
+  const product = await prisma.product.create({ data: { businessId: f.business.id, name: markers.product, description: markers.productDescription, category: markers.category, price: 20, trackInventory: true } });
+  await prisma.productStock.create({ data: { businessId: f.business.id, branchId: f.branch.id, productId: product.id, quantity: 5, reorderLevel: 6 } });
+  const service = await prisma.service.create({ data: { businessId: f.business.id, name: markers.service, description: markers.serviceDescription, category: markers.category, price: 10 } });
+  const customer = await prisma.customer.create({ data: { businessId: f.business.id, name: markers.customer, notes: markers.customerNote, phone: markers.phone } });
+  await prisma.appointment.create({ data: { businessId: f.business.id, branchId: f.branch.id, customerId: customer.id, serviceId: service.id, scheduledAt: now, notes: markers.appointmentNote, contactPhone: markers.phone } });
+  const requests: { instructions: string }[] = [];
+  const provider = new OpenAiProvider({ apiKey: "synthetic-unused-key", model: "gpt-5.4-mini" }, { responses: { create: async (request: { instructions: string }) => {
+    requests.push(request);
+    return { output_text: JSON.stringify({ intent: "GENERAL_BUSINESS", language: "en", temporalSemantics: "PERIOD", summary: "Synthetic facts only.", evidence: [], caveats: [], recommendations: [], followUpQuestions: [] }), model: "synthetic-returned-model" };
+  } } } as never);
+  const user = f.session(f.owner);
+  const access = await resolveBusinessAccess({ userId: user.userId, requestedBusinessId: f.business.id });
+  const result = await askTetamuAi({ user, scope: { type: "BUSINESS", businessId: f.business.id, selectedBranchId: f.branch.id, access, user }, question: "Overall business summary", clientRequestId: randomUUID(), range: "month" }, { provider, now });
+  assert.equal(requests.length, 1);
+  const outbound = JSON.stringify(requests[0]);
+  for (const marker of [...Object.values(markers), "INVOICE_REFERENCE_MARKER_907", f.business.id, f.branch.id, f.owner.id, product.id, service.id, customer.id, category.id]) assert.equal(outbound.includes(marker), false, `Outbound request leaked ${marker}`);
+  const context = JSON.parse(requests[0].instructions.split("TETAMU_PERMISSION_FILTERED_CONTEXT_JSON:\n")[1]) as { scope: unknown; metrics: { metricKey: string; value: unknown }[] };
+  assert.deepEqual(context.scope, { type: "BUSINESS" });
+  const values = Object.fromEntries(context.metrics.map(m => [m.metricKey, m.value]));
+  assert.deepEqual(values, { NET_SALES: "100.00", GROSS_SALES: "100.00", REFUNDS: "0.00", TRANSACTIONS: 1, AVERAGE_TRANSACTION: "100.00", PAYMENTS_COLLECTED: "100.00", PAYMENTS_CASH: "100.00", PAYMENTS_CARD: "0.00", PAYMENTS_DUITNOW: "0.00", PAYMENTS_BANK_TRANSFER: "0.00", RECORDED_BUSINESS_SPENDING: "12.00", MANUAL_SPENDING: "12.00", CLAIM_SPENDING: "0.00", TRACKED_PRODUCTS: 1, LOW_STOCK_COUNT: 1, OUT_OF_STOCK_COUNT: 0, INVENTORY_SELLING_VALUE: "100.00", APPOINTMENTS_TOTAL: 1, APPOINTMENTS_SCHEDULED: 1, APPOINTMENTS_COMPLETED: 0, APPOINTMENTS_CANCELLED: 0, APPOINTMENTS_NO_SHOW: 0 });
+  const message = await prisma.aiMessage.findFirstOrThrow({ where: { conversationId: result.conversationId, role: "ASSISTANT" } });
+  const metadata = message.structuredMetadata as { scopeSnapshot: { businessId: string; businessName: string; selectedBranchId: string; selectedBranchName: string } };
+  assert.equal(metadata.scopeSnapshot.businessId, f.business.id);
+  assert.equal(metadata.scopeSnapshot.businessName, markers.business);
+  assert.equal(metadata.scopeSnapshot.selectedBranchId, f.branch.id);
+  assert.equal(metadata.scopeSnapshot.selectedBranchName, markers.branch);
+  t.diagnostic(`FINAL_FAKE_SDK_REQUEST=${outbound}`);
+});
+
 test.after(async () => { await prisma.$disconnect(); });

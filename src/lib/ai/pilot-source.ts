@@ -68,7 +68,7 @@ export async function readOwnerPilotContext(input: Awaited<ReturnType<typeof res
     void _from; void _to;
     const scopeSnapshot: AiScopeSnapshot = { scopeType: "BUSINESS", businessId: business.id, businessName: business.name,
       ...(input.selectedBranch ? { selectedBranchId: input.selectedBranch.id, selectedBranchName: input.selectedBranch.name } : {}), ...dates };
-    const payload = { version: "owner-pilot/1", scope: { type: "BUSINESS", name: business.name }, period: dates, metrics,
+    const payload = { version: "owner-pilot/1", scope: { type: "BUSINESS" }, period: dates, metrics,
       coverage: grants.map(g => ({ domain: g.domain, available: true })),
       limitations: ["Confirmed Expenses include only permitted operating expense sources; they are not total business spending or accounting profit.", "Inventory quantities are a current snapshot, not historical movements.", "Missing sources are unavailable, not zero."],
     };

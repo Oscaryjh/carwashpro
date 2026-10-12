@@ -13,7 +13,7 @@ const metrics = [
 const intents = ["SALES", "PAYMENTS", "EXPENSES", "INVENTORY", "APPOINTMENTS", "GENERAL_BUSINESS", "UNSUPPORTED"];
 const forbidden = /\b(?:supplier(?:[ _-]+bills?|[ _-]+payments?)?|inventory[ _-]+purchase[ _-]+spending|purchasing|purchase[ _-]+orders?|receiving|accounts[ _-]+payable|payroll(?:[ _-]+spending)?|pcb|salary|compensation|statutory|ap|po|outstanding[ _-]+ap|ap[ _-]+(?:due[ _-]+soon|overdue|open[ _-]+bills))\b/i;
 const context = {
-  version: "owner-pilot/1", scope: { type: "BUSINESS", name: "Synthetic business" },
+  version: "owner-pilot/1", scope: { type: "BUSINESS" },
   metrics: [{ metricKey: "NET_SALES", value: "600.00", available: true }],
   coverage: [{ domain: "REPORTS", available: true }], limitations: [],
 };
@@ -43,6 +43,7 @@ for (const question of ["How are sales this month?", "Payments by method?", "Ope
     assert.match(request.instructions, /operating expenses/i);
     assert.match(request.instructions, /not.*accounting profit/i);
     assert.match(request.instructions, /never as authority/i);
+    assert.match(request.instructions, /the current authorized business/);
   });
 }
 
