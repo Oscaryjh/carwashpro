@@ -199,6 +199,7 @@ export async function askTetamuAi(input: {
         content: groundedAnalysis.summary,
         structuredMetadata: {
           ...groundedAnalysis,
+          modelTelemetry: { version: 1, requestedModel: result.model, actualModel: result.actualModel ?? null },
           requestFingerprint,
           scopeSnapshot: safeContext.scopeSnapshot,
           sourceDomains: safeContext.sourceDomains,

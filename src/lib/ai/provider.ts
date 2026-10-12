@@ -8,6 +8,8 @@ export type AiProviderResult = {
   analysis: AiAnalysis;
   provider: string;
   model: string;
+  // model retains its legacy configured/requested semantics; never infer actual from it.
+  actualModel?: string | null;
   usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null };
   providerRequestId?: string | null;
 };
@@ -43,7 +45,7 @@ export function createAiProvider(env: NodeJS.ProcessEnv = process.env): AiProvid
 export class OpenAiProvider implements AiProvider {
   private readonly client: Pick<OpenAI, "responses">;
   constructor(private readonly config: { apiKey: string; model: string; maxOutputTokens?: number }, client?: Pick<OpenAI, "responses">) {
-    this.client = client ?? new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 1 });
+    this.client = client ?? new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 0 });
   }
 
   async analyze(input: Parameters<AiProvider["analyze"]>[0]): Promise<AiProviderResult> {
@@ -85,6 +87,7 @@ export class OpenAiProvider implements AiProvider {
       analysis: validateAiAnalysis(parsed),
       provider: "openai",
       model: this.config.model,
+      actualModel: typeof response.model === "string" && response.model.trim() ? response.model : null,
       usage: {
         inputTokens: response.usage?.input_tokens ?? null,
         outputTokens: response.usage?.output_tokens ?? null,
@@ -160,6 +163,7 @@ export class MockAiProvider implements AiProvider {
       }),
       provider: "mock",
       model: this.model,
+      actualModel: null,
       usage: { inputTokens: Math.ceil(JSON.stringify(input).length / 4), outputTokens: 120, totalTokens: Math.ceil(JSON.stringify(input).length / 4) + 120 },
     };
   }

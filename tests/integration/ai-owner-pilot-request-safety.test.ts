@@ -50,6 +50,33 @@ test("success, follow-up and Q1 replay persist and consume exactly their origina
   assert.equal(await prisma.aiUsageEvent.count({ where: { businessId: f.business.id, eventType: "SUCCEEDED", commerciallyCounted: true } }), 2);
 });
 
+test("actual model persists on the exact linked assistant and replay preserves original telemetry", async () => {
+  const f = await fixture();
+  const q1 = f.request();
+  const provider: AiProvider = { analyze: async input => ({ ...await f.provider.analyze(input), actualModel: "gpt-5.4-mini-2026-03-17", providerRequestId: "req_original_synthetic" }) };
+  const original = await f.ask(q1, provider);
+  const usage = await prisma.aiUsage.findFirstOrThrow({ where: { businessId: f.business.id }, include: { message: true } });
+  assert.equal(usage.model, "tetamu-mock-1");
+  assert.equal(usage.providerRequestId, "req_original_synthetic");
+  const metadata = usage.message!.structuredMetadata as Record<string, unknown>;
+  assert.deepEqual(metadata.modelTelemetry, { version: 1, requestedModel: "tetamu-mock-1", actualModel: "gpt-5.4-mini-2026-03-17" });
+  const replay = await f.ask(q1, { analyze: async () => { throw new Error("replay must not dispatch"); } });
+  assert.equal(replay.analysis.summary, original.analysis.summary);
+  assert.equal(f.calls(), 1);
+  const saved = await prisma.aiUsage.findUniqueOrThrow({ where: { id: usage.id }, include: { message: true } });
+  assert.deepEqual(saved, usage);
+  const summary = await f.summary();
+  assert.equal(summary.configured && summary.usedRequests, 1);
+  assert.equal(summary.configured && summary.reservedRequests, 0);
+});
+
+test("missing actual model persists explicit null without backfilling from requested model", async () => {
+  const f = await fixture(); await f.ask();
+  const usage = await prisma.aiUsage.findFirstOrThrow({ where: { businessId: f.business.id }, include: { message: true } });
+  const metadata = usage.message!.structuredMetadata as Record<string, unknown>;
+  assert.deepEqual(metadata.modelTelemetry, { version: 1, requestedModel: "tetamu-mock-1", actualModel: null });
+});
+
 test("same key binds question, dates, branch absence/null/value and original conversation semantic", async () => {
   const f = await fixture(); const request = f.request(); const answer = await f.ask(request);
   for (const changed of [{ question: "Different question" }, { range: "today" }, { from: "2026-10-01" }, { conversationId: answer.conversationId }, { scope: { ...f.scope, selectedBranchId: f.branch.id } }]) {
