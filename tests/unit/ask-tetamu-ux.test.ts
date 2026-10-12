@@ -68,7 +68,7 @@ test("conversation sidebar contains navigation only and hides normal usage", () 
   assert.doesNotMatch(page, /AI usage|questions remaining|styles\.usage/i);
   assert.match(page, /archivedMode \? "Archived" : "Conversations"/);
   assert.match(page, /aria-label="Ask Tetamu conversations"/);
-  assert.match(page, /Start a new conversation/);
+  assert.match(page, /AskTetamuNewChat href=\{newConversationHref\(params\)\}/);
   assert.equal(getAiUsageNotice({
     configured: true,
     status: "ACTIVE",
@@ -102,7 +102,7 @@ test("archived conversations are available from the sidebar footer and can be re
 
   assert.match(page, /Archived conversations/);
   assert.match(page, /conversationListFooter/);
-  assert.match(page, /archivedAt: \{ not: null \}/);
+  // Archived history now goes through the same safe-history reader as active history.
   assert.match(page, /RestoreConversationButton/);
   assert.match(page, /conversation\.id} iconOnly/);
   assert.match(control, /restoreAiConversationAction/);
@@ -113,12 +113,15 @@ test("archived conversations are available from the sidebar footer and can be re
   assert.match(styles, /\.conversationListFooter/);
 });
 
-test("mobile drawer reuses the conversation-only sidebar at phone widths", () => {
+test("tablet and mobile panel reuse the conversation-only sidebar", () => {
   const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
+  const frame = readFileSync("src/components/ask-tetamu-chat-frame.tsx", "utf8");
   const styles = readFileSync("src/components/ask-tetamu.module.css", "utf8");
-  assert.match(page, /<details className=\{styles\.mobileConversations\}>[\s\S]*\{sidebar\}[\s\S]*<\/details>/);
-  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.sidebar\s*\{[\s\S]*display: none;/);
-  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.mobileConversations\s*\{[\s\S]*display: block;/);
+  assert.match(page, /<AskTetamuChatFrame sidebar=\{sidebar\}/);
+  assert.match(frame, /aria-expanded=\{open\}/);
+  assert.match(frame, /aria-controls="ask-conversations-panel"/);
+  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.chatSidebar\s*\{[\s\S]*display: none;/);
+  assert.match(styles, /\.chatSidebarOpen/);
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*\.composerSection/);
 });
 
@@ -155,13 +158,13 @@ test("exhausted usage has a natural reset message and disables Ask", () => {
     timezone: "Asia\/Kuala_Lumpur",
   });
   const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
-  const chat = readFileSync("src/components/ai-business-chat.tsx", "utf8");
   assert.equal(notice?.kind, "EXHAUSTED");
   assert.match(notice?.message ?? "", /reached this month's Ask Tetamu limit/i);
   assert.match(notice?.message ?? "", /Available again on 1 Sep 2026/i);
-  assert.match(page, /allowance\.remainingRequests === 0/);
-  assert.match(chat, /disabled=\{props\.quotaBlocked \|\| pending\}/);
-  assert.match(chat, /disabled=\{props\.quotaBlocked \|\| pending \|\| !question\.trim\(\)\}/);
+  const state = readFileSync("src/components/ask-tetamu-view-state.ts", "utf8");
+  assert.match(state, /input\.remainingRequests === 0/);
+  assert.match(page, /usageNotice\?\.message/);
+  // Composer disabled/pending behavior is exercised by the rendered interaction tests.
 });
 
 test("backend quota reservation and enforcement remain connected", () => {

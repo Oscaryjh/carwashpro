@@ -3,12 +3,14 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { askTetamuAi, AiServiceError, getAiWorkspace } from "@/lib/ai/service";
+import { aiServiceModule } from "../helpers/ai-service-import";
 import { MockAiProvider } from "@/lib/ai/provider";
 import type { AppSession } from "@/lib/auth/session";
 import type { UserRole, UserStatus } from "@prisma/client";
 import { createAiAllowancePolicy } from "@/lib/ai/commercial";
 
+let { askTetamuAi, AiServiceError, getAiWorkspace } = {} as Awaited<ReturnType<typeof aiServiceModule>>;
+test.before(async () => { ({ askTetamuAi, AiServiceError, getAiWorkspace } = await aiServiceModule()); });
 async function provisionAllowance(input: { businessId?: string; groupId?: string }) {
   const actor = await prisma.user.create({ data: { name: "AI quota platform QA", email: `ai.policy.${randomUUID()}@test.local`, role: "PLATFORM_ADMIN" } });
   await createAiAllowancePolicy({
@@ -76,7 +78,7 @@ test("AI disabled fails closed even for business owner", async () => {
   assert.equal(await prisma.aiConversation.count({ where: { businessId: business.id } }), 0);
 });
 
-test("restricted group manager context contains only authorised businesses", async () => {
+test("Owner Pilot keeps Group history routes but denies new Group analysis", async () => {
   const token = randomUUID().slice(0, 8);
   const [businessA, businessB] = await Promise.all([
     prisma.business.create({ data: { name: `AI Group A ${token}`, slug: `ai-group-a-${token}`, industryType: "SALON_BEAUTY" } }),
@@ -100,22 +102,20 @@ test("restricted group manager context contains only authorised businesses", asy
     providerContext = input.context;
     return new MockAiProvider().analyze(input);
   } };
-  await askTetamuAi({ user: sessionFor(user), scope: { type: "GROUP", groupId: group.id, currentBusinessId: businessA.id }, question: "Compare stores", clientRequestId: randomUUID() }, { provider });
-  const serialized = JSON.stringify(providerContext);
-  assert.match(serialized, new RegExp(businessA.name));
-  assert.doesNotMatch(serialized, new RegExp(businessB.name));
-  assert.doesNotMatch(serialized, /Restricted B/);
+  await assert.rejects(askTetamuAi({ user: sessionFor(user), scope: { type: "GROUP", groupId: group.id, currentBusinessId: businessA.id }, question: "Compare stores", clientRequestId: randomUUID() }, { provider }), /AI_PILOT_GROUP_DENIED/);
+  assert.equal(providerContext, null);
+  assert.equal(await prisma.aiUsage.count({ where: { groupId: group.id } }), 0);
 });
 
-test("branch-scoped staff context excludes other branches and rapid requests are rate limited", async () => {
+test("Owner Pilot explicit branch scope and existing rate limit stay enforced", async () => {
   const token = randomUUID().slice(0, 8);
   const business = await prisma.business.create({ data: { name: `AI Branch ${token}`, slug: `ai-branch-${token}`, industryType: "SALON_BEAUTY" } });
   const [allowedBranch, otherBranch] = await Promise.all([
     prisma.branch.create({ data: { businessId: business.id, name: "Allowed Branch" } }),
     prisma.branch.create({ data: { businessId: business.id, name: "Other Branch" } }),
   ]);
-  const user = await prisma.user.create({ data: { businessId: business.id, branchId: allowedBranch.id, name: "AI Staff", email: `ai.staff.${token}@test.local`, role: "STAFF", permissions: ["AI_ANALYSIS_USE"] } });
-  await prisma.businessModuleEntitlement.create({ data: { businessId: business.id, moduleKey: "AI", status: "ENABLED", enabledFrom: new Date(0), source: "MANUAL", createdById: user.id, updatedById: user.id } });
+  const user = await prisma.user.create({ data: { businessId: business.id, branchId: allowedBranch.id, name: "AI Owner", email: `ai.owner.${token}@test.local`, role: "BUSINESS_OWNER", permissions: [] } });
+  await prisma.businessModuleEntitlement.createMany({ data: (["AI", "POS"] as const).map(moduleKey => ({ businessId: business.id, moduleKey, status: "ENABLED", enabledFrom: new Date(0), source: "MANUAL", createdById: user.id, updatedById: user.id })) });
   await provisionAllowance({ businessId: business.id });
   const session = sessionFor(user);
   const access = { granted: true as const, userId: user.id, homeBusinessId: business.id, businessId: business.id, branchId: allowedBranch.id, identityRole: user.role, actorRole: user.role, effectiveBusinessRole: "STAFF" as const, source: "DIRECT_BUSINESS" as const, industryType: business.industryType, permissions: user.permissions, groupId: null, groupUserId: null, capability: "USE_AI_ANALYSIS" as const };
@@ -126,9 +126,9 @@ test("branch-scoped staff context excludes other branches and rapid requests are
   process.env.AI_REQUESTS_PER_USER_MINUTE = "1";
   process.env.AI_REQUESTS_PER_SCOPE_MINUTE = "10";
   try {
-    await askTetamuAi({ user: session, scope: { type: "BUSINESS", businessId: business.id, access, user: session }, question: "Analyse branch", clientRequestId: randomUUID() }, { provider });
+    await askTetamuAi({ user: session, scope: { type: "BUSINESS", businessId: business.id, access, user: session, selectedBranchId: allowedBranch.id }, question: "Analyse branch", clientRequestId: randomUUID() }, { provider });
     const serialized = JSON.stringify(providerContext);
-    assert.match(serialized, /authorisedBranchCount\":1/);
+    assert.match(serialized, /NET_SALES/);
     assert.doesNotMatch(serialized, new RegExp(otherBranch.name));
     await assert.rejects(
       askTetamuAi({ user: session, scope: { type: "BUSINESS", businessId: business.id, access, user: session }, question: "Again", clientRequestId: randomUUID() }, { provider }),

@@ -4,6 +4,83 @@
   gap: 16px;
 }
 
+/* Conversation-first Business UI. Legacy Group AI styles remain unchanged. */
+.chatWorkspace {
+  --surface: var(--panel);
+  height: calc(100dvh - 36px);
+  min-height: 320px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+.chatSidebar, .chatMain { min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.chatSidebar { overflow: hidden; }
+.chatSidebar .conversationList { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; }
+.chatSidebar .conversationList nav { max-height: none; align-content: start; }
+.chatSidebar .sidebarHeading { flex-direction: column; align-items: stretch; padding: 14px; }
+.chatSidebar .sidebarHeading > :is(a, button) { min-height: 44px; justify-content: center; }
+.chatSidebar .conversationListFooter a { min-height: 44px; }
+.chatMain { display: flex; flex-direction: column; overflow: hidden; }
+.chatHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.chatHeader h1 { margin: 0; font-size: 22px; }
+.chatHeader p { margin: 4px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.chatContext { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.modeBadge { font-size: 11px; color: var(--accent-strong); background: #e9f6f3; border-radius: 999px; padding: 6px 9px; }
+.periodPicker { position: relative; }
+.periodPicker summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 9px; font-size: 13px; }
+.periodPicker[open] > nav { position: absolute; z-index: 10; right: 0; top: 48px; display: grid; width: 180px; box-shadow: 0 8px 24px #153d3020; background: var(--surface); }
+.periodPicker .rangeTabs a { min-height: 44px; }
+.periodPicker[open] .filterForm { position: absolute; z-index: 11; right: 0; top: 238px; width: 240px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px #153d3020; }
+.chatConversation { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.chatScroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; }
+.chatEmpty { min-height: 100%; max-width: 800px; margin-inline: auto; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 12px; padding: 20px 0; }
+.chatEmpty > span { color: var(--accent); font-size: 30px; }
+.chatEmpty h2, .chatEmpty p { margin: 0; }
+.chatEmpty > p { color: var(--muted); }
+.chatEmpty .suggestions { margin-top: 12px; width: 100%; }
+.chatEmpty .suggestions > div:first-child { display: none; }
+.chatEmpty .suggestionChips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.chatEmpty .suggestionChips button { min-height: 60px; border-radius: 10px; white-space: normal; text-align: left; padding: 12px; }
+.chatConversation .history { width: min(100%, 860px); padding: 0; }
+.chatConversation .message { overflow-wrap: anywhere; max-width: 100%; }
+.chatConversation .userMessage { max-width: 85%; }
+.chatConversation .assistantMessage { border: 0; background: transparent; padding-inline: 0; }
+.chatConversation .answerDetails { min-width: 0; }
+.chatConversation .composerSection { flex: 0 0 auto; margin-top: 0; gap: 6px; padding: 12px 18px; background: var(--surface); }
+.chatConversation .composer, .chatConversation .composerMeta, .chatConversation .readOnlyNotice { width: min(100%, 860px); margin-inline: auto; }
+.chatConversation .composer > label { font-size: 12px; }
+.chatConversation .composerBox { align-items: flex-end; }
+.chatConversation textarea { min-height: 64px; max-height: 150px; resize: vertical; padding: 12px; }
+.chatConversation .composerBox > button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 10px; font-size: 22px; }
+.chatConversation .disabledState { border: 0; background: transparent; color: var(--muted); padding: 8px 0; }
+.chatConversation .readOnlyNotice { padding: 0; font-size: 11px; text-align: center; }
+.conversationsToggle { display: none; }
+.chatWorkspace :is(button, a, summary, textarea, input):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 1180px) {
+  .chatWorkspace { grid-template-columns: 220px minmax(0, 1fr); padding: 12px; gap: 10px; }
+  .chatHeader { padding: 12px; align-items: flex-start; }
+  .chatHeader h1 { font-size: 20px; }
+  .chatContext { max-width: 180px; }
+}
+@media (max-width: 900px) {
+  .chatWorkspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); position: relative; }
+  .conversationsToggle { display: flex; justify-content: space-between; align-items: center; min-height: 44px; background: var(--surface); color: var(--accent-strong); border: 1px solid var(--border); box-shadow: none; }
+  .chatSidebar { display: none; }
+  .chatSidebarOpen { display: block; position: absolute; z-index: 20; left: 12px; top: 62px; bottom: 12px; width: min(280px, calc(100% - 24px)); box-shadow: 0 12px 32px #12382a30; }
+  .chatEmpty .suggestionChips { grid-template-columns: minmax(0, 1fr); }
+  .chatScroll { padding: 12px; }
+  .chatConversation .composerSection { padding: 10px 12px; }
+  .chatConversation .composerMeta { flex-wrap: wrap; }
+}
+@media (max-width: 767px) {
+  .chatWorkspace { height: calc(100dvh - 84px); min-height: 320px; padding: 8px; }
+  .chatHeader { flex-wrap: wrap; }
+  .chatContext { max-width: none; }
+}
+
 .pageHeader {
   display: flex;
   align-items: flex-start;

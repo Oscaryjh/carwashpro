@@ -214,22 +214,34 @@ export async function finalizeAiSuccess(input: EventInput & {
   reservationId?: string | null;
   persist: (tx: Prisma.TransactionClient) => Promise<void>;
 }) {
-  await prisma.$transaction(async (tx) => {
+  await finalizeWithTransactionRetry(async (tx) => {
     await input.persist(tx);
     if (input.reservationId) await consumeAiQuotaInTransaction(tx, { ...input, reservationId: input.reservationId });
     else await createUncountedEvent(tx, input, true);
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 export async function finalizeAiFailure(input: EventInput & {
   reservationId?: string | null;
   persist: (tx: Prisma.TransactionClient) => Promise<void>;
 }) {
-  await prisma.$transaction(async (tx) => {
+  await finalizeWithTransactionRetry(async (tx) => {
     await input.persist(tx);
     if (input.reservationId) await releaseAiQuotaInTransaction(tx, { ...input, reservationId: input.reservationId });
     else await createUncountedEvent(tx, input, false);
-  }, { isolationLevel: "Serializable" });
+  });
+}
+
+async function finalizeWithTransactionRetry(persist: (tx: Prisma.TransactionClient) => Promise<void>) {
+  // Retry only rolled-back database work, never the external provider call.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await prisma.$transaction(persist, { isolationLevel: "Serializable" });
+      return;
+    } catch (error) {
+      if (!isRetryableTransactionFailure(error) || attempt >= 4) throw error;
+    }
+  }
 }
 
 export async function recordUncountedAiEvent(input: EventInput & { succeeded: boolean }) {
@@ -288,7 +300,8 @@ async function releaseAiQuotaInTransaction(tx: Prisma.TransactionClient, input: 
 export async function getAiCommercialSummary(scope: AiCommercialScope, now = new Date(), monthOffset = 0) {
   const policy = await findEffectivePolicy(prisma, scope.scopeKey, now);
   if (!policy) return { configured: false as const, status: "NOT_CONFIGURED" as const };
-  const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 15, 12));
+  const local = getBranchLocalDateParts(now, policy.timezone);
+  const target = monthOffset === 0 ? now : new Date(Date.UTC(local.year, local.month - 1 + monthOffset, 15, 12));
   const bounds = getCalendarMonthBounds(target, policy.timezone);
   const period = await prisma.aiAllowancePeriod.findUnique({
     where: { scopeKey_periodStart: { scopeKey: scope.scopeKey, periodStart: bounds.start } },

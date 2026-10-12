@@ -4,10 +4,12 @@ import { buildBusinessAiContext } from "@/lib/ai/context";
 import { getAiConfiguration, MockAiProvider, OpenAiProvider } from "@/lib/ai/provider";
 import { AI_CONTEXT_VERSION, AI_PROMPT_VERSION, validateAiAnalysis } from "@/lib/ai/schema";
 import { TETAMU_BUSINESS_ANALYST_SYSTEM_PROMPT } from "@/lib/ai/prompt";
-import { assertGroundedEvidence, removeUnavailableEvidence } from "@/lib/ai/service";
+import { aiServiceModule } from "../helpers/ai-service-import";
 import { MODULE_REGISTRY, modulesForCapability, modulesForStaffPermission } from "@/lib/modules/registry";
 import { canDirectStaff } from "@/lib/business-groups/capabilities";
 
+let { assertGroundedEvidence, removeUnavailableEvidence } = {} as Awaited<ReturnType<typeof aiServiceModule>>;
+test.before(async () => { ({ assertGroundedEvidence, removeUnavailableEvidence } = await aiServiceModule()); });
 const model = {
   scope: { businessId: "b", businessName: "Safe Salon", branchIds: ["x"], selectedBranchId: null },
   dateRange: { range: "month", from: "2026-08-01", to: "2026-08-31", previousFrom: "2026-07-01", previousTo: "2026-07-31", timezone: "Asia/Kuala_Lumpur", businessDayCutoffTime: "00:00" },

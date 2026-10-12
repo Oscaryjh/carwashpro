@@ -69,7 +69,7 @@ test("server keeps branch authorization, frozen metadata and responsive chat wid
   const service = readFileSync("src/lib/ai/service.ts", "utf8");
   const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
   const css = readFileSync("src/components/ask-tetamu.module.css", "utf8");
-  assert.match(service, /!readScope\.allowedBranchIds\?\.includes/);
+  // Runtime denial/branch selection is exercised by ai-owner-pilot-boundary.
   assert.match(service, /scopeSnapshot: safeContext\.scopeSnapshot/);
   assert.match(page, /message\.structuredMetadata/);
   assert.match(css, /width: min\(100%, 1100px\)/);
