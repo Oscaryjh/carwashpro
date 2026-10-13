@@ -178,7 +178,8 @@ export function AppShellFrame({
           )}
         </div>
         <nav ref={navRef} aria-label="Main navigation">
-          {navItems.map((item) => {
+          {(() => {
+          const renderedItems = navItems.map((item) => {
             if (item.children?.length) {
               const groupActive = isGroupActive(item);
               const groupOpen = isGroupOpen(item);
@@ -289,7 +290,22 @@ export function AppShellFrame({
               </Link>
               </Fragment>
             );
-          })}
+          });
+          // Layout only: retain the filtered order and existing item rendering.
+          // Other modes keep direct children for their existing CSS contracts.
+          if (!businessNavigation || !isTablet || !isCollapsed) return renderedItems;
+          const settingsStart = navItems.findIndex(item => item.separatorBefore);
+          return (
+            <>
+              <div className={styles.mainNavigation}>
+                {settingsStart < 0 ? renderedItems : renderedItems.slice(0, settingsStart)}
+              </div>
+              {settingsStart < 0 ? null : (
+                <div className={styles.bottomNavigation}>{renderedItems.slice(settingsStart)}</div>
+              )}
+            </>
+          );
+          })()}
         </nav>
         <div className="sidebar-footer">
           <PwaInstallButton />

@@ -173,3 +173,56 @@ test("disclosure and sidebar collapse controls use decorative SVG indicators, no
     assert.ok(doc.querySelector('.nav-group-chevron svg'));
   } finally { dom.window.close(); }
 });
+
+test("collapsed tablet isolates scrolling navigation from bottom settings without losing links or active icons", async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
+  const prior = { window: globalThis.window, document: globalThis.document };
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  dom.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  dom.window.localStorage.setItem("washflow-sidebar-collapsed", "true");
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  try {
+    await act(async () => root.render(await shell()));
+    const doc = dom.window.document;
+    const nav = doc.querySelector('nav[aria-label="Main navigation"]')!;
+    assert.ok(doc.querySelector('.app-shell.sidebar-collapsed.shell'));
+    const scrolling = nav.querySelector(':scope > .mainNavigation');
+    const bottom = nav.querySelector(':scope > .bottomNavigation');
+    assert.ok(scrolling, "collapsed tablet needs its own main scroll region");
+    assert.ok(bottom, "settings must not be inside the main scroll region");
+    assert.ok(scrolling.querySelector('button[title="Catalog"].active svg'));
+    assert.ok(scrolling.querySelector('a[href="/dashboard"][title="Dashboard"]'));
+    assert.equal(scrolling.querySelector('a[href="/business/settings"]'), null);
+    assert.ok(bottom.querySelector('a[href="/business/settings"]'));
+    assert.ok(bottom.querySelector('[title="Security"]'));
+    assert.equal(nav.querySelectorAll('a[href="/business/settings"]').length, 1);
+    assert.ok(nav.nextElementSibling?.matches('.sidebar-footer'));
+    await act(async () => (doc.querySelector('button[aria-label="Expand sidebar"]') as HTMLButtonElement).click());
+    assert.equal(nav.querySelector('.mainNavigation, .bottomNavigation'), null, "expanded DOM stays unchanged");
+    assert.ok(nav.querySelector(':scope > a[href="/dashboard"]'));
+  } finally {
+    await act(async () => root.unmount()); Object.assign(globalThis, prior);
+    Reflect.deleteProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT"); dom.window.close();
+  }
+});
+
+test("desktop and mobile collapsed navigation retain their original direct-child layout", async () => {
+  for (const width of [390, 1280, 1440]) {
+    const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
+    const prior = { window: globalThis.window, document: globalThis.document };
+    Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+    dom.window.matchMedia = (query: string) => ({ matches: width >= 768 && !query.includes("max-width"), addEventListener() {}, removeEventListener() {} });
+    dom.window.localStorage.setItem("washflow-sidebar-collapsed", "true");
+    const root = createRoot(dom.window.document.getElementById("root")!);
+    try {
+      await act(async () => root.render(await shell()));
+      const nav = dom.window.document.querySelector('nav[aria-label="Main navigation"]')!;
+      assert.equal(nav.querySelector('.mainNavigation, .bottomNavigation'), null, String(width));
+      assert.ok(nav.querySelector(':scope > a[href="/dashboard"]'));
+      assert.ok(nav.querySelector(':scope > a[href="/business/settings"]'));
+    } finally {
+      await act(async () => root.unmount()); Object.assign(globalThis, prior);
+      Reflect.deleteProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT"); dom.window.close();
+    }
+  }
+});

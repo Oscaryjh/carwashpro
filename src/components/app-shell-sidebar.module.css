@@ -35,4 +35,42 @@
   .shell:global(.sidebar-collapsed) :global(.sidebar .nav-group-toggle) { justify-content: center; padding: 9px; }
   .shell:global(.sidebar-collapsed) :global(.sidebar nav) { display: flex; overflow-y: auto; overflow-x: hidden; }
   .shell:global(.sidebar-collapsed) :global(.sidebar-footer .sidebar-toggle) { display: block; min-height: 44px; }
+
+  /* Explicit collapsed-tablet contract outranks legacy global collapsed/mobile
+     selectors regardless of CSS chunk order. No global or mobile overrides. */
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar) {
+    position: static; display: flex; flex-direction: column; align-items: stretch;
+    height: 100dvh; min-height: 0; overflow: hidden; gap: 12px;
+    grid-template-areas: none; grid-template-columns: none; grid-template-rows: none;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar .brand-fallback) { display: grid; }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar .brand-name),
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar nav .nav-label),
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar .nav-group-children) { display: none; }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar nav) {
+    display: flex; flex-direction: column; align-items: stretch; flex: 1 1 auto;
+    min-height: 0; overflow: hidden; grid-area: auto;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) .mainNavigation {
+    display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+    gap: 3px; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) .bottomNavigation {
+    display: flex; flex-direction: column; flex: 0 0 auto; gap: 3px;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar .nav-group) {
+    display: grid; width: 100%; flex: 0 0 auto;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar nav a),
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar .nav-group-toggle) {
+    display: flex; width: 100%; min-height: 44px; flex: 0 0 auto;
+    justify-content: center; padding: 9px;
+  }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar-footer) {
+    display: grid; width: 100%; flex: 0 0 auto; gap: 6px; margin: 0;
+    grid-area: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12);
+  }
+  .shell:global(.app-shell.sidebar-collapsed) :global(.sidebar-footer .sidebar-toggle) {
+    display: block; width: 100%; min-height: 44px;
+  }
 }
