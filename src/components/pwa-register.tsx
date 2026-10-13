@@ -1,8 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { startPwaUpdates, type UpdateState } from "@/lib/pwa/update-client";
+import styles from "./pwa-update.module.css";
 
 export function PwaRegister() {
+  const pathname = usePathname();
+  const [state, setState] = useState<UpdateState>("upToDate");
+  const [dismissedPath, setDismissedPath] = useState<string | null>(null);
+  const [pagePath, setPagePath] = useState(pathname);
+  if (pagePath !== pathname) {
+    setPagePath(pathname);
+    setDismissedPath(null);
+  }
+  const banner = useRef<HTMLElement | null>(null);
+  const visible = state !== "upToDate" && dismissedPath !== pathname;
+  const runtime = useRef<ReturnType<typeof startPwaUpdates> | null>(null);
+  const version = process.env.APP_BUILD_SHA ?? "";
   useEffect(() => {
     if (!("serviceWorker" in navigator)) {
       return;
@@ -19,7 +34,9 @@ export function PwaRegister() {
           Promise.all(
             registrations
               .filter((registration) =>
-                registration.scope.startsWith(window.location.origin),
+                registration.scope === window.location.origin + "/" &&
+                [registration.active, registration.waiting, registration.installing].some(worker =>
+                  worker && new URL(worker.scriptURL).pathname === "/sw.js"),
               )
               .map((registration) => registration.unregister()),
           ),
@@ -45,20 +62,46 @@ export function PwaRegister() {
       return;
     }
 
-    function registerServiceWorker() {
-      void navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
-        .catch(() => undefined);
-    }
+    runtime.current = startPwaUpdates(window, version, (next) => {
+      setDismissedPath(null);
+      setState(next);
+    });
+    return () => { runtime.current?.stop(); runtime.current = null; };
+  }, [version]);
 
-    if (document.readyState === "complete") {
-      registerServiceWorker();
-      return;
-    }
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const clear = () => {
+      root.style.setProperty("--pwa-banner-height", "0px");
+      root.classList.remove(styles.layoutActive);
+    };
+    if (!visible || !banner.current) { clear(); return; }
+    const element = banner.current;
+    const measure = () => {
+      root.style.setProperty("--pwa-banner-height", `${element.getBoundingClientRect().height}px`);
+      root.classList.add(styles.layoutActive);
+    };
+    measure();
+    const observer = typeof window.ResizeObserver === "function" ? new window.ResizeObserver(measure) : null;
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); clear(); };
+  }, [visible]);
 
-    window.addEventListener("load", registerServiceWorker, { once: true });
-    return () => window.removeEventListener("load", registerServiceWorker);
-  }, []);
-
-  return null;
+  return <>
+    {pathname === "/business/settings" && /^[a-f0-9]{40}$/i.test(version) &&
+      <small className={styles.version}>Version {version.slice(0, 7)}</small>}
+    {visible && <aside ref={banner} className={styles.banner} aria-label="App update">
+      <div role="status" aria-live="polite">
+        <strong>{state === "recoveryRequired" ? "Tetamu POS needs to refresh after an update." : "Tetamu POS has been updated."}</strong>
+        <span>Finish your current task, then refresh to continue. Unsaved changes may be lost.</span>
+      </div>
+      <div className={styles.actions}>
+      <button type="button" disabled={state === "applyingUpdate"} onClick={() => runtime.current?.refresh()}>
+        {state === "applyingUpdate" ? "Refreshing…" : state === "recoveryRequired" ? "Reload app" : "Refresh now"}
+      </button>
+      <button type="button" disabled={state === "applyingUpdate"} onClick={() => setDismissedPath(pathname)}>Later</button>
+      </div>
+    </aside>}
+  </>;
 }

@@ -1,0 +1,65 @@
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 20px;
+  background: #e7f5f2;
+  color: #163c36;
+  border-bottom: 1px solid #94c8bd;
+  overflow-wrap: anywhere;
+}
+.banner strong, .banner span { display: block; }
+.actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 8px; }
+.banner span { font-size: 13px; margin-top: 3px; }
+.banner button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #08655e;
+  background: #087f76;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+.banner button:focus-visible { outline: 3px solid #183f98; outline-offset: 3px; }
+.banner button:disabled { opacity: .65; cursor: wait; }
+.version { display: block; padding: 4px 20px; text-align: right; color: #526674; font-size: 12px; }
+@media (max-width: 600px) { .banner { flex-wrap: wrap; padding: 10px 12px; } }
+
+/* Reserve the measured banner height, rather than adding a second scroll owner.
+   Repeated local class outranks collapsed-tablet rules regardless of chunk order.
+   Widths, navigation state and touch-target geometry remain owned by Sidebar. */
+@media (min-width: 901px) {
+  .layoutActive.layoutActive :global(.app-shell),
+  .layoutActive.layoutActive :global(.app-shell.sidebar-collapsed),
+  .layoutActive.layoutActive :global(.app-shell .sidebar),
+  .layoutActive.layoutActive :global(.app-shell.sidebar-collapsed .sidebar),
+  .layoutActive.layoutActive :global(.app-shell .main) {
+    height: calc(100dvh - var(--pwa-banner-height, 0px));
+    min-height: 0;
+  }
+}
+@media (min-width: 768px) and (max-width: 900px) {
+  .layoutActive.layoutActive :global(.app-shell[data-pwa-layout="business"]),
+  .layoutActive.layoutActive :global(.app-shell[data-pwa-layout="business"] .sidebar),
+  .layoutActive.layoutActive :global(.app-shell[data-pwa-layout="business"] .main) {
+    height: calc(100dvh - var(--pwa-banner-height, 0px));
+    min-height: 0;
+  }
+  .layoutActive.layoutActive :global(.app-shell[data-pwa-layout="legacy"] .sidebar) {
+    top: var(--pwa-banner-height, 0px);
+  }
+}
+@media (max-width: 767px) {
+  .layoutActive.layoutActive :global(.app-shell .sidebar),
+  .layoutActive.layoutActive :global(.app-shell.sidebar-collapsed .sidebar) {
+    top: var(--pwa-banner-height, 0px);
+  }
+}

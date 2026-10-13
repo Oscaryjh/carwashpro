@@ -1,4 +1,8 @@
-const CACHE_NAME = "tetamu-pos-static-v3";
+// The registration URL pins this worker to the build SHA supplied by the server.
+const version = new URL(self.location.href).searchParams.get("v");
+const CACHE_NAME = /^[a-f0-9]{40}$/i.test(version || "")
+  ? `tetamu-pos-static-${version.toLowerCase()}`
+  : null;
 const APP_ASSETS = [
   "/manifest.webmanifest",
   "/staff/manifest.webmanifest",
@@ -9,16 +13,24 @@ const APP_ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_ASSETS)));
-  self.skipWaiting();
+  if (!CACHE_NAME) return;
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) =>
+    cache.addAll(APP_ASSETS.map((asset) => new Request(new URL(asset, self.location.origin), { cache: "reload" }))),
+  ));
+  // Updates wait until the user confirms. Never interrupt an in-progress form.
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
+  if (!CACHE_NAME) return;
   event.waitUntil(
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+        Promise.all(keys.filter((key) => key.startsWith("tetamu-pos-static-") && key !== CACHE_NAME).map((key) => caches.delete(key))),
       )
       .then(() => self.clients.claim()),
   );
@@ -26,7 +38,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET") {
+  if (!CACHE_NAME || request.method !== "GET") {
     return;
   }
 
@@ -36,23 +48,27 @@ self.addEventListener("fetch", (event) => {
   }
 
   // POS pages and APIs stay network-first so customer and payment data never goes stale.
-  if (request.mode === "navigate" || url.pathname.startsWith("/api/")) {
+  if (request.mode === "navigate" || url.pathname.startsWith("/api/") ||
+      request.headers.has("RSC") || request.headers.has("Next-Action") ||
+      url.searchParams.has("_rsc")) {
     return;
   }
 
   // Next.js chunks must always come from the active deployment. Caching route chunks
   // can hydrate new server props with an older client component after an update.
-  const cacheable =
-    url.pathname.startsWith("/pwa/") ||
+  const cacheable = !url.search && (
+    (url.pathname.startsWith("/pwa/") && APP_ASSETS.includes(url.pathname)) ||
     url.pathname === "/manifest.webmanifest" ||
-    url.pathname === "/staff/manifest.webmanifest";
+    url.pathname === "/staff/manifest.webmanifest"
+  );
 
   if (!cacheable) {
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request);
       if (cached) {
         return cached;
       }
@@ -60,7 +76,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(request).then((response) => {
         if (response.ok) {
           const copy = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          event.waitUntil(cache.put(request, copy));
         }
         return response;
       });

@@ -149,7 +149,7 @@ export function AppShellFrame({
   }
 
   return (
-    <div className={`app-shell${isCollapsed ? " sidebar-collapsed" : ""}${businessNavigation ? ` ${styles.shell}` : ""}`}>
+    <div data-pwa-layout={businessNavigation ? "business" : "legacy"} className={`app-shell${isCollapsed ? " sidebar-collapsed" : ""}${businessNavigation ? ` ${styles.shell}` : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
           {brandLogoControl ? (
