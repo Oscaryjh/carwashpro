@@ -103,9 +103,10 @@ export default async function BusinessSettingsPage({
           </div>
           <div className="company-modules-grid">
             {moduleKeys.filter((key) => MODULE_REGISTRY[key].operational).map((key) => (
-              <div className="company-module-card" key={key}>
+              <div className="company-module-card" key={key} style={key === "AI" ? { gridTemplateRows: "40px auto" } : undefined}>
                 <strong>{MODULE_REGISTRY[key].label}</strong>
-                <span className="company-module-status" data-enabled={moduleContext.enabledModules.has(key)}>{moduleContext.enabledModules.has(key) ? "Enabled" : "Disabled"}</span>
+                <span className="company-module-status" data-enabled={moduleContext.enabledModules.has(key)}>{moduleContext.enabledModules.has(key) ? key === "AI" ? "Module access enabled" : "Enabled" : "Disabled"}</span>
+                {key === "AI" ? <small>Module access only controls access to the module. AI usage allowance and provider availability are configured separately.</small> : null}
                 {MODULE_REGISTRY[key].dependencies.length ? <small>Requires {MODULE_REGISTRY[key].dependencies.join(", ")}</small> : null}
               </div>
             ))}

@@ -45,7 +45,7 @@ test("enabled and disabled status are compact non-interactive text, not headings
 test("dependency rows keep the real rules and omit placeholders", () => {
   const dom = renderModules([]);
   try {
-    const rows = [...dom.window.document.querySelectorAll('#modules small')].map((n: any) => n.textContent);
+    const rows = [...dom.window.document.querySelectorAll('#modules small')].map((n: any) => n.textContent).filter((text) => text?.startsWith("Requires "));
     assert.deepEqual(rows, ["Requires POS", "Requires POS", "Requires HR", "Requires PAYROLL", "Requires HR", "Requires CORE", "Requires CORE"]);
     assert.equal(dom.window.document.querySelectorAll('#modules small:empty').length, 0);
     assert.doesNotMatch(dom.window.document.body.textContent, /No dependency/);
@@ -61,4 +61,18 @@ test("all enabled modules render once without introducing settings controls or a
     assert.equal(section.querySelectorAll('button, input, select, form, a, [tabindex]').length, 0);
     assert.match(section.textContent, /Only Platform Admins can change module access\./);
   } finally { dom.window.close(); }
+});
+
+test("AI module access copy distinguishes enabled access from usage and provider availability", () => {
+  for (const enabled of [[], ["AI"]] as ModuleKey[][]) {
+    const dom = renderModules(enabled);
+    try {
+      const card = [...dom.window.document.querySelectorAll('.company-module-card')].find((node: Element) => node.querySelector('strong')?.textContent === "AI Business Analysis")!;
+      assert.equal(card.querySelector('.company-module-status')!.textContent, enabled.length ? "Module access enabled" : "Disabled");
+      assert.equal((card as HTMLElement).style.gridTemplateRows, "40px auto");
+      assert.match(card.textContent!, /Module access only controls access to the module\./);
+      assert.match(card.textContent!, /AI usage allowance and provider availability are configured separately\./);
+      assert.doesNotMatch(card.textContent!, /AI ready|Ready to use|Usage not configured/);
+    } finally { dom.window.close(); }
+  }
 });
