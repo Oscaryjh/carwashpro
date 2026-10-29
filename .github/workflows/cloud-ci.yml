@@ -3,7 +3,7 @@ name: Cloud CI
 on:
   pull_request:
   push:
-    branches: [testing, codex/cloud-baseline-phase2b-20261029]
+    branches: [testing, codex/cloud-baseline-phase2b-20261029, codex/cloud-release-gates-phase4b-20261029]
   workflow_dispatch:
   merge_group:
 
