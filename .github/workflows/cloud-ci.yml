@@ -1,0 +1,56 @@
+name: Cloud CI
+
+on:
+  pull_request:
+  push:
+    branches: [testing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Linux validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: tetamu_ci_disposable
+          # Isolated ephemeral runner only; never use trust for shared databases.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tetamu_ci_disposable"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/tetamu_ci_disposable?schema=public
+      TETAMU_CI_DISPOSABLE_DATABASE: 'true'
+      APP_ENVIRONMENT: development
+      AI_GLOBAL_ENABLED: 'false'
+      WHATSAPP_SEND_MODE: mock
+      OTP_PROVIDER: mock
+      OTP_CHANNEL: local
+      TESTING_EMAIL_MODE: disabled
+      PAYMENT_EXPORT_ENABLED: 'false'
+      STATUTORY_OFFICIAL_SUBMISSION_ENABLED: 'false'
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install pinned npm and dependencies; generate Prisma client
+        run: bash scripts/ci/cloud-setup.sh
+      - name: Offline targeted tests, TypeScript, lint and production build
+        run: sudo env "PATH=$PATH" unshare --net -- bash scripts/ci/offline-checks.sh
+      - name: Validate migrations in empty disposable PostgreSQL only
+        run: node scripts/ci/migration-disposable.mjs
