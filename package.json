@@ -13,8 +13,11 @@
     "safari 16.4"
   ],
   "overrides": {
-    "brace-expansion@^1.0.0": "1.1.18",
-    "js-yaml": "4.3.2"
+    "brace-expansion@^1.0.0": "1.1.21",
+    "js-yaml": "4.3.2",
+    "brace-expansion@^5.0.0": "5.0.12",
+    "source-map-js@^1.0.0": "1.2.2",
+    "postcss-selector-parser@^6.0.0": "6.1.5"
   },
   "scripts": {
     "db:start": "node scripts/start-embedded-postgres.mjs",
@@ -66,17 +69,17 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1101.0",
-    "@next/env": "16.3.0",
+    "@next/env": "16.4.1",
     "@prisma/client": "^6.10.1",
     "bcryptjs": "^3.0.2",
     "jose": "^5.9.6",
-    "next": "16.3.6",
+    "next": "16.4.1",
     "openai": "^6.0.0",
     "otpauth": "9.5.1",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "zod": "^3.25.67"
   },
   "devDependencies": {
@@ -90,7 +93,7 @@
     "embedded-postgres": "^18.4.0-beta.17",
     "esbuild": "^0.28.1",
     "eslint": "^9.29.0",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.4.1",
     "jsdom": "26.1.0",
     "postcss": "^8.5.23",
     "prisma": "^6.10.1",
