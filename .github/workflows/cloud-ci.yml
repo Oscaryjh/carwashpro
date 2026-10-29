@@ -5,6 +5,7 @@ on:
   push:
     branches: [testing, codex/cloud-baseline-phase2b-20261029]
   workflow_dispatch:
+  merge_group:
 
 permissions:
   contents: read
@@ -41,10 +42,10 @@ jobs:
       STATUTORY_OFFICIAL_SUBMISSION_ENABLED: 'false'
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
           cache: npm
@@ -54,3 +55,61 @@ jobs:
         run: sudo env "PATH=$PATH" unshare --net -- bash scripts/ci/offline-checks.sh
       - name: Validate migrations in empty disposable PostgreSQL only
         run: node scripts/ci/migration-disposable.mjs
+
+  release-policy:
+    name: Release policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - name: Validate immutable candidate (no deployment)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.sha }}
+          LATEST_REF: ${{ github.ref }}
+          RELEASE_GATE_APPROVAL_PUBLIC_KEY: ${{ vars.RELEASE_GATE_APPROVAL_PUBLIC_KEY }}
+          RELEASE_GATE_APPROVAL: ${{ vars.RELEASE_GATE_APPROVAL }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            BASE_SHA=$(git rev-parse --verify "$EXPECTED_SHA^1")
+          fi
+          # 用基准中的策略验证候选，禁止 PR 用新策略给自己放行。
+          # 初次安装时基准没有策略文件，必须拒绝并先完成管理员自举审查。
+          trusted_dir=$(mktemp -d "$RUNNER_TEMP/release-policy.XXXXXX")
+          git archive "$BASE_SHA" scripts/ci/release-policy.mjs scripts/ci/release-gate.mjs | tar -x -C "$trusted_dir"
+          node "$trusted_dir/scripts/ci/release-gate.mjs" --base "$BASE_SHA" --expected "$EXPECTED_SHA" --latest-ref "$LATEST_REF"
+
+  release-gate:
+    name: Release Gate
+    if: ${{ always() }}
+    needs: [validate, release-policy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require both jobs to succeed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          LINUX_RESULT: ${{ needs.validate.result }}
+          POLICY_RESULT: ${{ needs.release-policy.result }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            BASE_SHA=$(git rev-parse --verify "$EXPECTED_SHA^1")
+          fi
+          trusted_dir=$(mktemp -d "$RUNNER_TEMP/release-result.XXXXXX")
+          git archive "$BASE_SHA" scripts/ci/release-policy.mjs scripts/ci/require-release-results.mjs | tar -x -C "$trusted_dir"
+          node "$trusted_dir/scripts/ci/require-release-results.mjs"
